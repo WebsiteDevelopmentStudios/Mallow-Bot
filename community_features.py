@@ -275,5 +275,40 @@ def setup(bot):
         if not raw: return
         parts=raw.split(maxsplit=1)
         await prefix(bot,message,parts[0].lower(),parts[1] if len(parts)>1 else "")
+    @bot.tree.command(name="dm", description="Send a direct message to a server member.")
+    @app_commands.checks.has_permissions(manage_messages=True)
+    @app_commands.describe(member="Member to message", message="Message to send")
+    async def dm_slash(interaction: discord.Interaction, member: discord.Member, message: str):
+        if len(message) > 1900:
+            await interaction.response.send_message("Messages must be 1,900 characters or fewer.", ephemeral=True)
+            return
+        try:
+            await member.send(message, allowed_mentions=discord.AllowedMentions.none())
+        except (discord.Forbidden, discord.HTTPException):
+            await interaction.response.send_message("I couldn't DM that member. They may have DMs disabled.", ephemeral=True)
+            return
+        await interaction.response.send_message(f"Sent a DM to {member.mention}. Replies will be forwarded to the configured DM log channel.", ephemeral=True)
+
+    @bot.tree.command(name="youtube", description="Look up a YouTube video link.")
+    @app_commands.describe(url="YouTube video URL")
+    async def youtube_slash(interaction: discord.Interaction, url: str):
+        match = YT_RE.search(url)
+        if not match:
+            await interaction.response.send_message("Please provide a supported YouTube video URL.", ephemeral=True)
+            return
+        video_url = "https://www.youtube.com/watch?v=" + match.group(1)
+        try:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=8)) as session:
+                async with session.get("https://www.youtube.com/oembed", params={"url": video_url, "format": "json"}) as response:
+                    if response.status != 200:
+                        await interaction.response.send_message("YouTube didn't return video information for that link.", ephemeral=True)
+                        return
+                    info = await response.json()
+            embed = discord.Embed(title=str(info.get("title", "YouTube video"))[:256], url=video_url, color=discord.Color.red())
+            embed.add_field(name="Channel", value=str(info.get("author_name", "Unknown"))[:256])
+            await interaction.response.send_message(embed=embed)
+        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError, discord.HTTPException):
+            await interaction.response.send_message("I couldn't look up that video right now.", ephemeral=True)
+
     bot.add_listener(message_listener, "on_message")
     bot.add_listener(prefix_listener, "on_message")
