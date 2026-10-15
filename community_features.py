@@ -13,8 +13,8 @@ from discord import app_commands
 
 OWNER_USER_ID = 1021068313071210498
 DATA_FILE = Path(__file__).resolve().parent / "community_data.json"
-INVITE_RE = re.compile(r"(?:https?://)?(?:www\\.)?(?:discord\\.gg|discord(?:app)?\\.com/invite)/[A-Za-z0-9-]+", re.I)
-YT_RE = re.compile(r"https?://(?:www\\.)?(?:youtube\\.com/watch\\?[^\\s]*v=|youtu\\.be/|youtube\\.com/shorts/)([A-Za-z0-9_-]{11})", re.I)
+INVITE_RE = re.compile(r"(?:https?://)?(?:www\.)?(?:discord\.gg|discord(?:app)?\.com/invite)/[A-Za-z0-9-]+", re.I)
+YT_RE = re.compile(r"https?://(?:www\.)?(?:youtube\.com/watch\?[^\s]*v=|youtu\.be/|youtube\.com/shorts/)([A-Za-z0-9_-]{11})", re.I)
 
 def load():
     try:
@@ -107,7 +107,7 @@ async def process_message(bot, message):
         except (aiohttp.ClientError, asyncio.TimeoutError, ValueError, discord.HTTPException):
             pass
 
-    if re.match(r"^\\s*movie\\s+bot\\b", content, re.I):
+    if re.match(r"^\s*movie\s+bot\b", content, re.I):
         reply = None
         api_key = os.getenv("OPENAI_API_KEY", "").strip()
         if api_key:
@@ -132,7 +132,7 @@ async def prefix(bot, message, command, argument):
             await message.reply("Only the bot developer can configure DM logs.", mention_author=False)
             return True
         channel = message.channel
-        match = re.fullmatch(r"<#(\\d+)>|(\\d+)", argument.strip()) if argument else None
+        match = re.fullmatch(r"<#(\d+)>|(\d+)", argument.strip()) if argument else None
         if match:
             channel = message.guild.get_channel(int(match.group(1) or match.group(2)))
         if not isinstance(channel, discord.TextChannel):
@@ -169,7 +169,7 @@ async def prefix(bot, message, command, argument):
         for i, (user_id, xp) in enumerate(entries[:10], 1):
             member = message.guild.get_member(user_id)
             lines.append(f"**{i}.** {member.display_name if member else 'User '+str(user_id)} — {xp} XP (Level {level(xp)})")
-        await message.reply("\\n".join(lines) if lines else "No XP has been earned yet.", mention_author=False)
+        await message.reply("\n".join(lines) if lines else "No XP has been earned yet.", mention_author=False)
         return True
     if command == "balance":
         await message.reply(f"You have {int(data['currency'].get(key(gid,uid),100))} Movie Coins.", mention_author=False)
@@ -233,7 +233,7 @@ def setup(bot):
         for i,(uid,xp) in enumerate(entries[:10],1):
             member=interaction.guild.get_member(uid)
             lines.append(f"**{i}.** {member.display_name if member else 'User '+str(uid)} — {xp} XP (Level {level(xp)})")
-        await interaction.response.send_message("\\n".join(lines) if lines else "No XP has been earned yet.")
+        await interaction.response.send_message("\n".join(lines) if lines else "No XP has been earned yet.")
 
     @bot.tree.command(name="balance", description="Show your virtual Movie Coins.")
     async def balance_slash(interaction: discord.Interaction):
