@@ -205,3 +205,17 @@ The bot also provides these utility commands:
 The music utility commands also work with the `-mb` prefix, for example `-mb uptime`, `-mb update`, `-mb commands`, and `-mb say Hello`. The `say` text command also requires `Manage Messages`.
 
 For prefix commands, enable **Message Content Intent** in the Discord Developer Portal under **Bot → Privileged Gateway Intents**.
+
+
+## Community features
+
+- XP is awarded for eligible chat messages (with a 60-second per-user cooldown); use `/xp` or `-mb xp`.
+- `/leaderboard` or `-mb leaderboard` shows the top 10 XP earners in the server.
+- Discord invite links are deleted and the sender is timed out for 10 minutes by default. The bot needs **Manage Messages** and **Moderate Members**. Server managers can change the timeout with `-mb timeout-minutes 30` (1–10,080 minutes). Members with Manage Messages are exempt.
+- Virtual-currency games: `/balance`, `/daily`, `/gamble`; prefix alternatives include `-mb balance`, `-mb daily`, `-mb coinflip 10`, and `-mb slots 10`. These use fictional Movie Coins only.
+- YouTube links are detected automatically and enriched with the video title and channel when YouTube's oEmbed endpoint is available.
+- Say “Movie Bot …” in a server to get a grumpy response without a command. For generated AI responses, set `OPENAI_API_KEY` in the host environment; optionally set `MOVIE_BOT_AI_MODEL` (default `gpt-4o-mini`) and `OPENAI_BASE_URL`. Without an API key, the bot uses built-in angry one-liners.
+- People can DM the bot; inbound messages are forwarded to the configured log channel. Configure it with `/set-log #channel` or `-mb set-log #channel`. This command is hard-restricted to Discord user ID `1021068313071210498`, including in servers owned by other people. DM log contents may include sensitive messages, so only configure a private channel with trusted access.
+- Runtime XP and currency data is stored in `community_data.json`. On ephemeral hosting, configure a persistent disk if you need data to survive restarts/redeploys.
+
+The bot's Discord Developer Portal **Message Content Intent** must be enabled for XP, link detection, prefix commands, and the “Movie Bot …” response. Ensure the bot role has the moderation permissions described above.
