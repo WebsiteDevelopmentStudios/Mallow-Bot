@@ -260,6 +260,46 @@ async def prefix(bot, message, command, argument):
             lines.append(f"**{i}.** {member.display_name if member else 'User '+str(user_id)} — {xp} XP (Level {level(xp)})")
         await message.reply("\n".join(lines) if lines else "No XP has been earned yet.", mention_author=False)
         return True
+    if command in ("youtube",):
+        match = YT_RE.search(argument)
+        if not match:
+            await message.reply("Usage: -mb youtube <YouTube URL>", mention_author=False)
+            return True
+        video_url = "https://www.youtube.com/watch?v=" + match.group(1)
+        try:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=8)) as session:
+                async with session.get("https://www.youtube.com/oembed", params={"url": video_url, "format": "json"}) as response:
+                    if response.status != 200:
+                        await message.reply("YouTube didn't return video information for that link.", mention_author=False)
+                        return True
+                    info = await response.json()
+            embed = discord.Embed(title=str(info.get("title", "YouTube video"))[:256], url=video_url, color=discord.Color.red())
+            embed.add_field(name="Channel", value=str(info.get("author_name", "Unknown"))[:256])
+            await message.reply(embed=embed, mention_author=False)
+        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError, discord.HTTPException):
+            await message.reply("I couldn't look up that video right now.", mention_author=False)
+        return True
+    if command == "gamble":
+        k = key(gid, uid)
+        balance = int(data["currency"].get(k, 100))
+        try:
+            bet = int(argument.split()[0]) if argument else 10
+        except ValueError:
+            bet = 0
+        if bet < 1 or bet > balance:
+            await message.reply(f"Bet must be between 1 and your balance ({balance}).", mention_author=False)
+            return True
+        won = random.choice([True, False])
+        if won:
+            balance += bet
+            result = f"You won {bet} Movie Coins."
+        else:
+            balance -= bet
+            result = f"You lost {bet} Movie Coins."
+        data["currency"][k] = balance
+        save()
+        await message.reply(f"{result} Balance: {balance} Movie Coins.", mention_author=False)
+        return True
     if command == "balance":
         await message.reply(f"You have {int(data['currency'].get(key(gid,uid),100))} Movie Coins.", mention_author=False)
         return True
