@@ -300,6 +300,97 @@ async def prefix(bot, message, command, argument):
         save()
         await message.reply(f"{result} Balance: {balance} Movie Coins.", mention_author=False)
         return True
+    if command in ("coinflip", "slots", "roulette", "dice", "blackjack"):
+        k = key(gid, uid)
+        balance = int(data["currency"].get(k, 100))
+        try:
+            bet = int(argument.split()[0]) if argument else 10
+        except ValueError:
+            bet = 0
+        if bet < 1 or bet > balance:
+            await message.reply(f"Bet must be between 1 and your balance ({balance}).", mention_author=False)
+            return True
+        if command == "coinflip":
+            won = random.choice([True, False])
+            payout = bet if won else 0
+            detail = "Heads!" if won else "Tails!"
+        elif command == "slots":
+            symbols = [random.choice(["🍒", "🍋", "🍇", "🔔", "7️⃣"]) for _ in range(3)]
+            won = len(set(symbols)) == 1 or len(set(symbols)) == 2
+            payout = bet * (5 if len(set(symbols)) == 1 else 2) if won else 0
+            detail = " ".join(symbols)
+        elif command == "roulette":
+            roll = random.randint(0, 36)
+            won = roll % 2 == 0
+            payout = bet if won else 0
+            detail = f"Roulette landed on {roll} ({'even' if roll % 2 == 0 else 'odd'})."
+        elif command == "dice":
+            roll = random.randint(1, 6)
+            won = roll >= 4
+            payout = bet if won else 0
+            detail = f"You rolled {roll}."
+        else:
+            player = random.randint(12, 21)
+            dealer = random.randint(15, 21)
+            won = player > dealer
+            payout = bet if won else (bet * 2 if player == 21 else 0)
+            detail = f"You: {player} · Dealer: {dealer}."
+        balance = balance - bet + payout
+        data["currency"][k] = balance
+        save()
+        outcome = f"Won {payout} Movie Coins." if payout else f"Lost {bet} Movie Coins."
+        await message.reply(f"{detail} {outcome} Balance: {balance} Movie Coins.", mention_author=False)
+        return True
+    if command == "work":
+        k = key(gid, uid)
+        earned = random.randint(20, 80)
+        data["currency"][k] = int(data["currency"].get(k, 100)) + earned
+        save()
+        await message.reply(f"You worked a shift and earned {earned} Movie Coins.", mention_author=False)
+        return True
+    if command == "rob":
+        target = message.mentions[0] if message.mentions else None
+        if target is None or target.bot or target.id == uid:
+            await message.reply("Usage: -mb rob @member", mention_author=False)
+            return True
+        target_key = key(gid, target.id)
+        target_balance = int(data["currency"].get(target_key, 100))
+        if target_balance < 1:
+            await message.reply("That member has no Movie Coins to steal.", mention_author=False)
+            return True
+        if random.random() < 0.35:
+            stolen = min(target_balance, random.randint(1, max(1, target_balance // 4)))
+            data["currency"][target_key] = target_balance - stolen
+            data["currency"][key(gid, uid)] = int(data["currency"].get(key(gid, uid), 100)) + stolen
+            result = f"You stole {stolen} Movie Coins from {target.display_name}."
+        else:
+            fine = min(int(data["currency"].get(key(gid, uid), 100)), 25)
+            data["currency"][key(gid, uid)] = int(data["currency"].get(key(gid, uid), 100)) - fine
+            result = f"You got caught and paid a {fine}-coin fine."
+        save()
+        await message.reply(result, mention_author=False)
+        return True
+    if command == "pay":
+        target = message.mentions[0] if message.mentions else None
+        parts = argument.split()
+        try:
+            amount = int(parts[-1])
+        except (ValueError, IndexError):
+            amount = 0
+        k = key(gid, uid)
+        if target is None or target.bot or target.id == uid or amount < 1:
+            await message.reply("Usage: -mb pay @member <amount>", mention_author=False)
+            return True
+        balance = int(data["currency"].get(k, 100))
+        if amount > balance:
+            await message.reply(f"You only have {balance} Movie Coins.", mention_author=False)
+            return True
+        tk = key(gid, target.id)
+        data["currency"][k] = balance - amount
+        data["currency"][tk] = int(data["currency"].get(tk, 100)) + amount
+        save()
+        await message.reply(f"Paid {amount} Movie Coins to {target.display_name}.", mention_author=False)
+        return True
     if command == "balance":
         await message.reply(f"You have {int(data['currency'].get(key(gid,uid),100))} Movie Coins.", mention_author=False)
         return True
@@ -332,6 +423,31 @@ async def prefix(bot, message, command, argument):
         return True
     return False
 
+async def play_game(interaction: discord.Interaction, game: str, bet: int):
+    if interaction.guild_id is None:
+        await interaction.response.send_message("Use this in a server.", ephemeral=True); return
+    k=key(interaction.guild_id,interaction.user.id)
+    balance=int(data["currency"].get(k,100))
+    if bet>balance:
+        await interaction.response.send_message(f"You only have {balance} Movie Coins.",ephemeral=True); return
+    if game == "coinflip":
+        won=random.choice([True,False]); payout=bet if won else 0; detail="You won the coin flip!" if won else "You lost the coin flip."
+    elif game == "slots":
+        symbols=[random.choice(["🍒","🍋","🍇","🔔","7️⃣"]) for _ in range(3)]
+        mult=5 if len(set(symbols))==1 else (2 if len(set(symbols))==2 else 0)
+        payout=bet*mult; detail=" ".join(symbols); won=payout>0
+    elif game == "roulette":
+        roll=random.randint(0,36); won=roll%2==0; payout=bet if won else 0; detail=f"Roulette: {roll} ({'even' if roll%2==0 else 'odd'})."
+    elif game == "dice":
+        roll=random.randint(1,6); won=roll>=4; payout=bet if won else 0; detail=f"You rolled {roll}."
+    else:
+        player=random.randint(12,21); dealer=random.randint(15,21); won=player>dealer; payout=bet if won else (bet*2 if player==21 else 0); detail=f"Your hand: {player} · Dealer: {dealer}."
+    balance=balance-bet+payout
+    data["currency"][k]=balance; save()
+    outcome=f"Won {payout} Movie Coins." if payout else f"Lost {bet} Movie Coins."
+    await interaction.response.send_message(f"{detail} {outcome} Balance: {balance} Movie Coins.",ephemeral=True)
+
+
 def setup(bot):
     @bot.tree.command(name="set-log", description="Set the bot DM log channel (developer only).")
     @app_commands.describe(channel="Channel that receives incoming bot DMs")
@@ -363,6 +479,76 @@ def setup(bot):
             member=interaction.guild.get_member(uid)
             lines.append(f"**{i}.** {member.display_name if member else 'User '+str(uid)} — {xp} XP (Level {level(xp)})")
         await interaction.response.send_message("\n".join(lines) if lines else "No XP has been earned yet.")
+
+    @bot.tree.command(name="coinflip", description="Bet virtual Movie Coins on a coin flip.")
+    @app_commands.describe(bet="Amount of virtual coins to wager")
+    async def coinflip_slash(interaction: discord.Interaction, bet: app_commands.Range[int,1,1000000]):
+        await play_game(interaction, "coinflip", bet)
+
+    @bot.tree.command(name="slots", description="Play the virtual slot machine.")
+    @app_commands.describe(bet="Amount of virtual coins to wager")
+    async def slots_slash(interaction: discord.Interaction, bet: app_commands.Range[int,1,1000000]):
+        await play_game(interaction, "slots", bet)
+
+    @bot.tree.command(name="roulette", description="Bet virtual coins on even or odd roulette.")
+    @app_commands.describe(bet="Amount of virtual coins to wager")
+    async def roulette_slash(interaction: discord.Interaction, bet: app_commands.Range[int,1,1000000]):
+        await play_game(interaction, "roulette", bet)
+
+    @bot.tree.command(name="dice", description="Roll dice and bet virtual coins.")
+    @app_commands.describe(bet="Amount of virtual coins to wager")
+    async def dice_slash(interaction: discord.Interaction, bet: app_commands.Range[int,1,1000000]):
+        await play_game(interaction, "dice", bet)
+
+    @bot.tree.command(name="blackjack", description="Play a quick virtual blackjack round.")
+    @app_commands.describe(bet="Amount of virtual coins to wager")
+    async def blackjack_slash(interaction: discord.Interaction, bet: app_commands.Range[int,1,1000000]):
+        await play_game(interaction, "blackjack", bet)
+
+    @bot.tree.command(name="work", description="Work to earn virtual Movie Coins.")
+    async def work_slash(interaction: discord.Interaction):
+        if interaction.guild_id is None:
+            await interaction.response.send_message("Use this in a server.", ephemeral=True); return
+        k=key(interaction.guild_id, interaction.user.id)
+        earned=random.randint(20,80)
+        data["currency"][k]=int(data["currency"].get(k,100))+earned
+        save()
+        await interaction.response.send_message(f"You earned {earned} Movie Coins. Balance: {data['currency'][k]}.",ephemeral=True)
+
+    @bot.tree.command(name="pay", description="Give virtual Movie Coins to a member.")
+    @app_commands.describe(member="Member to pay", amount="Amount of virtual coins")
+    async def pay_slash(interaction: discord.Interaction, member: discord.Member, amount: app_commands.Range[int,1,1000000]):
+        if interaction.guild_id is None or member.bot or member.id == interaction.user.id:
+            await interaction.response.send_message("Choose another server member.", ephemeral=True); return
+        k=key(interaction.guild_id,interaction.user.id); tk=key(interaction.guild_id,member.id)
+        balance=int(data["currency"].get(k,100))
+        if amount>balance:
+            await interaction.response.send_message(f"You only have {balance} Movie Coins.",ephemeral=True); return
+        data["currency"][k]=balance-amount
+        data["currency"][tk]=int(data["currency"].get(tk,100))+amount
+        save()
+        await interaction.response.send_message(f"Paid {amount} Movie Coins to {member.display_name}.",ephemeral=True)
+
+    @bot.tree.command(name="rob", description="Try to steal virtual Movie Coins from a member.")
+    @app_commands.describe(member="Member to rob")
+    async def rob_slash(interaction: discord.Interaction, member: discord.Member):
+        if interaction.guild_id is None or member.bot or member.id == interaction.user.id:
+            await interaction.response.send_message("Choose another server member.", ephemeral=True); return
+        tk=key(interaction.guild_id,member.id); k=key(interaction.guild_id,interaction.user.id)
+        target_balance=int(data["currency"].get(tk,100))
+        if target_balance<1:
+            await interaction.response.send_message("That member has no Movie Coins.",ephemeral=True); return
+        if random.random()<0.35:
+            stolen=min(target_balance,random.randint(1,max(1,target_balance//4)))
+            data["currency"][tk]=target_balance-stolen
+            data["currency"][k]=int(data["currency"].get(k,100))+stolen
+            result=f"You stole {stolen} Movie Coins from {member.display_name}."
+        else:
+            fine=min(int(data["currency"].get(k,100)),25)
+            data["currency"][k]=int(data["currency"].get(k,100))-fine
+            result=f"You got caught and paid a {fine}-coin fine."
+        save()
+        await interaction.response.send_message(result,ephemeral=True)
 
     @bot.tree.command(name="balance", description="Show your virtual Movie Coins.")
     async def balance_slash(interaction: discord.Interaction):
