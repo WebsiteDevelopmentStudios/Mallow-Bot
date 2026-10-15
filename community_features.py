@@ -124,7 +124,7 @@ async def process_message(bot, message):
                 async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=20)) as session:
                     endpoint = (
                         "https://generativelanguage.googleapis.com/v1beta/models/"
-                        + os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+                        + os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
                         + ":generateContent"
                     )
                     async with session.post(
