@@ -38,3 +38,8 @@
 
 ━━━━━━━━━━━━━━━━━━━━
 𝗧𝗵𝗮𝗻𝗸 𝘆𝗼𝘂 𝗳𝗼𝗿 𝘂𝘀𝗶𝗻𝗴 𝗠𝗼𝘃𝗶𝗲 𝗕𝗼𝘁.
+
+𝗙𝗜𝗫𝗘𝗦
+• Updated `-mb help` / `-mb commands` to include XP, gambling, music, utility, and movie commands.
+• Fixed slash-command sync to remove duplicate server-specific registrations before syncing the global command set.
+• XP leaderboards now use a formatted embed and mention the ranked members. Role-wide pings are disabled to prevent accidental server-wide notifications.
