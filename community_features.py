@@ -126,12 +126,12 @@ async def process_message(bot, message):
                         "https://api.groq.com/openai/v1/chat/completions",
                         headers={"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"},
                         json={
-                            "model": os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),
+                            "model": os.getenv("GROQ_MODEL", "openai/gpt-oss-120b"),
                             "messages": [
                                 {"role": "system", "content": system_prompt},
                                 {"role": "user", "content": content},
                             ],
-                            "max_tokens": 180,
+                            "max_tokens": 1024,
                             "temperature": 0.85,
                         },
                     ) as response:
@@ -144,7 +144,7 @@ async def process_message(bot, message):
                                 print("[MovieBot AI] Groq returned no text.", flush=True)
                         else:
                             detail = (await response.text())[:1200]
-                            print("[MovieBot AI] Groq HTTP " + str(response.status) + " for model " + os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile") + ": " + detail, flush=True)
+                            print("[MovieBot AI] Groq HTTP " + str(response.status) + " for model " + os.getenv("GROQ_MODEL", "openai/gpt-oss-120b") + ": " + detail, flush=True)
             except (aiohttp.ClientError, asyncio.TimeoutError, KeyError, IndexError, TypeError, ValueError) as exc:
                 print("[MovieBot AI] Groq request failed: " + type(exc).__name__ + ": " + str(exc), flush=True)
 
