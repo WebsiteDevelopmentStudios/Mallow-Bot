@@ -2,16 +2,26 @@
 ━━━━━━━━━━━━━━━━━━━━
 𝗟𝗔𝗧𝗘𝗦𝗧 𝗨𝗣𝗗𝗔𝗧𝗘𝗦
 
-𝗠𝗨𝗦𝗜𝗖 𝗣𝗟𝗔𝗬𝗘𝗥
-• The music player is marked as being in beta when using `/play` or `-mb play`.
-• Added playback-stall and stuck-track diagnostics to help identify playback problems.
-• Prefix music commands share the same player and queue as slash commands.
+𝗫𝗣 & 𝗟𝗘𝗩𝗘𝗟𝗦
+• Added `/xp` and `-mb xp` to show your XP, level, and XP needed for the next level.
+• Added `-mb level` as an alternative level lookup.
+• Added `/leaderboard` and `-mb leaderboard` for the server top 10 XP earners.
+• Eligible chat messages award 10–20 XP, with a 60-second per-user cooldown. Messages beginning with `-mb` do not award XP.
+
+𝗠𝗢𝗩𝗜𝗘 𝗖𝗢𝗜𝗡𝗦 & 𝗚𝗔𝗠𝗕𝗟𝗜𝗡𝗚
+• Added `/balance` and `-mb balance` to check your Movie Coins.
+• Added `/daily` and `-mb daily` to claim 100 Movie Coins.
+• Added `/gamble`, `/coinflip`, `/slots`, `/roulette`, `/dice`, and `/blackjack`, with matching `-mb` commands.
+• Added `/work` and `-mb work` to earn Movie Coins.
+• Added `/pay` and `-mb pay` to transfer coins to another member.
+• Added `/rob` and `-mb rob` to attempt to steal coins from another member.
+• Movie Coins are fictional server currency and have no real-world value.
 
 𝗧𝗘𝗫𝗧 𝗖𝗢𝗠𝗠𝗔𝗡𝗗𝗦
-• Sending `-mb` by itself directs users to `-mb commands`.
-• Added `-mb sync` for administrators to synchronize slash commands.
-• Added `-mb uptime`, `-mb update`, `-mb commands`, and `-mb say`.
-• `-mb say` requires Manage Messages permission.
+• Use `-mb help` or `-mb commands` to see the command list.
+• The help list includes XP, gambling, utility, music, and movie commands.
+• Added `-mb uptime`, `-mb update`, `-mb commands`, and `-mb sync`.
+• `/say` has no `-mb say` equivalent; its invocation is private and the bot message is public.
 
 𝗠𝗢𝗩𝗜𝗘 𝗖𝗢𝗠𝗠𝗔𝗡𝗗𝗦
 • Added `-mb movie list` to list local movie files.
@@ -24,7 +34,7 @@
 • Removed the YouTube login command, OAuth callback, and cookie-import features.
 
 𝗨𝗣𝗗𝗔𝗧𝗘 𝗟𝗢𝗚
-• `/update` and `-mb update` now post this file in the current channel.
+• `/update` and `-mb update` post this file in the current channel.
 
 ━━━━━━━━━━━━━━━━━━━━
 𝗧𝗵𝗮𝗻𝗸 𝘆𝗼𝘂 𝗳𝗼𝗿 𝘂𝘀𝗶𝗻𝗴 𝗠𝗼𝘃𝗶𝗲 𝗕𝗼𝘁.
