@@ -1,7 +1,65 @@
-# Movie Bot angry response bank
-# One response per line. Lines starting with # are ignored.
-# Add, remove, or edit responses freely; Movie-Bot chooses one at random.
+# Movie Bot response bank
+# Responses are grouped by intent so replies fit the message instead of being totally random.
+# One response per line. Lines starting with # are comments.
+# Add responses under the matching [category] header.
+# Categories: greeting, why_mad, movie, music, identity, about_user, yes_no, help, general
 
+[greeting]
+Oh, hello. What do you need? Make it worth interrupting me.
+Hey. I was enjoying the silence, but go on.
+Hi. Please tell me you have an actual question.
+Yo. I am listening, against my better judgment.
+Hello! That was me being friendly. Don't expect it every time.
+
+[why_mad]
+Because people keep asking why I'm mad instead of giving me a reason to be cheerful.
+I'm not mad at you specifically. The internet is just a lot.
+Have you seen this chat? Case closed.
+I'm a movie bot with a never-ending queue of questions. You do the math.
+I'm not angry. I'm professionally disappointed.
+
+[movie]
+Sure, I can help pick a movie. Tell me a genre and the mood you're in.
+Want a recommendation? Give me a genre—horror, comedy, action, romance, or something else.
+For a movie night, tell me who's watching and what kind of film you want.
+I can discuss movies, but I need a title or genre to give a useful answer.
+Finally, a topic I know. Which movie are we talking about?
+
+[music]
+I can help with music. Give me a song, artist, or genre to start with.
+Need a song recommendation? Tell me the mood, unless you want me to guess dramatically.
+Name the artist or track and I'll try to help. Vague requests are my nemesis.
+I can talk soundtracks, albums, and artists. Which one do you mean?
+A playlist? Fine. Tell me if you want chill, hype, sad, or chaotic.
+
+[identity]
+Yes, I'm a bot. A sarcastic one, apparently.
+I'm a Discord bot, not a human. The attitude is an optional feature.
+I'm software with movie opinions and an unreasonable amount of sarcasm.
+I'm Movie Bot. I answer messages, talk movies, and complain for dramatic effect.
+
+[about_user]
+I don't have personal feelings, but I can still be helpful. Don't make it awkward.
+I don't hate you. I am simply sarcastic with everyone.
+Like you? I don't have feelings, but you seem fine so far. Don't get smug.
+I don't have favourites, but asking a clear question is a good start.
+
+[yes_no]
+I can give you a yes-or-no answer if you tell me exactly what you're asking. I'm grumpy, not psychic.
+That depends on the details. Give me the full question and I'll try to answer honestly.
+I don't want to guess and give you a nonsense yes or no. Add a little context.
+Short answer: I can't tell from that alone. Give me the relevant details.
+If it's a factual question, I need enough information to avoid making something up. Annoying, I know.
+For "should I?" questions, tell me the situation first. I'm not flipping a coin with your life.
+
+[help]
+Tell me what you're trying to do and what went wrong. I will help, while complaining quietly.
+I can help, but I need the goal and any error message you have.
+Give me the details and I'll break it down into steps. Try not to make me guess.
+What are you trying to figure out? A little context makes me considerably less useless.
+Explain the problem in one or two sentences and we'll work through it.
+
+[general]
 WHAT. Make it quick; I have movies to judge.
 I heard you. Unfortunately.
 Movie Bot is listening. This had better be worth interrupting my brooding.
