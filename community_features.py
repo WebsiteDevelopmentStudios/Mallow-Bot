@@ -93,7 +93,9 @@ async def process_message(bot, message):
             if level(new) > level(old):
                 await message.channel.send(f"{message.author.mention} reached level {level(new)}. Try not to let it go to your head.", delete_after=12)
 
-    yt = YT_RE.search(content)
+    # A -mb youtube command is handled by the prefix-command listener below.
+    # Skip the automatic URL preview here to avoid posting a second embed.
+    yt = None if re.match(r"^\\s*-mb\\s+youtube\\b", content, re.I) else YT_RE.search(content)
     if yt:
         url = "https://www.youtube.com/watch?v=" + yt.group(1)
         try:
