@@ -113,31 +113,51 @@ async def process_message(bot, message):
         if api_key:
             try:
                 async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=12)) as session:
-                    async with session.post(os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1/chat/completions"), headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}, json={"model": os.getenv("MOVIE_BOT_AI_MODEL", "gpt-4o-mini"), "messages":[{"role":"system","content":"You are Movie Bot, a sarcastic, perpetually irritated movie and music Discord bot. Be comically grumpy, never hateful, threatening, or discriminatory. Keep replies under 100 words."},{"role":"user","content":content}], "max_tokens":160}) as response:
+                    async with session.post(os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1/chat/completions"), headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}, json={"model": os.getenv("MOVIE_BOT_AI_MODEL", "gpt-4o-mini"), "messages":[{"role":"system","content":"You are Movie Bot, a sarcastic, perpetually irritated movie and music Discord bot. Answer the user's actual message directly and sensibly. For yes/no questions, lead with yes or no when you can reasonably tell; if you cannot know, say what information is missing. Never invent facts. Be comically grumpy, never hateful, threatening, or discriminatory. Keep replies under 100 words."},{"role":"user","content":content}], "max_tokens":160}) as response:
                         if response.status == 200:
                             result = await response.json()
                             reply = result["choices"][0]["message"]["content"].strip()
             except (aiohttp.ClientError, asyncio.TimeoutError, KeyError, IndexError, TypeError, ValueError):
                 pass
         if not reply:
-            # No API key is required: load the editable response bank from angry.txt.
-            # Ignore blank lines and comments so the file is easy to maintain.
+            # Rule-based replies use categories in angry.txt; no API key is needed.
             angry_file = Path(__file__).resolve().parent / "angry.txt"
+            response_bank = {}
+            current_category = "general"
             try:
-                responses = [
-                    line.strip()
-                    for line in angry_file.read_text(encoding="utf-8").splitlines()
-                    if line.strip() and not line.lstrip().startswith("#")
-                ]
+                for line in angry_file.read_text(encoding="utf-8").splitlines():
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    if line.startswith("[") and line.endswith("]"):
+                        current_category = line[1:-1].strip().lower()
+                        response_bank.setdefault(current_category, [])
+                    else:
+                        response_bank.setdefault(current_category, []).append(line)
             except OSError:
-                responses = []
-            if not responses:
-                responses = [
-                    "WHAT. Make it quick; I have movies to judge.",
-                    "I heard you. Unfortunately.",
-                    "Movie Bot is listening. This had better be worth interrupting my brooding.",
-                    "What do you want now? Try asking something useful.",
-                ]
+                response_bank = {}
+            clean = re.sub(r"^\s*movie\s+bot\b[:,!?. -]*", "", content, flags=re.I).strip().lower()
+            if re.search(r"\b(hello|hi|hey|yo|good morning|good evening)\b", clean):
+                category = "greeting"
+            elif re.search(r"\b(why are you mad|why are you angry|why so angry|are you mad|are you angry)\b", clean):
+                category = "why_mad"
+            elif re.search(r"\b(movie|film|recommend|watch|cinema|horror|comedy|action|romance)\b", clean):
+                category = "movie"
+            elif re.search(r"\b(music|song|songs|playlist|artist|album|listen|soundtrack)\b", clean):
+                category = "music"
+            elif re.search(r"\b(are you a bot|are you real|are you human|who are you|what are you)\b", clean):
+                category = "identity"
+            elif re.search(r"\b(do you like me|do you hate me|do you like|do you hate)\b", clean):
+                category = "about_user"
+            elif re.match(r"^(can|could|should|is|are|am|do|does|did|will|would|has|have|was|were)\b", clean) or clean.endswith("?"):
+                category = "yes_no"
+            elif re.search(r"\b(help|how do i|how can i|what is|what are|explain|tell me)\b", clean):
+                category = "help"
+            else:
+                category = "general"
+            responses = response_bank.get(category) or response_bank.get("general") or [
+                "I need a little more context before I can answer that properly. Yes, even I have standards."
+            ]
             reply = random.choice(responses)
         await message.reply(reply[:1900], mention_author=False, allowed_mentions=discord.AllowedMentions.none())
 
