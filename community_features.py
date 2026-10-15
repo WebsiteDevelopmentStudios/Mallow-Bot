@@ -120,7 +120,25 @@ async def process_message(bot, message):
             except (aiohttp.ClientError, asyncio.TimeoutError, KeyError, IndexError, TypeError, ValueError):
                 pass
         if not reply:
-            reply = random.choice(["WHAT. Make it quick; I have movies to judge.", "I heard you. Unfortunately.", "Movie Bot is listening. This had better be worth interrupting my brooding.", "What do you want now? Try asking something useful."])
+            # No API key is required: load the editable response bank from angry.txt.
+            # Ignore blank lines and comments so the file is easy to maintain.
+            angry_file = Path(__file__).resolve().parent / "angry.txt"
+            try:
+                responses = [
+                    line.strip()
+                    for line in angry_file.read_text(encoding="utf-8").splitlines()
+                    if line.strip() and not line.lstrip().startswith("#")
+                ]
+            except OSError:
+                responses = []
+            if not responses:
+                responses = [
+                    "WHAT. Make it quick; I have movies to judge.",
+                    "I heard you. Unfortunately.",
+                    "Movie Bot is listening. This had better be worth interrupting my brooding.",
+                    "What do you want now? Try asking something useful.",
+                ]
+            reply = random.choice(responses)
         await message.reply(reply[:1900], mention_author=False, allowed_mentions=discord.AllowedMentions.none())
 
 async def prefix(bot, message, command, argument):
