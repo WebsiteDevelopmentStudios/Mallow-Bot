@@ -2938,6 +2938,15 @@ async def on_message(message: discord.Message) -> None:
             await message.reply("Stopped playback and cleared the queue.", mention_author=False)
             return
 
+        # These commands are owned by community_features.prefix_listener.
+        # Do not emit a second "Unknown command" response from this listener.
+        if command_name in {
+            "xp", "level", "leaderboard", "balance", "daily", "gamble",
+            "coinflip", "slots", "roulette", "dice", "blackjack", "work",
+            "pay", "rob", "youtube", "set-log", "timeout-minutes",
+        }:
+            return
+
         await message.reply("Unknown command. Use `-mb help` to see available commands.", mention_author=False)
     except Exception as exc:
         logger.exception("Prefix command failed (%s): %s", command_name, exc)
