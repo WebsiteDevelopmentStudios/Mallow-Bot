@@ -109,56 +109,68 @@ async def process_message(bot, message):
 
     if re.match(r"^\s*movie\s+bot\b", content, re.I):
         reply = None
-        api_key = os.getenv("OPENAI_API_KEY", "").strip()
-        if api_key:
+        system_prompt = (
+            "You are Movie Bot, a sarcastic, perpetually irritated movie and music Discord bot. "
+            "Answer the user's actual message directly and sensibly. For yes/no questions, lead "
+            "with yes or no when you can reasonably tell; if you cannot know, say what information "
+            "is missing. Never invent facts. Be comically grumpy, never hateful, threatening, or "
+            "discriminatory. Keep replies under 100 words."
+        )
+
+        # Gemini's free API tier provides actual model-generated replies.
+        gemini_key = os.getenv("GEMINI_API_KEY", "").strip()
+        if gemini_key:
             try:
-                async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=12)) as session:
-                    async with session.post(os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1/chat/completions"), headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}, json={"model": os.getenv("MOVIE_BOT_AI_MODEL", "gpt-4o-mini"), "messages":[{"role":"system","content":"You are Movie Bot, a sarcastic, perpetually irritated movie and music Discord bot. Answer the user's actual message directly and sensibly. For yes/no questions, lead with yes or no when you can reasonably tell; if you cannot know, say what information is missing. Never invent facts. Be comically grumpy, never hateful, threatening, or discriminatory. Keep replies under 100 words."},{"role":"user","content":content}], "max_tokens":160}) as response:
+                async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=20)) as session:
+                    endpoint = (
+                        "https://generativelanguage.googleapis.com/v1beta/models/"
+                        + os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+                        + ":generateContent"
+                    )
+                    async with session.post(
+                        endpoint,
+                        params={"key": gemini_key},
+                        json={
+                            "system_instruction": {"parts": [{"text": system_prompt}]},
+                            "contents": [{"role": "user", "parts": [{"text": content}]}],
+                            "generationConfig": {"maxOutputTokens": 180, "temperature": 0.85},
+                        },
+                    ) as response:
                         if response.status == 200:
                             result = await response.json()
-                            reply = result["choices"][0]["message"]["content"].strip()
+                            reply = result["candidates"][0]["content"]["parts"][0]["text"].strip()
             except (aiohttp.ClientError, asyncio.TimeoutError, KeyError, IndexError, TypeError, ValueError):
                 pass
+
+        # Optional OpenAI-compatible provider fallback, if configured.
         if not reply:
-            # Rule-based replies use categories in angry.txt; no API key is needed.
-            angry_file = Path(__file__).resolve().parent / "angry.txt"
-            response_bank = {}
-            current_category = "general"
-            try:
-                for line in angry_file.read_text(encoding="utf-8").splitlines():
-                    line = line.strip()
-                    if not line or line.startswith("#"):
-                        continue
-                    if line.startswith("[") and line.endswith("]"):
-                        current_category = line[1:-1].strip().lower()
-                        response_bank.setdefault(current_category, [])
-                    else:
-                        response_bank.setdefault(current_category, []).append(line)
-            except OSError:
-                response_bank = {}
-            clean = re.sub(r"^\s*movie\s+bot\b[:,!?. -]*", "", content, flags=re.I).strip().lower()
-            if re.search(r"\b(hello|hi|hey|yo|good morning|good evening)\b", clean):
-                category = "greeting"
-            elif re.search(r"\b(why are you mad|why are you angry|why so angry|are you mad|are you angry)\b", clean):
-                category = "why_mad"
-            elif re.search(r"\b(movie|film|recommend|watch|cinema|horror|comedy|action|romance)\b", clean):
-                category = "movie"
-            elif re.search(r"\b(music|song|songs|playlist|artist|album|listen|soundtrack)\b", clean):
-                category = "music"
-            elif re.search(r"\b(are you a bot|are you real|are you human|who are you|what are you)\b", clean):
-                category = "identity"
-            elif re.search(r"\b(do you like me|do you hate me|do you like|do you hate)\b", clean):
-                category = "about_user"
-            elif re.match(r"^(can|could|should|is|are|am|do|does|did|will|would|has|have|was|were)\b", clean) or clean.endswith("?"):
-                category = "yes_no"
-            elif re.search(r"\b(help|how do i|how can i|what is|what are|explain|tell me)\b", clean):
-                category = "help"
+            api_key = os.getenv("OPENAI_API_KEY", "").strip()
+            if api_key:
+                try:
+                    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15)) as session:
+                        async with session.post(
+                            os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1/chat/completions"),
+                            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                            json={
+                                "model": os.getenv("MOVIE_BOT_AI_MODEL", "gpt-4o-mini"),
+                                "messages": [
+                                    {"role": "system", "content": system_prompt},
+                                    {"role": "user", "content": content},
+                                ],
+                                "max_tokens": 180,
+                            },
+                        ) as response:
+                            if response.status == 200:
+                                result = await response.json()
+                                reply = result["choices"][0]["message"]["content"].strip()
+                except (aiohttp.ClientError, asyncio.TimeoutError, KeyError, IndexError, TypeError, ValueError):
+                    pass
+
+        if not reply:
+            if not gemini_key and not os.getenv("OPENAI_API_KEY", "").strip():
+                reply = "I need an AI API key before I can think for myself. Set GEMINI_API_KEY in the bot's environment; Google's Gemini API has a free tier."
             else:
-                category = "general"
-            responses = response_bank.get(category) or response_bank.get("general") or [
-                "I need a little more context before I can answer that properly. Yes, even I have standards."
-            ]
-            reply = random.choice(responses)
+                reply = "My AI connection failed. Check the API key, model name, and provider limits, then try again."
         await message.reply(reply[:1900], mention_author=False, allowed_mentions=discord.AllowedMentions.none())
 
 async def prefix(bot, message, command, argument):
