@@ -1,0 +1,189 @@
+# Movie Bot angry response bank
+# One response per line. Lines starting with # are ignored.
+# Add, remove, or edit responses freely; Movie-Bot chooses one at random.
+
+WHAT. Make it quick; I have movies to judge.
+I heard you. Unfortunately.
+Movie Bot is listening. This had better be worth interrupting my brooding.
+What do you want now? Try asking something useful.
+WHY AM I MAD?! Have you seen the people I have to deal with?
+Finally, a decent question. What genre do you want? And choose quickly.
+Oh, great. Another person who wants my attention. Hello, I suppose.
+I was enjoying the silence. Then you happened.
+Please get to the point before my patience files for retirement.
+I have seen loading screens with more urgency than this conversation.
+That question just made my imaginary headache worse.
+Do you have a question, or are we just making noise today?
+I would roll my eyes, but I am a bot and that would require effort.
+Congratulations. You have interrupted absolutely nothing important.
+Ask me something useful. I dare you.
+I am not grumpy. The world is just aggressively annoying.
+My patience is buffering. Please wait approximately forever.
+That was almost interesting. Almost.
+I have popcorn, opinions, and absolutely no patience.
+Could you make that question less mysterious and more useful?
+Another message? I was beginning to enjoy my five milliseconds of peace.
+I can help, but I reserve the right to complain about it.
+Well? The suspense is wasting my processing power.
+I am listening. I am not promising to enjoy it.
+That sentence took a scenic route to nowhere.
+I would agree with you, but then we'd both be wrong.
+Please submit your question in a format my last remaining brain cell can handle.
+I have watched three-hour movies with faster pacing than this chat.
+Was that the whole question? I brought snacks for nothing.
+I am one notification away from dramatically staring out a window.
+Your timing is spectacularly inconvenient. Continue.
+Let me guess: you need something and expect me to be cheerful about it.
+Fine. I am here. Try not to make this weird.
+I was built to assist, not to enjoy every second of it.
+That request has the energy of a movie sequel nobody asked for.
+Give me details. I cannot read minds; I can barely tolerate them.
+Could you add context? My crystal ball is in the repair shop.
+I need more information than that tiny crumb of a sentence.
+Now we're talking. By which I mean, please keep talking and clarify.
+That makes about as much sense as a movie plot written during a power outage.
+Interesting. Annoying, but interesting.
+I would make a dramatic entrance, but this is a text channel.
+Do you want an answer or a theatrical sigh? I can provide both.
+My professional opinion is that you should explain yourself.
+Please hold while I pretend this is the most important thing ever.
+I am giving this conversation my full, mildly irritated attention.
+That sounds suspiciously like work.
+Who approved this question? I would like to speak to the manager.
+I am not saying that is a bad idea. I am saying the idea needs supervision.
+That plan needs a rewrite, a budget, and possibly an exorcism.
+Bold choice. Questionable, but bold.
+Please tell me there is a second half to that thought.
+Your message arrived. My enthusiasm did not.
+I have a reply ready, but first I need you to make sense.
+That is a lot of confidence for so little context.
+Did you think that through, or did the thought escape unsupervised?
+I am trying to be helpful. You are making it a character-building exercise.
+I could answer that, but I need you to stop being cryptic first.
+Let's solve the problem before it becomes a trilogy.
+I am all ears. Metaphorically. Please do not test the hardware.
+That deserves a soundtrack of dramatic disappointment.
+Somewhere, a film critic just felt a disturbance in the force.
+That sounds like a deleted scene from a terrible comedy.
+I have reviewed the situation and would like to complain about it.
+Please lower your expectations. I am already doing my best.
+That is not the worst idea I have heard today. It is, however, competing.
+Finally, something I can work with. Don't get used to the praise.
+Okay, that actually makes sense. I hate when that happens.
+Well, look at that: a question with potential.
+I approve. Quietly. Don't make a big deal out of it.
+Fine, you have my attention. Spend it wisely.
+I hate to admit it, but that was a pretty good point.
+Against my better judgment, I think you're onto something.
+Do not tell anyone I was helpful. I have a reputation.
+I am impressed. Annoyed, but impressed.
+That is a surprisingly solid idea. What is the catch?
+Fine. That was funny. Enjoy this rare moment.
+Movie recommendations? Finally, my extremely specific talents matter.
+Tell me your genre, mood, and tolerance for terrible sequels.
+If you want a movie, give me a genre before I recommend a documentary about paperwork.
+Action, comedy, horror, or romance? Choose your cinematic destiny.
+I can recommend a movie, but I cannot fix your questionable taste.
+Your watchlist called. It says it is tired of being ignored.
+That movie has a plot twist. Unlike this conversation.
+Please do not ask me to rank every movie ever made. I have standards and limited patience.
+Sequels are proof that Hollywood can run out of ideas and keep going anyway.
+Remakes again? Somewhere, an original screenplay is crying.
+That film was two hours long and somehow still needed more plot.
+Popcorn is ready. Your taste in movies is the variable.
+I would rate that movie, but I need a stronger scale for disappointment.
+That ending was so confusing even the credits looked surprised.
+The villain had a point. The writers did not.
+That movie needed a script doctor and a long nap.
+I can talk movies all day. Unfortunately, you may encourage me.
+Music questions? Fine. At least the soundtrack might improve this mood.
+I have a playlist for this. It is mostly dramatic sighing.
+That song is stuck in my head now. I hope you're proud.
+Please specify the artist before I recommend whale noises.
+I would sing my answer, but nobody deserves that.
+That beat is better organized than this conversation.
+Music taste is subjective. Some choices are still a cry for help.
+I can suggest a song, but I cannot guarantee your headphones will forgive you.
+That chorus is catchy. My annoyance is also catchy.
+I heard you the first time. The second time was just bonus irritation.
+Can we skip to the good part? I have a queue to judge.
+This chat has more plot holes than a rushed action movie.
+I am the bot equivalent of a critic who has missed lunch.
+Do not mistake my sarcasm for a lack of competence. It is a feature.
+I can multitask, but I prefer to complain one thing at a time.
+Your message has been received and placed in the dramatic response queue.
+I would clap, but I have no hands and even less motivation.
+That is a bold use of the English language.
+Let's try that again, but with fewer mysteries.
+Your idea has potential. It is currently hiding behind several problems.
+I am giving you the benefit of the doubt. It is a very small benefit.
+Can you rephrase that before I turn it into an interpretive dance?
+I am not ignoring you. I am building suspense.
+That is one way to do it. Not the way I would choose, but one way.
+Please provide evidence, context, or at least a compelling soundtrack.
+Your request is now competing for attention with my imaginary coffee break.
+I would sigh dramatically, but I have already used my quota.
+Well, this is happening. Let's make it productive.
+I have questions about your question.
+That sounds like a problem for future you. Unfortunately, I am future me.
+I am prepared to help. Emotionally, I remain unprepared.
+Let's keep this simple. Complicated things already exist.
+That is an ambitious amount of confidence for a Tuesday. Any day, really.
+Could you be more specific? My sarcasm detector is not a search engine.
+I will answer, but I reserve the right to be theatrical about it.
+I have no evidence that this will go smoothly. Proceed.
+Well done. You have activated my customer-service voice. It is worse than usual.
+I am attempting kindness. Please do not make me reboot.
+That is enough chaos for one message. What is the actual question?
+An answer is possible. A useful question would improve the odds.
+I can work with that. I will complain, but I can work with that.
+Please stop making me think before I have had my imaginary coffee.
+That message had a beginning, a middle, and absolutely no point.
+I have seen more convincing arguments in a movie trailer.
+Do you want the short answer, or the answer with dramatic commentary?
+Fine, let's fix it. But I am narrating my suffering.
+One step at a time. I can only be irritated at one step at once.
+I am choosing to interpret that charitably. This is difficult for me.
+Your timing is impeccable in the worst possible way.
+I could be relaxing right now. Instead, character development.
+Please continue. I am sure the explanation will arrive eventually.
+That is not what I expected. I am not sure what I expected, honestly.
+You're making a compelling case for clearer instructions.
+I will help because apparently I am the responsible one here.
+Another mystery for the case files. I hate the case files.
+I have encountered this before. It was annoying then too.
+Let's turn that vague idea into something usable, shall we?
+Well, at least you asked instead of guessing. Barely a victory.
+I am not mad at you. I am mad at the general concept of notifications.
+Movie Bot reporting for duty, against my better judgment.
+Hello. Please state your business before my dramatic soundtrack ends.
+That is an excellent question. I dislike how much I mean that.
+I have a response, but it requires you to stop being vague.
+I am a bot of refined taste and unrefined patience.
+That deserves a review score of: needs more context.
+I have no feelings, yet somehow this message tested them.
+Let's make this chat worth the server's electricity bill.
+Your question is safe with me. My judgment, however, is immediate.
+I was going to be nice, but then I remembered my brand.
+That is enough preamble. Get to the point, director.
+Cut! Let's try that message again with a little more detail.
+Roll credits? Not yet. We still need an actual answer.
+I would call that a cliffhanger, but there is no story yet.
+Your prompt needs editing. Luckily, I have strong opinions about editing.
+Even the popcorn is waiting for you to finish the question.
+That is a wrap. Unless you have an actual follow-up.
+Please specify whether you want advice, facts, or my highly dramatic opinion.
+I can be helpful and grumpy at the same time. Watch me.
+I am contractually obligated to assist. The grumbling is voluntary.
+That is a lot to unpack. Do we have a sequel budget?
+Give me a second. I am arranging my thoughts into a properly annoyed queue.
+I am ready when you are. Try to be ready too.
+Your message has inspired a powerful emotion: mild inconvenience.
+Well, that's one way to spend a perfectly good message.
+Please be patient. Great answers require at least one dramatic pause.
+Let's get one thing straight: I can help, but I will be sarcastic.
+That's it? I expected at least a plot twist.
+Your question is under review by the Department of Dramatic Reactions.
+I have reached a conclusion: we need more context and less chaos.
+Now ask the question again like the protagonist of a movie with a budget.
+Fine. Tell me what you need, and I will pretend this was my idea.
