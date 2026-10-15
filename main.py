@@ -2602,25 +2602,22 @@ async def on_message(message: discord.Message) -> None:
                 await message.reply("You need Administrator permission to use this command.", mention_author=False)
                 return
             try:
-                # Remove server-only copies first, then publish the canonical global set.
-                bot.tree.clear_commands(guild=message.guild)
-                await bot.tree.sync(guild=message.guild)
-                synced = await bot.tree.sync()
+                synced = await refresh_application_commands(message.guild)
             except (discord.Forbidden, discord.HTTPException) as exc:
-                logger.warning("Could not reset/sync slash commands from prefix command: %s", exc)
+                logger.warning("Could not fully reset/sync slash commands from prefix command: %s", exc)
                 await message.reply(
-                    "I could not reset and sync the commands. Check the bot's application-command permissions and try again.",
+                    "I could not fully reset and refresh the commands. Check the bot's application-command permissions and try again.",
                     mention_author=False,
                 )
                 return
             logger.info(
-                "Cleared guild-specific commands and synced %d global slash command(s) for %s (%s) via -mb sync.",
+                "Deleted stale guild commands and refreshed %d global slash command(s) for %s (%s) via -mb sync.",
                 len(synced),
                 message.guild.name,
                 message.guild.id,
             )
             await message.reply(
-                f"Synced {len(synced)} slash command(s) to this server. They should appear shortly.",
+                f"Deleted this server's old command registrations and refreshed {len(synced)} global slash command(s). Discord may take a few minutes to update the list.",
                 mention_author=False,
             )
             return
@@ -2945,6 +2942,40 @@ async def on_message(message: discord.Message) -> None:
     except Exception as exc:
         logger.exception("Prefix command failed (%s): %s", command_name, exc)
         await message.reply("That command failed. Check the bot console for details.", mention_author=False)
+
+
+async def refresh_application_commands(guild: discord.Guild) -> list:
+    """Remove server-specific registrations, then replace the global list with this code's current commands."""
+    # Guild commands are a separate remote registry. Clear it remotely first so
+    # old guild-only copies cannot appear alongside the global command list.
+    bot.tree.clear_commands(guild=guild)
+    await bot.tree.sync(guild=guild)
+
+    # Syncing the global tree replaces the remote global list, removing stale
+    # commands left behind by older versions and publishing the current list.
+    return await bot.tree.sync()
+
+
+@bot.tree.command(name="sync", description="Delete stale command registrations and refresh slash commands.")
+@app_commands.checks.has_permissions(administrator=True)
+async def bot_sync(interaction: discord.Interaction) -> None:
+    if interaction.guild is None:
+        await send_interaction_response(interaction, "Use this command in a server.", ephemeral=True)
+        return
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    try:
+        synced = await refresh_application_commands(interaction.guild)
+    except (discord.Forbidden, discord.HTTPException) as exc:
+        logger.warning("Could not fully reset/sync slash commands: %s", exc)
+        await interaction.followup.send(
+            "I could not fully reset and refresh the commands. Check the bot's application-command permissions and try again.",
+            ephemeral=True,
+        )
+        return
+    await interaction.followup.send(
+        f"Deleted this server's old command registrations and refreshed {len(synced)} global slash command(s). Discord may take a few minutes to update the list.",
+        ephemeral=True,
+    )
 
 
 @bot.tree.command(name="uptime", description="Show how long the bot has been online.")
