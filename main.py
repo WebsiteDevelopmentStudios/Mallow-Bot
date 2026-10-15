@@ -2602,6 +2602,7 @@ async def on_message(message: discord.Message) -> None:
                 await message.reply("You need Administrator permission to use this command.", mention_author=False)
                 return
             try:
+                # Remove server-only copies first, then publish the canonical global set.
                 bot.tree.clear_commands(guild=message.guild)
                 await bot.tree.sync(guild=message.guild)
                 synced = await bot.tree.sync()
@@ -2640,26 +2641,25 @@ async def on_message(message: discord.Message) -> None:
 
         if command_name in {"help", "commands"}:
             await message.reply(
-                "**Movie Bot text commands**\n"
-                "`-mb play <song>` — play or queue a song\n"
-                "`-mb pause` / `-mb resume`\n"
-                "`-mb skip` / `-mb stop`\n"
-                "`-mb queue`\n"
-                "`-mb volume <0-100>`\n"
-                "`-mb lyrics [on|off]`\n"
-                "`-mb join` / `-mb leave`\n"
-                "`-mb uptime` / `-mb update` / `-mb commands`\n"
-                "`-mb say <message>` (requires Manage Messages)\n"
-                "`-mb sync` (requires Administrator)\n\n"
-                "**Movie text commands**\n"
-                "`-mb countdown` — post a Halloween countdown embed in this channel\n"
-                "`-mb movie list` — list available local movies\n"
-                "`-mb movie <title>` — search titles with the movie embed\n"
-                "`-mb movie search <title>` — same search, explicit form\n"
-                "`-mb movie play <URL>` — post a movie page link\n"
-                "`-mb channel link <#channel or ID>` — set the movie channel (Administrator)\n"
-                "**Slash equivalents:** `/movie list`, `/movie search`, `/movie play`, `/channel link`\n",
+                "**XP & level commands**\n"
+                "`-mb xp` / `-mb level` — view your XP, level, and progress\n"
+                "`-mb leaderboard` — server top 10 XP leaderboard\n\n"
+                "**Movie Coins & gambling**\n"
+                "`-mb balance` · `-mb daily` · `-mb gamble <bet>`\n"
+                "`-mb coinflip <bet>` · `-mb slots <bet>` · `-mb roulette <bet>`\n"
+                "`-mb dice <bet>` · `-mb blackjack <bet>` · `-mb work`\n"
+                "`-mb pay @member <amount>` · `-mb rob @member`\n\n"
+                "**Music commands**\n"
+                "`-mb play <song>` · `-mb pause` · `-mb resume` · `-mb skip` · `-mb stop`\n"
+                "`-mb queue` · `-mb volume <0-100>` · `-mb lyrics [on|off]` · `-mb join` · `-mb leave`\n\n"
+                "**Utility & movie commands**\n"
+                "`-mb uptime` · `-mb update` · `-mb help` / `-mb commands` · `-mb sync` (Administrator)\n"
+                "`-mb countdown` · `-mb movie list` · `-mb movie search <title>` · `-mb movie play <URL>`\n"
+                "`-mb channel link <#channel or ID>` (Administrator)\n"
+                "`-mb youtube <URL>` · `-mb set-log [#channel]` · `-mb timeout-minutes <1-10080>`\n"
+                "XP is awarded for eligible chat messages. Movie Coins are fictional. `/say` has no `-mb say` equivalent.",
                 mention_author=False,
+                allowed_mentions=discord.AllowedMentions.none(),
             )
             return
 
@@ -3246,8 +3246,10 @@ async def sync_commands(interaction: discord.Interaction) -> None:
     try:
         # Copy the currently registered commands to this server so new commands
         # appear immediately instead of waiting for global-command propagation.
-        bot.tree.copy_global_to(guild=interaction.guild)
-        synced = await bot.tree.sync(guild=interaction.guild)
+        # Clear guild-only registrations to remove duplicates, then sync globals.
+        bot.tree.clear_commands(guild=interaction.guild)
+        await bot.tree.sync(guild=interaction.guild)
+        synced = await bot.tree.sync()
         logger.info(
             "Synced %d guild slash command(s) for %s (%s).",
             len(synced),
