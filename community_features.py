@@ -252,13 +252,24 @@ async def prefix(bot, message, command, argument):
         await message.reply(f"{message.author.mention}: Level {lvl} · {xp} XP · {max(0, xp_next(lvl)-xp)} XP to next level.", mention_author=False)
         return True
     if command == "leaderboard":
-        entries = [(int(k.split(":")[1]), int(v)) for k,v in data["xp"].items() if k.startswith(f"{gid}:")]
+        entries = [(int(k.split(":")[1]), int(v)) for k, v in data["xp"].items() if k.startswith(f"{gid}:")]
         entries.sort(key=lambda item: item[1], reverse=True)
         lines = []
         for i, (user_id, xp) in enumerate(entries[:10], 1):
             member = message.guild.get_member(user_id)
-            lines.append(f"**{i}.** {member.display_name if member else 'User '+str(user_id)} — {xp} XP (Level {level(xp)})")
-        await message.reply("\n".join(lines) if lines else "No XP has been earned yet.", mention_author=False)
+            mention = member.mention if member else f"<@{user_id}>"
+            lines.append(f"**{i}.** {mention} — **{xp:,} XP** · Level {level(xp)}")
+        embed = discord.Embed(
+            title=f"{message.guild.name} · XP Leaderboard",
+            description="\n".join(lines) if lines else "No XP has been earned yet.",
+            color=discord.Color.gold(),
+        )
+        embed.set_footer(text="XP is earned from eligible chat messages.")
+        await message.reply(
+            embed=embed,
+            mention_author=False,
+            allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False),
+        )
         return True
     if command in ("youtube",):
         match = YT_RE.search(argument)
@@ -472,13 +483,23 @@ def setup(bot):
         if interaction.guild is None:
             await interaction.response.send_message("Use this in a server.", ephemeral=True); return
         gid = interaction.guild.id
-        entries = [(int(k.split(":")[1]), int(v)) for k,v in data["xp"].items() if k.startswith(f"{gid}:")]
-        entries.sort(key=lambda item:item[1], reverse=True)
-        lines=[]
-        for i,(uid,xp) in enumerate(entries[:10],1):
-            member=interaction.guild.get_member(uid)
-            lines.append(f"**{i}.** {member.display_name if member else 'User '+str(uid)} — {xp} XP (Level {level(xp)})")
-        await interaction.response.send_message("\n".join(lines) if lines else "No XP has been earned yet.")
+        entries = [(int(k.split(":")[1]), int(v)) for k, v in data["xp"].items() if k.startswith(f"{gid}:")]
+        entries.sort(key=lambda item: item[1], reverse=True)
+        lines = []
+        for i, (uid, xp) in enumerate(entries[:10], 1):
+            member = interaction.guild.get_member(uid)
+            mention = member.mention if member else f"<@{uid}>"
+            lines.append(f"**{i}.** {mention} — **{xp:,} XP** · Level {level(xp)}")
+        embed = discord.Embed(
+            title=f"{interaction.guild.name} · XP Leaderboard",
+            description="\n".join(lines) if lines else "No XP has been earned yet.",
+            color=discord.Color.gold(),
+        )
+        embed.set_footer(text="XP is earned from eligible chat messages.")
+        await interaction.response.send_message(
+            embed=embed,
+            allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False),
+        )
 
     @bot.tree.command(name="coinflip", description="Bet virtual Movie Coins on a coin flip.")
     @app_commands.describe(bet="Amount of virtual coins to wager")
