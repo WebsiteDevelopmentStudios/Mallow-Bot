@@ -2619,7 +2619,7 @@ async def on_message(message: discord.Message) -> None:
                 message.guild.id,
             )
             await message.reply(
-                f"Removed duplicate server-specific commands and synced {len(synced)} global slash command(s). They may take a little while to refresh.",
+                f"Synced {len(synced)} slash command(s) to this server. They should appear shortly.",
                 mention_author=False,
             )
             return
@@ -3236,16 +3236,12 @@ async def sync_commands(interaction: discord.Interaction) -> None:
         return
 
     try:
-        # Remove the guild-scoped copies first. This bot already syncs its
-        # canonical command tree globally on startup, so copying the global
-        # tree into the guild creates a second set of visible commands.
-        bot.tree.clear_commands(guild=interaction.guild)
-        await bot.tree.sync(guild=interaction.guild)
-
-        # Keep the existing global sync mechanism as the single source of truth.
-        synced = await bot.tree.sync()
+        # Copy the currently registered commands to this server so new commands
+        # appear immediately instead of waiting for global-command propagation.
+        bot.tree.copy_global_to(guild=interaction.guild)
+        synced = await bot.tree.sync(guild=interaction.guild)
         logger.info(
-            "Cleared guild-specific commands and synced %d global slash command(s) for %s (%s).",
+            "Synced %d guild slash command(s) for %s (%s).",
             len(synced),
             interaction.guild.name,
             interaction.guild.id,
