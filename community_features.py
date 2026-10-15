@@ -117,6 +117,37 @@ async def process_message(bot, message):
             "discriminatory. Keep replies under 100 words."
         )
 
+        # Groq is the primary AI provider; it uses an OpenAI-compatible chat endpoint.
+        groq_key = os.getenv("GROQ_API_KEY", "").strip()
+        if groq_key:
+            try:
+                async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=20)) as session:
+                    async with session.post(
+                        "https://api.groq.com/openai/v1/chat/completions",
+                        headers={"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"},
+                        json={
+                            "model": os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),
+                            "messages": [
+                                {"role": "system", "content": system_prompt},
+                                {"role": "user", "content": content},
+                            ],
+                            "max_tokens": 180,
+                            "temperature": 0.85,
+                        },
+                    ) as response:
+                        if response.status == 200:
+                            result = await response.json()
+                            choices = result.get("choices") or []
+                            if choices:
+                                reply = str(choices[0].get("message", {}).get("content") or "").strip()
+                            if not reply:
+                                print("[MovieBot AI] Groq returned no text.", flush=True)
+                        else:
+                            detail = (await response.text())[:1200]
+                            print("[MovieBot AI] Groq HTTP " + str(response.status) + " for model " + os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile") + ": " + detail, flush=True)
+            except (aiohttp.ClientError, asyncio.TimeoutError, KeyError, IndexError, TypeError, ValueError) as exc:
+                print("[MovieBot AI] Groq request failed: " + type(exc).__name__ + ": " + str(exc), flush=True)
+
         # Gemini's free API tier provides actual model-generated replies.
         gemini_key = os.getenv("GEMINI_API_KEY", "").strip()
         if gemini_key:
@@ -175,8 +206,8 @@ async def process_message(bot, message):
                     pass
 
         if not reply:
-            if not gemini_key and not os.getenv("OPENAI_API_KEY", "").strip():
-                reply = "I need an AI API key before I can think for myself. Set GEMINI_API_KEY in the bot's environment; Google's Gemini API has a free tier."
+            if not groq_key and not gemini_key and not os.getenv("OPENAI_API_KEY", "").strip():
+                reply = "I need an AI API key before I can think for myself. Set GROQ_API_KEY in the bot's environment to use Groq."
             else:
                 reply = "My AI connection failed. Check the bot hosting logs for the exact API error, then verify the API key, model, and quota."
         await message.reply(reply[:1900], mention_author=False, allowed_mentions=discord.AllowedMentions.none())
