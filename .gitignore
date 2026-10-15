@@ -16,3 +16,5 @@ Movies/*
 .lavalink/
 .DS_Store
 Thumbs.db
+
+community_data.json
