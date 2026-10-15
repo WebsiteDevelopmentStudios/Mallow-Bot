@@ -1726,6 +1726,10 @@ def lavalink_uri() -> str:
 
 async def initialize_lavalink() -> None:
     global lavalink_ready
+    if os.getenv("ENABLE_LAVALINK", "false").strip().lower() not in {"1", "true", "yes", "on"}:
+        lavalink_ready = False
+        logger.info("Lavalink is disabled by ENABLE_LAVALINK. Music playback commands are temporarily unavailable.")
+        return
     if wavelink is None:
         logger.error("Wavelink is not installed; music playback is unavailable.")
         return
@@ -2634,19 +2638,6 @@ async def on_message(message: discord.Message) -> None:
                 await message.reply("I couldn't fetch the update log. Please try again later.", mention_author=False)
             return
 
-        if command_name == "say":
-            if not message.author.guild_permissions.manage_messages:
-                await message.reply("You need Manage Messages permission to use this command.", mention_author=False)
-                return
-            if not argument:
-                await message.reply("Usage: `-mb say <message>`", mention_author=False)
-                return
-            await message.channel.send(
-                argument,
-                allowed_mentions=discord.AllowedMentions.none(),
-            )
-            return
-
         if command_name in {"help", "commands"}:
             await message.reply(
                 "**Movie Bot text commands**\n"
@@ -2991,16 +2982,16 @@ async def bot_commands(interaction: discord.Interaction) -> None:
         "`/play <song>` · `/pause` · `/resume` · `/skip` · `/queue`\n"
         "`/volume <0-100>` · `/lyrics [enabled]` · `/stop` · `/join` · `/leave`\n\n"
         "**Other slash commands**\n"
-        "`/uptime` · `/update` · `/commands` · `/say <message>`\n"
+        "`/uptime` · `/update` · `/commands` · `/say <message>` (private invocation, public bot post)\n"
         "`/channel link` · `/movie list` · `/movie search <title>` · `/movie play <movie>`\n"
         "`/sync` (administrator)\n"
         "Movie features are slash commands; they do not currently have `-mb` text equivalents.\n\n"
         "**Text command equivalents**\n"
         "`-mb play <song>` · `-mb pause` · `-mb resume` · `-mb skip` · `-mb queue`\n"
         "`-mb volume <0-100>` · `-mb lyrics [on|off]` · `-mb stop` · `-mb join` · `-mb leave`\n"
-        "`-mb uptime` · `-mb update` · `-mb commands` · `-mb say <message>` · `-mb sync`\n"
+        "`-mb uptime` · `-mb update` · `-mb commands` · `-mb sync`\n"
         "`-mb countdown` — post or replace the Halloween countdown in this channel\n"
-        "The `say` commands require Manage Messages permission. The `sync` commands require Administrator permission."
+        "The `/say` command requires Manage Messages permission and has no `-mb` equivalent. The `sync` commands require Administrator permission."
     )
     await send_interaction_response(interaction, listing, ephemeral=True)
 
@@ -3016,10 +3007,19 @@ async def bot_say(interaction: discord.Interaction, message: str) -> None:
     if len(text_to_send) > 2000:
         await send_interaction_response(interaction, "Messages must be 2,000 characters or fewer.", ephemeral=True)
         return
-    await interaction.response.send_message(
-        text_to_send,
-        allowed_mentions=discord.AllowedMentions.none(),
-    )
+    # Keep the command invocation private to the user, then post a separate
+    # bot-authored message that everyone in the channel can see.
+    await interaction.response.send_message("Posted your message.", ephemeral=True)
+    if interaction.channel is None or not hasattr(interaction.channel, "send"):
+        await interaction.followup.send("I couldn't find a text channel to post in.", ephemeral=True)
+        return
+    try:
+        await interaction.channel.send(
+            text_to_send,
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
+    except (discord.Forbidden, discord.HTTPException):
+        await interaction.followup.send("I couldn't post in this channel. Check my Send Messages permission.", ephemeral=True)
 
 
 @bot.event
