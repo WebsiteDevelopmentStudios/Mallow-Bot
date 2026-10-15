@@ -138,9 +138,17 @@ async def process_message(bot, message):
                     ) as response:
                         if response.status == 200:
                             result = await response.json()
-                            reply = result["candidates"][0]["content"]["parts"][0]["text"].strip()
-            except (aiohttp.ClientError, asyncio.TimeoutError, KeyError, IndexError, TypeError, ValueError):
-                pass
+                            candidates = result.get("candidates") or []
+                            if candidates:
+                                parts = candidates[0].get("content", {}).get("parts", [])
+                                reply = "".join(part.get("text", "") for part in parts if isinstance(part, dict)).strip()
+                            if not reply:
+                                print("[MovieBot AI] Gemini returned no text for model " + os.getenv("GEMINI_MODEL", "gemini-3.8-flash") + ": " + str(result.get("promptFeedback", {})), flush=True)
+                        else:
+                            detail = (await response.text())[:1200]
+                            print("[MovieBot AI] Gemini HTTP " + str(response.status) + " for model " + os.getenv("GEMINI_MODEL", "gemini-3.8-flash") + ": " + detail, flush=True)
+            except (aiohttp.ClientError, asyncio.TimeoutError, KeyError, IndexError, TypeError, ValueError) as exc:
+                print("[MovieBot AI] Gemini request failed: " + type(exc).__name__ + ": " + str(exc), flush=True)
 
         # Optional OpenAI-compatible provider fallback, if configured.
         if not reply:
@@ -170,7 +178,7 @@ async def process_message(bot, message):
             if not gemini_key and not os.getenv("OPENAI_API_KEY", "").strip():
                 reply = "I need an AI API key before I can think for myself. Set GEMINI_API_KEY in the bot's environment; Google's Gemini API has a free tier."
             else:
-                reply = "My AI connection failed. Check the API key, model name, and provider limits, then try again."
+                reply = "My AI connection failed. Check the bot hosting logs for the exact API error, then verify the API key, model, and quota."
         await message.reply(reply[:1900], mention_author=False, allowed_mentions=discord.AllowedMentions.none())
 
 async def prefix(bot, message, command, argument):
