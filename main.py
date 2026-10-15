@@ -3271,47 +3271,6 @@ async def voice_leave(interaction: discord.Interaction) -> None:
 
 
 
-@bot.tree.command(name="sync", description="Sync all slash commands to this server.")
-@app_commands.checks.has_permissions(administrator=True)
-async def sync_commands(interaction: discord.Interaction) -> None:
-    await acknowledge_command(interaction)
-    if interaction.guild is None:
-        await send_interaction_response(
-            interaction,
-            "This command can only be used inside a server.",
-            ephemeral=True,
-        )
-        return
-
-    try:
-        # Copy the currently registered commands to this server so new commands
-        # appear immediately instead of waiting for global-command propagation.
-        # Clear guild-only registrations to remove duplicates, then sync globals.
-        bot.tree.clear_commands(guild=interaction.guild)
-        await bot.tree.sync(guild=interaction.guild)
-        synced = await bot.tree.sync()
-        logger.info(
-            "Synced %d guild slash command(s) for %s (%s).",
-            len(synced),
-            interaction.guild.name,
-            interaction.guild.id,
-        )
-    except (discord.Forbidden, discord.HTTPException) as exc:
-        logger.warning("Could not reset/sync slash commands: %s", exc)
-        await send_interaction_response(
-            interaction,
-            "I could not reset and sync the commands. Check the bot's application-command permissions and try again.",
-            ephemeral=True,
-        )
-        return
-
-    await send_interaction_response(
-        interaction,
-        f"Removed duplicate server-specific commands and synced {len(synced)} global slash command(s). They may take a little while to refresh.",
-        ephemeral=True,
-    )
-
-
 bot.tree.add_command(channel_group)
 bot.tree.add_command(movie_group)
 
