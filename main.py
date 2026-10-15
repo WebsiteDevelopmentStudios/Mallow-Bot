@@ -2127,6 +2127,10 @@ class MovieBot(commands.Bot):
 
 bot = MovieBot(command_prefix=commands.when_mentioned, intents=intents)
 
+# Register optional community features before the global slash-command sync.
+from community_features import setup as setup_community_features
+setup_community_features(bot)
+
 
 HALLOWEEN_GIF_URL = "https://cdn.discordapp.com/attachments/1540581764752220260/1540858289875591208/IMG_9714.gif?ex=6acac39c&is=6ac9721c&hm=a502a514aaa8372aa0fc34c3ae0102527480b9dd75230dd6b9ea9d012a6aeec6"
 HALLOWEEN3_FACTS_FILE = BASE_DIR / "halloween3_facts.txt"
