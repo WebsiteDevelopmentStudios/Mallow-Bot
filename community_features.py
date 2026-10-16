@@ -547,7 +547,7 @@ def setup(bot):
         if amount>balance:
             await interaction.response.send_message(f"You only have {balance} Mallow Coins.",ephemeral=True); return
         data["currency"][k]=balance-amount
-        data["currency"][tk]=int(data["currency"].get(tk,starting_money))+amount
+        data["currency"][tk]=int(data["currency"].get(tk,start))+amount
         save()
         await interaction.response.send_message(f"Paid {amount} Mallow Coins to {member.display_name}.",ephemeral=True)
 
