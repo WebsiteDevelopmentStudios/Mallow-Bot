@@ -963,14 +963,13 @@ def setup(bot):
         if interaction.guild is None or interaction.guild_id is None:
             await interaction.response.send_message("Use this command inside a server.", ephemeral=True)
             return
-        # Use this server's configured DM/mod log channel; if it has none,
-        # use the channel where /dm was invoked. Replies from this member are
-        # then routed only to this destination, not to other servers.
+        # Require this server's configured DM/mod log channel so private
+        # replies are never accidentally posted into a public command channel.
         configured_channel_id = data.get("log_channels", {}).get(str(interaction.guild_id))
-        destination = interaction.guild.get_channel(int(configured_channel_id)) if configured_channel_id else interaction.channel
+        destination = interaction.guild.get_channel(int(configured_channel_id)) if configured_channel_id else None
         if not isinstance(destination, discord.TextChannel):
             await interaction.response.send_message(
-                "I couldn't find this server's DM log/mod channel. Configure it with /set-log first.",
+                "This server doesn't have an accessible DM log/mod channel configured. Ask the bot owner to set one with /set-log first.",
                 ephemeral=True,
             )
             return
