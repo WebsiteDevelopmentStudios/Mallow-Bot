@@ -1,4 +1,4 @@
-name = "movie-bot-discord-gateway"
+name = "mochi-bot-discord-gateway"
 main = "src/index.js"
 compatibility_date = "2026-10-06"
 workers_dev = true
