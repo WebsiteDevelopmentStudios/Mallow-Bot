@@ -74,7 +74,7 @@ async def process_message(bot, message):
     content = message.content or ""
     dashboard_config = await get_guild_config(guild.id)
     command_prefix = dashboard_config.get("prefix", "-mb")
-    if INVITE_RE.search(content) and not message.author.guild_permissions.manage_messages:
+    if dashboard_config.get("features", {}).get("moderation", True) and INVITE_RE.search(content) and not message.author.guild_permissions.manage_messages:
         minutes = int(data["timeout_minutes"].get(str(guild.id), 10))
         try:
             await message.delete()
