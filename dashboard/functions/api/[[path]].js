@@ -196,6 +196,59 @@ async function route(request, env) {
   await env.MALLOW_DB.prepare("DELETE FROM dashboard_developers WHERE discord_id=?").bind(id).run();
   return json({ok:true,discord_id:id});
  }
+ async function ensurePremiumTables(env){
+  await env.MALLOW_DB.prepare("CREATE TABLE IF NOT EXISTS premium_codes (code TEXT PRIMARY KEY, created_by TEXT NOT NULL, created_at TEXT NOT NULL, redeemed_by TEXT, redeemed_at TEXT, expires_at TEXT)").run();
+  await env.MALLOW_DB.prepare("CREATE TABLE IF NOT EXISTS premium_subscriptions (discord_id TEXT PRIMARY KEY, starts_at TEXT NOT NULL, expires_at TEXT NOT NULL, source_code TEXT NOT NULL)").run();
+ }
+ async function premiumFor(env,id){
+  await ensurePremiumTables(env);
+  const row=await env.MALLOW_DB.prepare("SELECT starts_at,expires_at,source_code FROM premium_subscriptions WHERE discord_id=?").bind(String(id)).first();
+  return row&&Date.parse(row.expires_at)>Date.now()?{active:true,starts_at:row.starts_at,expires_at:row.expires_at,source_code:row.source_code}:{active:false,starts_at:row?.starts_at||null,expires_at:row?.expires_at||null};
+ }
+ if(path==="premium-status"&&request.method==="GET"){
+  const s=await session(request,env);if(!s)return json({error:"Sign in with Discord first."},401);
+  const premium=await premiumFor(env,s.user.id);
+  return json({ok:true,discord_id:s.user.id,is_owner:s.user.id===String(env.BOT_OWNER_ID),premium});
+ }
+ if(path==="premium-codes"&&request.method==="GET"){
+  const s=await session(request,env);if(!s)return json({error:"Sign in with Discord first."},401);
+  if(s.user.id!==String(env.BOT_OWNER_ID))return json({error:"Only the owner can manage premium codes."},403);
+  await ensurePremiumTables(env);
+  const rows=await env.MALLOW_DB.prepare("SELECT code,created_at,redeemed_by,redeemed_at,expires_at FROM premium_codes ORDER BY created_at DESC LIMIT 200").all();
+  return json({ok:true,codes:rows.results||[]});
+ }
+ if(path==="premium-codes"&&request.method==="POST"){
+  const s=await session(request,env);if(!s)return json({error:"Sign in with Discord first."},401);
+  if(s.user.id!==String(env.BOT_OWNER_ID))return json({error:"Only the owner can create premium codes."},403);
+  let body;try{body=await request.json()}catch{return json({error:"Invalid JSON."},400)}
+  const count=Math.max(1,Math.min(25,Number.parseInt(body.count||"1",10)||1));
+  await ensurePremiumTables(env);const codes=[];
+  for(let i=0;i<count;i++){
+   const bytes=crypto.getRandomValues(new Uint8Array(12));const code="MALLOW-"+Array.from(bytes,b=>b.toString(16).padStart(2,"0")).join("").toUpperCase();
+   await env.MALLOW_DB.prepare("INSERT INTO premium_codes(code,created_by,created_at) VALUES(?,?,?)").bind(code,s.user.id,new Date().toISOString()).run();codes.push(code);
+  }
+  return json({ok:true,codes});
+ }
+ if(path==="redeem-premium"&&request.method==="POST"){
+  const s=await session(request,env);if(!s)return json({error:"Sign in with Discord first."},401);
+  let body;try{body=await request.json()}catch{return json({error:"Invalid JSON."},400)}
+  const code=String(body.code||"").trim().toUpperCase();
+  if(!/^MALLOW-[A-F0-9]{24}$/.test(code))return json({error:"Enter a valid premium code."},400);
+  await ensurePremiumTables(env);
+  const row=await env.MALLOW_DB.prepare("SELECT code,redeemed_by,expires_at FROM premium_codes WHERE code=?").bind(code).first();
+  if(!row)return json({error:"That premium code is invalid."},404);
+  if(row.redeemed_by)return json({error:"That premium code has already been redeemed."},409);
+  const now=Date.now();const current=await premiumFor(env,s.user.id);const start=current.active&&current.expires_at&&Date.parse(current.expires_at)>now?Date.parse(current.expires_at):now;
+  const startsAt=current.active?current.starts_at:new Date(now).toISOString();const expiresAt=new Date(start+7*24*60*60*1000).toISOString();
+  const result=await env.MALLOW_DB.prepare("UPDATE premium_codes SET redeemed_by=?,redeemed_at=?,expires_at=? WHERE code=? AND redeemed_by IS NULL").bind(s.user.id,new Date(now).toISOString(),expiresAt,code).run();
+  if(!result.meta||result.meta.changes===0)return json({error:"That premium code has already been redeemed."},409);
+  await env.MALLOW_DB.prepare("INSERT INTO premium_subscriptions(discord_id,starts_at,expires_at,source_code) VALUES(?,?,?,?) ON CONFLICT(discord_id) DO UPDATE SET expires_at=excluded.expires_at,source_code=excluded.source_code").bind(s.user.id,startsAt,expiresAt,code).run();
+  return json({ok:true,premium:{active:true,starts_at:startsAt,expires_at:expiresAt}});
+ }
+ if(path==="subscriptions"&&request.method==="GET"){
+  const s=await session(request,env);if(!s)return json({error:"Sign in with Discord first."},401);
+  return json({ok:true,premium:await premiumFor(env,s.user.id)});
+ }
  if(path==="me"&&request.method==="GET"){const s=await session(request,env);if(!s)return json({user:null,settings:defaults,is_owner:false});return json({user:s.user,settings:await settings(env),is_owner:s.user.id===env.BOT_OWNER_ID});}
  if(path==="logout"&&request.method==="POST")return json({ok:true},200,{"set-cookie":cookieHeader("",0)});
  if(path==="settings"&&request.method==="GET"){const s=await session(request,env);if(!s)return json({error:"Sign in required."},401);return json({settings:await settings(env),is_owner:s.user.id===env.BOT_OWNER_ID});}
