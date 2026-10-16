@@ -27,6 +27,9 @@ def default_config() -> dict[str, Any]:
         "greetings": True,
         "mention_only": True,
         "disabled_commands": [],
+        "features": {"economy": True, "xp": True, "moderation": True, "music": True, "fun": True, "movies": True, "utility": True, "social": True},
+        "economy_config": {"starting_money": 100, "daily_reward": 100, "work_min": 20, "work_max": 80},
+        "xp_config": {"min_xp": 10, "max_xp": 20, "cooldown_seconds": 60, "announce_level_up": True},
     }
 
 
@@ -67,6 +70,19 @@ async def get_guild_config(guild_id: int | str) -> dict[str, Any]:
                 str(item).lower() for item in disabled
                 if isinstance(item, str) and item.replace("-", "").replace("_", "").isalnum()
             }) if isinstance(disabled, list) else []
+            features = settings.get("features", {})
+            if isinstance(features, dict):
+                config["features"] = {**config["features"], **{k: bool(v) for k, v in features.items() if k in config["features"]}}
+            for field, limits in (("economy_config", {"starting_money": (0,100000000), "daily_reward": (0,1000000), "work_min": (0,1000000), "work_max": (0,1000000)}), ("xp_config", {"min_xp": (0,10000), "max_xp": (0,10000), "cooldown_seconds": (0,86400)})):
+                values = settings.get(field, {})
+                if isinstance(values, dict):
+                    for name, (minimum, maximum) in limits.items():
+                        try:
+                            config[field][name] = max(minimum, min(maximum, int(values.get(name, config[field][name]))))
+                        except (ValueError, TypeError):
+                            pass
+            if isinstance(settings.get("xp_config"), dict):
+                config["xp_config"]["announce_level_up"] = settings["xp_config"].get("announce_level_up", True) is not False
             _CACHE[key] = (time.monotonic(), config)
             return config
         except (aiohttp.ClientError, asyncio.TimeoutError, ValueError, TypeError):
