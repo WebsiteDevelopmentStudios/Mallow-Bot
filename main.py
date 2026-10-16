@@ -2656,6 +2656,8 @@ async def on_message(message: discord.Message) -> None:
         "moderation": {"dm","set-log","timeout-minutes"},
         "movies": {"movie","channel"},
         "fun": {"vibecheck","ship","fortune","wyr"},
+        "utility": {"uptime","update","commands","help","sync","countdown","say"},
+        "social": {"youtube"},
     }
     feature = next((group for group, names in feature_groups.items() if command_name in names), None)
     if (feature and not dashboard_config.get("features", {}).get(feature, True)) or command_name in set(dashboard_config.get("disabled_commands", [])):
