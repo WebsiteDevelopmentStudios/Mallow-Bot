@@ -13,3 +13,15 @@ Premium access is checked when using Premium features. Without an active subscri
 https://mallowbot.devs.surf/subscriptions.html
 
 Prefix help: -mb help
+
+
+Premium prefix command variants:
+- -mb embed <title> | <description> [| #hexcolor] [| #channel or channel ID]
+- -mb snipe
+- -mb sticky <message> (omit the message to clear it)
+- -mb backup (Administrator; exports roles and channel layout JSON only)
+- -mb custom-command create <name> <response> | list | delete <name>
+- -mb vanity [tagline] (sets or views the server tagline)
+- -mb premium-status
+
+Slash-command sync clears guild-only duplicates and publishes the global command list once.
