@@ -111,7 +111,9 @@ async def process_message(bot, message):
             pass
 
     # Reply to direct bot mentions with a random static description; no AI provider is called.
-    if bot.user and bot.user in message.mentions:
+    # Only respond to a direct @Mallow Bot mention in a new message.
+    # Mentions inside replies must not trigger the conversational greeting.
+    if bot.user and bot.user in message.mentions and message.reference is None:
         description_file = Path(__file__).resolve().parent / "description.txt"
         descriptions = []
         try:
