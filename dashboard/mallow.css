@@ -487,3 +487,56 @@ body.mallow-dashboard .save-row button:active{transform:scale(.98)}
 @keyframes section-in{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
 @media(prefers-reduced-motion:reduce){body.mallow-dashboard *,body.mallow-dashboard *:before,body.mallow-dashboard *:after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
 @media(max-width:760px){body.mallow-dashboard .site-header{top:8px;right:12px}body.mallow-dashboard .nav-user-name{display:none}body.mallow-dashboard .config-main{padding-top:62px}}
+
+/* Spacious, modern dashboard modules */
+body.mallow-dashboard .dashboard-layout{display:grid;grid-template-columns:252px minmax(0,1fr);gap:28px;align-items:start;width:min(calc(100% - 56px),1500px);margin:28px auto 72px}
+body.mallow-dashboard .config-sidebar{position:sticky;top:22px;padding:22px 16px;border-radius:18px;background:#2a3141;border:1px solid #ffffff08;box-shadow:none}
+body.mallow-dashboard .config-main{min-width:0;display:flex;flex-direction:column;gap:28px;padding:0 0 64px}
+body.mallow-dashboard .settings-panel{padding:30px 34px;border:1px solid #ffffff08;border-radius:16px;background:#202634;box-shadow:none;scroll-margin-top:28px}
+body.mallow-dashboard .section-heading{margin-bottom:28px;gap:24px;align-items:flex-start}
+body.mallow-dashboard .section-heading h2,body.mallow-dashboard .module-heading h2{font-size:clamp(25px,2.2vw,34px);letter-spacing:-.035em;margin:5px 0 8px}
+body.mallow-dashboard .section-heading p,body.mallow-dashboard .module-heading p{max-width:680px;line-height:1.65}
+body.mallow-dashboard .field{margin:24px 0}
+body.mallow-dashboard .field>label{display:block;margin-bottom:9px;font-size:13px;font-weight:650;color:#e3e9f4}
+body.mallow-dashboard .row{padding:18px 0;margin:10px 0;border-bottom:1px solid #ffffff10;gap:24px}
+body.mallow-dashboard .row>div{min-width:0}
+body.mallow-dashboard .row .muted{margin-top:6px;line-height:1.55}
+body.mallow-dashboard .two-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px}
+body.mallow-dashboard .field input:not([type=checkbox]),body.mallow-dashboard .field textarea,body.mallow-dashboard .command-toolbar input,body.mallow-dashboard .command-toolbar select,body.mallow-dashboard select:not(.role-picker-search){width:100%;min-height:46px;padding:12px 14px;border:1px solid #394456;border-radius:9px;background-color:#171d29;color:#f5f7fc;outline:none;transition:border-color .18s,box-shadow .18s,background .18s}
+body.mallow-dashboard .field textarea{min-height:92px;resize:vertical;line-height:1.6}
+body.mallow-dashboard .field input:focus,body.mallow-dashboard .field textarea:focus,body.mallow-dashboard select:focus{border-color:#3985ff;box-shadow:0 0 0 3px #1473ff20}
+body.mallow-dashboard select:not(.role-picker-search){appearance:none;padding-right:42px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23aebbd0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center}
+body.mallow-dashboard .field-hint{margin-top:9px;line-height:1.55;color:#8996ac}
+body.mallow-dashboard .save-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:28px;padding-top:20px;border-top:1px solid #ffffff10}
+body.mallow-dashboard .module-panel{padding:0;background:transparent;border:0;display:flex;flex-direction:column;gap:22px}
+body.mallow-dashboard .module-heading{padding:4px 2px 14px;border-bottom:1px solid #3b4557}
+body.mallow-dashboard .module-heading .eyebrow{color:#7caeff;letter-spacing:.13em}
+body.mallow-dashboard .module-heading h2{font-size:clamp(30px,3vw,40px);margin-top:10px}
+body.mallow-dashboard .module-card{padding:28px 30px;background:#202634;border:1px solid #ffffff09;border-radius:16px;box-shadow:0 12px 32px #0000000a}
+body.mallow-dashboard .module-card-heading{display:flex;justify-content:space-between;align-items:center;gap:20px;padding-bottom:22px;margin-bottom:4px;border-bottom:1px solid #ffffff12}
+body.mallow-dashboard .module-card-heading h3{font-size:22px;margin:0 0 7px;letter-spacing:-.02em}
+body.mallow-dashboard .module-card-heading p{margin:0;line-height:1.55}
+body.mallow-dashboard .module-icon{display:grid;place-items:center;width:46px;height:46px;border-radius:12px;background:#0d6efd1c;color:#55a0ff;font-size:23px}
+body.mallow-dashboard .input-suffix{display:flex;align-items:center;gap:12px}
+body.mallow-dashboard .input-suffix input{flex:1;min-width:0}
+body.mallow-dashboard .input-suffix span{min-width:64px;color:#aab5c7;font-size:13px}
+body.mallow-dashboard .module-note{display:flex;align-items:flex-start;gap:14px;padding:18px 20px;border:1px solid #2675e64d;border-radius:12px;background:#0b66e812}
+body.mallow-dashboard .module-note-icon{display:grid;place-items:center;flex:0 0 34px;height:34px;border-radius:9px;background:#0969e825;color:#5da0ff}
+body.mallow-dashboard .module-note b{display:block;margin:1px 0 5px}
+body.mallow-dashboard .module-note p{margin:0;color:#a8b4c8;line-height:1.55;font-size:13px}
+body.mallow-dashboard .role-picker{width:100%;max-width:none}
+body.mallow-dashboard .role-picker-trigger{min-height:48px;padding:12px 14px!important;border-radius:10px!important;background:#171d29!important}
+body.mallow-dashboard .role-picker-menu{z-index:40;padding:10px;border-radius:12px;background:#151b27;box-shadow:0 22px 55px #0009}
+body.mallow-dashboard .role-picker-options{max-height:260px;padding:7px 0}
+body.mallow-dashboard .role-option{padding:11px 12px;font-size:14px}
+body.mallow-dashboard .role-picker-footer{padding-top:10px;margin-top:4px}
+body.mallow-dashboard .feature-grid{gap:18px}
+body.mallow-dashboard .feature-card{padding:23px;border-radius:14px}
+body.mallow-dashboard .side-link{min-height:42px;padding:11px 12px;border-radius:9px}
+body.mallow-dashboard .sidebar-label{margin:25px 10px 10px;letter-spacing:.06em}
+body.mallow-dashboard .server-rail{z-index:60}
+body.mallow-dashboard .site-header{right:32px;top:18px}
+body.mallow-dashboard .dashboard-hero{display:none}
+@media(min-width:1500px){body.mallow-dashboard .dashboard-layout{grid-template-columns:270px minmax(0,1fr);gap:34px}body.mallow-dashboard .settings-panel{padding:34px 40px}}
+@media(max-width:980px){body.mallow-dashboard .dashboard-layout{width:calc(100% - 32px);grid-template-columns:220px minmax(0,1fr);gap:18px}body.mallow-dashboard .settings-panel{padding:24px 22px}body.mallow-dashboard .module-card{padding:24px}}
+@media(max-width:720px){body.mallow-dashboard .dashboard-layout{display:flex;flex-direction:column;width:calc(100% - 24px);margin:16px auto 40px}body.mallow-dashboard .config-sidebar{position:relative;top:auto;width:100%;padding:16px}body.mallow-dashboard .config-main{width:100%;gap:18px}body.mallow-dashboard .settings-panel{padding:20px 16px}body.mallow-dashboard .two-fields{grid-template-columns:1fr;gap:0}body.mallow-dashboard .module-card{padding:20px 16px}body.mallow-dashboard .site-header{right:12px;top:8px}}
