@@ -405,7 +405,7 @@ async function route(request, env) {
  if(path==="invite"&&request.method==="GET"){
   const s=await session(request,env);if(!s)return Response.redirect("/api/login",302);
   const guildId=url.searchParams.get("guild_id")||"";if(!/^\d{17,20}$/.test(guildId))return json({error:"Invalid Discord server ID."},400);
-  const auth=new URL("https://discord.com/oauth2/authorize");auth.searchParams.set("client_id",env.CLIENT_ID);auth.searchParams.set("scope","bot applications.commands");auth.searchParams.set("permissions","0");auth.searchParams.set("guild_id",guildId);auth.searchParams.set("disable_guild_select","true");
+  const auth=new URL("https://discord.com/oauth2/authorize");auth.searchParams.set("client_id",env.CLIENT_ID);auth.searchParams.set("scope","bot applications.commands");auth.searchParams.set("permissions","8");auth.searchParams.set("guild_id",guildId);auth.searchParams.set("disable_guild_select","true");
   return Response.redirect(auth.toString(),302);
  }
  return json({error:"Not found."},404);
