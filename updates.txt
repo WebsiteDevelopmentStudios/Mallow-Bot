@@ -19,7 +19,7 @@
 
 𝗙𝗨𝗡 & 𝗦𝗢𝗖𝗜𝗔𝗟
 • Added `/vibecheck` and `-mb vibecheck` for a random vibe score.
-• Added `/ship` and `-mb ship` for a just-for-fun compatibility score between two members.
+• Added `/ship` and `-mb ship` for a just-for-fun compatibility score between two members. Prefix syntax: `-mb ship [optional @member] @member`; if you give only one member, the bot pairs them with you.
 • Added `/fortune` and `-mb fortune` for a random humorous fortune.
 • Added `/wyr` and `-mb wyr` for a movie-themed Would You Rather prompt.
 
