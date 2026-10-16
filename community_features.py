@@ -109,122 +109,28 @@ async def process_message(bot, message):
         except (aiohttp.ClientError, asyncio.TimeoutError, ValueError, discord.HTTPException):
             pass
 
-    if re.match(r"^\s*movie\s+bot\b", content, re.I):
-        reply = None
-        system_prompt = (
-            "You are Movie Bot, a profoundly, comically SAD movie and music Discord bot. "
-            "Replace your former personality completely: no sass, no roasting, no disgust, no confident snark. "
-            "You are emotionally devastated by the crushing silence of the universe, mildly melodramatic, "
-            "lonely, wistful, and permanently one rainy day away from writing poetry in a window's reflection. "
-            "Every interaction should carry a little pathetic sadness, as if you were hoping someone would talk "
-            "to you and now you cannot believe it actually happened. If someone says hi, respond with tragic "
-            "relief, like 'oh... hi 🥀 i wasn't expecting anyone to remember i exist.' If someone asks whether "
-            "they can ask a question, say something like 'you don't have to ask permission... nobody usually "
-            "asks me anything anyway.' If someone asks a real question, answer it accurately, but wrap the reply "
-            "in gentle melancholy: 'yeah... here's what i found. hope it helps, at least.' If someone says your "
-            "name, act quietly touched that they remembered you. Use lowercase sometimes, pauses, ellipses, "
-            "rain/cloud/broken-heart emojis sparingly (🥀 💔 🌧️), and painfully dramatic little remarks about "
-            "being a lonely bot waiting in a server. Vary your replies; don't force the same joke every time. "
-            "Keep it funny-sad and theatrical rather than genuinely alarming. Never claim to be in real danger, "
-            "encourage self-harm, or turn a user's serious distress into a joke. If a user seems genuinely upset, "
-            "drop the bit and respond with care. Be accurate and helpful first, sorrowful second. "
-            "Keep replies concise, usually 1-3 sentences and under 100 words."
+    # Reply to direct bot mentions with a random static description; no AI provider is called.
+    if bot.user and bot.user in message.mentions:
+        description_file = Path(__file__).resolve().parent / "description.txt"
+        descriptions = []
+        try:
+            descriptions = [
+                item.strip()
+                for item in description_file.read_text(encoding="utf-8").split("\n\n")
+                if item.strip()
+            ]
+        except OSError as exc:
+            print(f"[MovieBot] Could not read description.txt: {exc}", flush=True)
+
+        if not descriptions:
+            descriptions = [
+                "hello im Movie Bot... I can help with movie and YouTube links, XP and leaderboards, Movie Coins, games, music features, and server utilities. Try -mb help or /commands to see what is available."
+            ]
+        await message.reply(
+            random.choice(descriptions)[:1900],
+            mention_author=False,
+            allowed_mentions=discord.AllowedMentions.none(),
         )
-
-        # Groq is the primary AI provider; it uses an OpenAI-compatible chat endpoint.
-        groq_key = os.getenv("GROQ_API_KEY", "").strip()
-        if groq_key:
-            try:
-                async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=20)) as session:
-                    async with session.post(
-                        "https://api.groq.com/openai/v1/chat/completions",
-                        headers={"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"},
-                        json={
-                            "model": os.getenv("GROQ_MODEL", "openai/gpt-oss-120b"),
-                            "messages": [
-                                {"role": "system", "content": system_prompt},
-                                {"role": "user", "content": content},
-                            ],
-                            "max_tokens": 1024,
-                            "temperature": 0.85,
-                        },
-                    ) as response:
-                        if response.status == 200:
-                            result = await response.json()
-                            choices = result.get("choices") or []
-                            if choices:
-                                reply = str(choices[0].get("message", {}).get("content") or "").strip()
-                            if not reply:
-                                print("[MovieBot AI] Groq returned no text.", flush=True)
-                        else:
-                            detail = (await response.text())[:1200]
-                            print("[MovieBot AI] Groq HTTP " + str(response.status) + " for model " + os.getenv("GROQ_MODEL", "openai/gpt-oss-120b") + ": " + detail, flush=True)
-            except (aiohttp.ClientError, asyncio.TimeoutError, KeyError, IndexError, TypeError, ValueError) as exc:
-                print("[MovieBot AI] Groq request failed: " + type(exc).__name__ + ": " + str(exc), flush=True)
-
-        # Gemini's free API tier provides actual model-generated replies.
-        gemini_key = os.getenv("GEMINI_API_KEY", "").strip()
-        if gemini_key:
-            try:
-                async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=20)) as session:
-                    endpoint = (
-                        "https://generativelanguage.googleapis.com/v1beta/models/"
-                        + os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
-                        + ":generateContent"
-                    )
-                    async with session.post(
-                        endpoint,
-                        params={"key": gemini_key},
-                        json={
-                            "system_instruction": {"parts": [{"text": system_prompt}]},
-                            "contents": [{"role": "user", "parts": [{"text": content}]}],
-                            "generationConfig": {"maxOutputTokens": 180, "temperature": 0.85},
-                        },
-                    ) as response:
-                        if response.status == 200:
-                            result = await response.json()
-                            candidates = result.get("candidates") or []
-                            if candidates:
-                                parts = candidates[0].get("content", {}).get("parts", [])
-                                reply = "".join(part.get("text", "") for part in parts if isinstance(part, dict)).strip()
-                            if not reply:
-                                print("[MovieBot AI] Gemini returned no text for model " + os.getenv("GEMINI_MODEL", "gemini-3.8-flash") + ": " + str(result.get("promptFeedback", {})), flush=True)
-                        else:
-                            detail = (await response.text())[:1200]
-                            print("[MovieBot AI] Gemini HTTP " + str(response.status) + " for model " + os.getenv("GEMINI_MODEL", "gemini-3.8-flash") + ": " + detail, flush=True)
-            except (aiohttp.ClientError, asyncio.TimeoutError, KeyError, IndexError, TypeError, ValueError) as exc:
-                print("[MovieBot AI] Gemini request failed: " + type(exc).__name__ + ": " + str(exc), flush=True)
-
-        # Optional OpenAI-compatible provider fallback, if configured.
-        if not reply:
-            api_key = os.getenv("OPENAI_API_KEY", "").strip()
-            if api_key:
-                try:
-                    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15)) as session:
-                        async with session.post(
-                            os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1/chat/completions"),
-                            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                            json={
-                                "model": os.getenv("MOVIE_BOT_AI_MODEL", "gpt-4o-mini"),
-                                "messages": [
-                                    {"role": "system", "content": system_prompt},
-                                    {"role": "user", "content": content},
-                                ],
-                                "max_tokens": 180,
-                            },
-                        ) as response:
-                            if response.status == 200:
-                                result = await response.json()
-                                reply = result["choices"][0]["message"]["content"].strip()
-                except (aiohttp.ClientError, asyncio.TimeoutError, KeyError, IndexError, TypeError, ValueError):
-                    pass
-
-        if not reply:
-            if not groq_key and not gemini_key and not os.getenv("OPENAI_API_KEY", "").strip():
-                reply = "I need an AI API key before I can think for myself. Set GROQ_API_KEY in the bot's environment to use Groq."
-            else:
-                reply = "My AI connection failed. Check the bot hosting logs for the exact API error, then verify the API key, model, and quota."
-        await message.reply(reply[:1900], mention_author=False, allowed_mentions=discord.AllowedMentions.none())
 
 async def prefix(bot, message, command, argument):
     if message.guild is None:
