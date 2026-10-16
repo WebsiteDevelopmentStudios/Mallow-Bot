@@ -45,3 +45,4 @@ export async function onRequest(context) {
  try{return await route(request,env)}catch(e){return json({error:"Dashboard request failed. Check the Pages Function logs."},500)}
 }
 // Redeploy after refreshing the production session secret.
+// Redeploy after updating the Discord OAuth client secret.
