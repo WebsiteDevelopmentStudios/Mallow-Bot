@@ -28,6 +28,7 @@ def load():
     return {key: {} for key in ("xp", "currency", "log_channels", "timeout_minutes", "last_xp")}
 
 data = load()
+_last_description = None
 def save():
     temp = DATA_FILE.with_suffix(".tmp")
     temp.write_text(json.dumps(data, indent=2), encoding="utf-8")
@@ -126,8 +127,14 @@ async def process_message(bot, message):
             descriptions = [
                 "hello im Movie Bot... I can help with movie and YouTube links, XP and leaderboards, Movie Coins, games, music features, and server utilities. Try -mb help or /commands to see what is available."
             ]
+        global _last_description
+        choices = [item for item in descriptions if item != _last_description] or descriptions
+        reply = random.choice(choices)
+        _last_description = reply
+        if not reply.lower().startswith("hello im movie bot..."):
+            reply = "hello im Movie Bot... " + reply
         await message.reply(
-            random.choice(descriptions)[:1900],
+            reply[:1900],
             mention_author=False,
             allowed_mentions=discord.AllowedMentions.none(),
         )
