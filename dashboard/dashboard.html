@@ -132,7 +132,10 @@ const commands=[
 ['wyr','Get a movie-themed Would You Rather question.','fun','/wyr'],
 ['dm','Send a direct message to a server member.','moderation','/dm'],
 ['set-log','Set the bot DM log channel (developer only).','moderation','/set-log'],
-['timeout-minutes','Set automatic timeout duration for invite links.','moderation','prefix']
+['timeout-minutes','Set automatic timeout duration for invite links.','moderation','prefix'],
+['ticket','Open a private support ticket.','utility','/ticket · /ticket'],
+['ticket-panel','Post a support ticket panel.','utility','/ticket-panel'],
+['ticket-close','Close the current support ticket.','utility','/ticket-close']
 ];
 const categoryNames={music:'Music',utility:'Utility',community:'Community & XP',coins:'Mallow Coins',fun:'Fun',moderation:'Moderation',movies:'Movies'};
 function setSwitch(id,value){$(id).classList.toggle('on',!!value);$(id).setAttribute('aria-pressed',String(!!value))}
