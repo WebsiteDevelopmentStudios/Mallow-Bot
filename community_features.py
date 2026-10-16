@@ -350,8 +350,7 @@ async def prefix(bot, message, command, argument):
         if first.bot or second.bot or first.id == second.id:
             await message.reply("Choose two different human members. This is just for fun!", mention_author=False)
             return True
-        pair = ":".join(map(str, sorted((first.id, second.id)))) + f":{gid}"
-        score = int(__import__("hashlib").sha256(pair.encode()).hexdigest()[:8], 16) % 101
+        score = random.randint(0, 100)
         verdict = "cinematic soulmates 💞" if score >= 90 else "power couple material ✨" if score >= 70 else "chaotic duo 🤝" if score >= 40 else "better as movie buddies 🍿"
         await message.reply(f"💘 **{first.display_name} + {second.display_name}** = **{score}%** — {verdict}. (For fun only!)", mention_author=False)
         return True
