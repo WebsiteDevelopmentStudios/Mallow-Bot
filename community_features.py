@@ -329,6 +329,30 @@ async def prefix(bot, message, command, argument):
         save()
         await message.reply(f"Paid {amount} Movie Coins to {target.display_name}.", mention_author=False)
         return True
+    if command == "vibecheck":
+        target = message.mentions[0] if message.mentions else message.author
+        score = random.randint(0, 100)
+        verdict = "legendary energy" if score >= 90 else "main-character energy" if score >= 70 else "mysterious side-character energy" if score >= 40 else "needs a snack and a nap"
+        await message.reply(f"📡 Vibe scan for **{target.display_name}**: **{score}/100** — {verdict}.", mention_author=False)
+        return True
+    if command == "ship":
+        target = message.mentions[0] if message.mentions else None
+        if target is None or target.bot or target.id == uid:
+            await message.reply("Usage: -mb ship @member (just for fun, not a real compatibility test)", mention_author=False)
+            return True
+        pair = ":".join(map(str, sorted((uid, target.id)))) + f":{gid}"
+        score = int(__import__("hashlib").sha256(pair.encode()).hexdigest()[:8], 16) % 101
+        verdict = "cinematic soulmates 💞" if score >= 90 else "power couple material ✨" if score >= 70 else "chaotic duo 🤝" if score >= 40 else "better as movie buddies 🍿"
+        await message.reply(f"💘 **{message.author.display_name} + {target.display_name}** = **{score}%** — {verdict}. (For fun only!)", mention_author=False)
+        return True
+    if command == "fortune":
+        fortunes = ["A plot twist is closer than you think.", "Today, your side quest becomes the main story.", "The next message you send will be oddly important. Probably.", "A small win is loading. Please do not refresh.", "Your future contains snacks and questionable decisions.", "The universe says yes—but asks you to read the patch notes first.", "Someone in this server owes you a high five.", "Avoid suspiciously confident people bearing spoilers."]
+        await message.reply(f"🔮 **Your Movie Bot fortune:** {random.choice(fortunes)}", mention_author=False)
+        return True
+    if command == "wyr":
+        questions = ["Would you rather live inside your favorite movie or have your life directed by your least favorite director?", "Would you rather know every movie spoiler in advance or never be able to watch a trailer again?", "Would you rather have unlimited Movie Coins or pick the movie every movie night forever?", "Would you rather be the hero with terrible luck or the villain with a perfect plan?", "Would you rather only watch sequels or only watch movies with cliffhanger endings?", "Would you rather have a personal theme song or dramatic slow motion whenever you enter a room?", "Would you rather swap lives with a fictional character for a week or meet the actor who plays them?", "Would you rather erase one bad movie from existence or make one cancelled show get a perfect finale?"]
+        await message.reply(f"🎬 **Would You Rather?**\n{random.choice(questions)}\n\nReact with your choice or explain your answer!", mention_author=False)
+        return True
     if command == "balance":
         await message.reply(f"You have {int(data['currency'].get(key(gid,uid),100))} Movie Coins.", mention_author=False)
         return True
@@ -549,6 +573,35 @@ def setup(bot):
             balance -= bet; result=f"You lost {bet} Movie Coins."
         data["currency"][k]=balance; save()
         await interaction.response.send_message(f"{result} New balance: {balance} Movie Coins.",ephemeral=True)
+
+    @bot.tree.command(name="vibecheck", description="Run a completely unscientific vibe scan.")
+    @app_commands.describe(member="Who should get their vibe checked? Leave empty for yourself.")
+    async def vibecheck_slash(interaction: discord.Interaction, member: discord.Member | None = None):
+        target = member or interaction.user
+        score = random.randint(0, 100)
+        verdict = "legendary energy" if score >= 90 else "main-character energy" if score >= 70 else "mysterious side-character energy" if score >= 40 else "needs a snack and a nap"
+        await interaction.response.send_message(f"📡 Vibe scan for **{target.display_name}**: **{score}/100** — {verdict}.", allowed_mentions=discord.AllowedMentions.none())
+
+    @bot.tree.command(name="ship", description="Get a just-for-fun compatibility score for two members.")
+    @app_commands.describe(member="The other half of this totally scientific pairing")
+    async def ship_slash(interaction: discord.Interaction, member: discord.Member):
+        if member.bot or member.id == interaction.user.id:
+            await interaction.response.send_message("Choose another human member. This is just for fun!", ephemeral=True)
+            return
+        pair = ":".join(map(str, sorted((interaction.user.id, member.id)))) + f":{interaction.guild_id}"
+        score = int(__import__("hashlib").sha256(pair.encode()).hexdigest()[:8], 16) % 101
+        verdict = "cinematic soulmates 💞" if score >= 90 else "power couple material ✨" if score >= 70 else "chaotic duo 🤝" if score >= 40 else "better as movie buddies 🍿"
+        await interaction.response.send_message(f"💘 **{interaction.user.display_name} + {member.display_name}** = **{score}%** — {verdict}. (For fun only!)", allowed_mentions=discord.AllowedMentions.none())
+
+    @bot.tree.command(name="fortune", description="Draw a random Movie Bot fortune.")
+    async def fortune_slash(interaction: discord.Interaction):
+        fortunes = ["A plot twist is closer than you think.", "Today, your side quest becomes the main story.", "The next message you send will be oddly important. Probably.", "A small win is loading. Please do not refresh.", "Your future contains snacks and questionable decisions.", "The universe says yes—but asks you to read the patch notes first.", "Someone in this server owes you a high five.", "Avoid suspiciously confident people bearing spoilers."]
+        await interaction.response.send_message(f"🔮 **Your Movie Bot fortune:** {random.choice(fortunes)}")
+
+    @bot.tree.command(name="wyr", description="Get a movie-themed Would You Rather question.")
+    async def wyr_slash(interaction: discord.Interaction):
+        questions = ["Would you rather live inside your favorite movie or have your life directed by your least favorite director?", "Would you rather know every movie spoiler in advance or never be able to watch a trailer again?", "Would you rather have unlimited Movie Coins or pick the movie every movie night forever?", "Would you rather be the hero with terrible luck or the villain with a perfect plan?", "Would you rather only watch sequels or only watch movies with cliffhanger endings?", "Would you rather have a personal theme song or dramatic slow motion whenever you enter a room?", "Would you rather swap lives with a fictional character for a week or meet the actor who plays them?", "Would you rather erase one bad movie from existence or make one cancelled show get a perfect finale?"]
+        await interaction.response.send_message(f"🎬 **Would You Rather?**\\n{random.choice(questions)}\\n\\nReact with your choice or explain your answer!")
 
     async def message_listener(message):
         await process_message(bot, message)
