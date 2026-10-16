@@ -23,24 +23,28 @@ async function settings(env) { await env.MALLOW_DB.prepare("CREATE TABLE IF NOT 
   const d=await r.json();
   return {session:{...s,user:{...s.user,access_token:d.access_token,refresh_token:d.refresh_token||s.user.refresh_token,token_expires_at:Date.now()+Number(d.expires_in||604800)*1000}},refreshed:true};
 }
-async function authorizedGuild(s, env, guildId) {
-  if(!/^\d{17,20}$/.test(guildId||"")) return {error:"Select a valid Discord server.",status:400};
-  if(!s?.user?.access_token) return {error:"Sign in again to manage server settings.",status:401};
+async function cachedUserGuilds(env, s) {
+  await env.MALLOW_DB.prepare("CREATE TABLE IF NOT EXISTS oauth_guild_cache (user_id TEXT PRIMARY KEY, guilds_json TEXT NOT NULL, expires_at INTEGER NOT NULL)").run();
+  const cached=await env.MALLOW_DB.prepare("SELECT guilds_json,expires_at FROM oauth_guild_cache WHERE user_id=?").bind(s.user.id).first();
+  if(cached && Number(cached.expires_at)>Date.now()){try{return {guilds:JSON.parse(cached.guilds_json),session:s}}catch{}}
   let active=s;let r=await fetch("https://discord.com/api/users/@me/guilds",{headers:{authorization:"Bearer "+active.user.access_token}});
   if(r.status===401){const refreshed=await refreshDiscordSession(env,active,true);if(refreshed.refreshed){active=refreshed.session;r=await fetch("https://discord.com/api/users/@me/guilds",{headers:{authorization:"Bearer "+active.user.access_token}})}}
-  if(!r.ok){let detail="";try{const body=await r.clone().json();detail=body.message||body.error_description||body.error||""}catch{}if(r.status===429){const retryAfter=Math.max(1,Number(r.headers.get("Retry-After")||60));return {error:`Discord is temporarily rate-limiting server permission checks. Wait about ${Math.ceil(retryAfter)} seconds, then retry once. Do not repeatedly refresh the dashboard.`,status:429,retryAfter};}return {error:r.status===401?"Discord rejected this session. Sign out, then sign in again and approve the requested permissions.":`Discord server-permission check failed (HTTP ${r.status})${detail?": "+detail:""}. Check the OAuth configuration and try again.`,status:r.status===401?401:502};}
-  s=active;
+  if(!r.ok){const retryAfter=Math.max(1,Number(r.headers.get("Retry-After")||60));return {error:r.status===429?`Discord is rate-limiting requests. Wait about ${Math.ceil(retryAfter)} seconds before trying again.`:`Discord guild list failed (HTTP ${r.status}).`,status:r.status===429?429:(r.status===401?401:502),retryAfter:r.status===429?retryAfter:undefined}}
   const guilds=await r.json();
-  const guild=guilds.find(g=>g.id===guildId);
+  await env.MALLOW_DB.prepare("INSERT INTO oauth_guild_cache(user_id,guilds_json,expires_at) VALUES(?,?,?) ON CONFLICT(user_id) DO UPDATE SET guilds_json=excluded.guilds_json,expires_at=excluded.expires_at").bind(active.user.id,JSON.stringify(guilds),Date.now()+5*60*1000).run();
+  return {guilds,session:active};
+}
+async function authorizedGuild(s, env, guildId) {
+  if(!/^\\d{17,20}$/.test(guildId||"")) return {error:"Select a valid Discord server.",status:400};
+  if(!s?.user?.access_token) return {error:"Sign in again to manage server settings.",status:401};
+  const result=await cachedUserGuilds(env,s);if(result.error)return result;s=result.session;
+  const guild=result.guilds.find(g=>g.id===guildId);
   if(!guild) return {error:"That server is not available to your Discord account.",status:403};
   let permissions=0n;try{permissions=BigInt(guild.permissions||"0")}catch{}
   if((permissions&8n)===0n&&(permissions&32n)===0n) return {error:"You need Administrator or Manage Server permission to configure Mallow here.",status:403};
-  if(env.BOT_TOKEN){
-   const br=await fetch("https://discord.com/api/guilds/"+guildId,{headers:{authorization:"Bot "+env.BOT_TOKEN}});
-   if(!br.ok) return {error:"Mallow Bot must be in this server before you can configure it.",status:409};
-  }
+  if(env.BOT_TOKEN){const br=await fetch("https://discord.com/api/guilds/"+guildId,{headers:{authorization:"Bot "+env.BOT_TOKEN}});if(!br.ok)return {error:"Mallow Bot must be in this server before you can configure it.",status:409};}
   return {guild};
- }
+}
  async function ensureGuildSettings(env){
   await env.MALLOW_DB.prepare("CREATE TABLE IF NOT EXISTS guild_settings (guild_id TEXT PRIMARY KEY, prefix TEXT NOT NULL DEFAULT '-mb', greeting TEXT NOT NULL DEFAULT 'hey Mallow Bot', greetings INTEGER NOT NULL DEFAULT 1, mention_only INTEGER NOT NULL DEFAULT 1, disabled_commands TEXT NOT NULL DEFAULT '[]', features TEXT NOT NULL DEFAULT '{}', economy_config TEXT NOT NULL DEFAULT '{}', xp_config TEXT NOT NULL DEFAULT '{}', updated_at TEXT NOT NULL)").run();
   for(const sql of [
@@ -122,10 +126,8 @@ async function route(request, env) {
  if(path==="guilds"&&request.method==="GET"){
   let s=await session(request,env);if(!s)return json({error:"Sign in required."},401);
   if(!s.user.access_token)return json({error:"Discord permissions are missing. Sign out and sign in again to grant server-list access."},401);
-  let ur=await fetch("https://discord.com/api/users/@me/guilds?with_counts=true",{headers:{authorization:"Bearer "+s.user.access_token}});
-  if(ur.status===401){const refreshed=await refreshDiscordSession(env,s,true);if(refreshed.refreshed){s=refreshed.session;ur=await fetch("https://discord.com/api/users/@me/guilds?with_counts=true",{headers:{authorization:"Bearer "+s.user.access_token}})}}
-  if(!ur.ok){let detail="";try{const body=await ur.clone().json();detail=body.message||body.error_description||body.error||""}catch{}if(ur.status===429){const retryAfter=Math.max(1,Number(ur.headers.get("Retry-After")||60));return json({error:`Discord is temporarily rate-limiting the server list. Wait about ${Math.ceil(retryAfter)} seconds before trying again; repeated refreshes can extend the delay.`,retry_after:retryAfter},429,{"Retry-After":String(retryAfter),"cache-control":"no-store"})}return json({error:ur.status===401?"Discord rejected the access token and it could not be refreshed. Sign out and sign in again; if it repeats, check the Discord OAuth client settings.":`Discord server-list request failed (HTTP ${ur.status})${detail?": "+detail:""}. Check OAuth scopes and Discord API status.`},ur.status===401?401:502)}
-  const all=await ur.json();const manageable=all.filter(g=>{try{const p=BigInt(g.permissions||"0");return (p&8n)!==0n||(p&32n)!==0n}catch{return false}});
+  const cached=await cachedUserGuilds(env,s);if(cached.error)return json({error:cached.error,retry_after:cached.retryAfter||null},cached.status,cached.retryAfter?{"Retry-After":String(cached.retryAfter),"cache-control":"no-store"}:{});s=cached.session;
+  const all=cached.guilds;const manageable=all.filter(g=>{try{const p=BigInt(g.permissions||"0");return (p&8n)!==0n||(p&32n)!==0n}catch{return false}});
   if(!env.BOT_TOKEN)return json({error:"Bot presence checking is not configured. Add the Mallow Bot token as the BOT_TOKEN secret in Cloudflare Pages → Settings → Variables and Secrets, then redeploy."},503);
   const botHeaders={authorization:"Bot "+env.BOT_TOKEN};
   const botMeResponse=await fetch("https://discord.com/api/users/@me",{headers:botHeaders});
