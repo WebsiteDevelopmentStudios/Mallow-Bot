@@ -1,4 +1,4 @@
-"""Hosted bridge for Movie-Bot.
+"""Hosted bridge for Mochi-Bot.
 
 The Cloudflare Worker receives Discord interactions and forwards them here.
 This service runs the existing discord.py bot and proxies the existing movie
@@ -71,7 +71,7 @@ class BridgedInteraction(discord.Interaction):
 
 
 async def discord_interaction(request: web.Request) -> web.Response:
-    if WAKE_SECRET and request.headers.get("X-Movie-Bot-Secret", "") != WAKE_SECRET:
+    if WAKE_SECRET and request.headers.get("X-Mochi-Bot-Secret", "") != WAKE_SECRET:
         return web.json_response({"error": "unauthorized"}, status=401)
 
     try:
