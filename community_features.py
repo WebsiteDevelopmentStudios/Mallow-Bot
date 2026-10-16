@@ -22,12 +22,12 @@ def load():
     try:
         value = json.loads(DATA_FILE.read_text(encoding="utf-8"))
         if isinstance(value, dict):
-            for key in ("xp", "currency", "log_channels", "timeout_minutes", "last_xp", "daily_claims", "snipes", "sticky_messages", "custom_commands", "vanity"):
+            for key in ("xp", "currency", "log_channels", "dm_routes", "timeout_minutes", "last_xp", "daily_claims", "snipes", "sticky_messages", "custom_commands", "vanity"):
                 value.setdefault(key, {})
             return value
     except (OSError, json.JSONDecodeError):
         pass
-    return {key: {} for key in ("xp", "currency", "log_channels", "timeout_minutes", "last_xp", "daily_claims", "snipes", "sticky_messages", "custom_commands", "vanity")}
+    return {key: {} for key in ("xp", "currency", "log_channels", "dm_routes", "timeout_minutes", "last_xp", "daily_claims", "snipes", "sticky_messages", "custom_commands", "vanity")}
 
 data = load()
 _last_description = None
@@ -49,23 +49,35 @@ async def process_message(bot, message):
     if message.author.bot:
         return
     if message.guild is None:
-        # DM inbox: send incoming messages to a configured log channel.
+        # Route replies to the single server whose /dm command most recently
+        # contacted this user. Never fan a private DM out across every server.
         if bot.user and message.author.id == bot.user.id:
             return
-        for channel_id in data["log_channels"].values():
+        route = data.get("dm_routes", {}).get(str(message.author.id))
+        channel_id = route.get("channel_id") if isinstance(route, dict) else None
+        if not channel_id:
+            # Unsolicited DMs go to at most one configured owner log channel.
+            channel_id = next(iter(data.get("log_channels", {}).values()), None)
+        delivered = False
+        if channel_id:
             try:
                 channel = bot.get_channel(int(channel_id)) or await bot.fetch_channel(int(channel_id))
                 if isinstance(channel, discord.TextChannel):
                     embed = discord.Embed(title="Mallow-Bot DM received", color=discord.Color.orange())
                     embed.add_field(name="From", value=f"{message.author} (ID {message.author.id})", inline=False)
+                    if isinstance(route, dict) and route.get("guild_id"):
+                        embed.add_field(name="Server", value=str(route.get("guild_id")), inline=False)
                     embed.add_field(name="Message", value=(message.content or "[No text content]")[:4000], inline=False)
                     embed.timestamp = message.created_at
                     await channel.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
-                    break
-            except (discord.Forbidden, discord.NotFound, discord.HTTPException, ValueError):
-                continue
+                    delivered = True
+            except (discord.Forbidden, discord.NotFound, discord.HTTPException, ValueError, TypeError):
+                pass
         try:
-            await message.channel.send("Your message was delivered to the bot owner.")
+            await message.channel.send(
+                "Your message was forwarded to the server's mod channel." if delivered
+                else "I couldn't forward your message because no DM log channel is configured or accessible."
+            )
         except discord.HTTPException:
             pass
         return
@@ -948,12 +960,35 @@ def setup(bot):
         if len(message) > 1900:
             await interaction.response.send_message("Messages must be 1,900 characters or fewer.", ephemeral=True)
             return
+        if interaction.guild is None or interaction.guild_id is None:
+            await interaction.response.send_message("Use this command inside a server.", ephemeral=True)
+            return
+        # Require this server's configured DM/mod log channel so private
+        # replies are never accidentally posted into a public command channel.
+        configured_channel_id = data.get("log_channels", {}).get(str(interaction.guild_id))
+        destination = interaction.guild.get_channel(int(configured_channel_id)) if configured_channel_id else None
+        if not isinstance(destination, discord.TextChannel):
+            await interaction.response.send_message(
+                "This server doesn't have an accessible DM log/mod channel configured. Ask the bot owner to set one with /set-log first.",
+                ephemeral=True,
+            )
+            return
         try:
             await member.send(message, allowed_mentions=discord.AllowedMentions.none())
         except (discord.Forbidden, discord.HTTPException):
             await interaction.response.send_message("I couldn't DM that member. They may have DMs disabled.", ephemeral=True)
             return
-        await interaction.response.send_message(f"Sent a DM to {member.mention}. Replies will be forwarded to the configured DM log channel.", ephemeral=True)
+        data.setdefault("dm_routes", {})[str(member.id)] = {
+            "guild_id": interaction.guild_id,
+            "channel_id": destination.id,
+            "set_by": interaction.user.id,
+            "updated_at": int(time.time()),
+        }
+        save()
+        await interaction.response.send_message(
+            f"Sent a DM to {member.mention}. Their replies will be forwarded only to {destination.mention}.",
+            ephemeral=True,
+        )
 
     @bot.tree.command(name="youtube", description="Look up a YouTube video link.")
     @app_commands.describe(url="YouTube video URL")

@@ -8,13 +8,18 @@ These Terms of Service (“Terms”) govern your use of Mallow Bot (“Mallow,�
 
 You must be permitted to use Discord and comply with Discord’s Terms of Service, Community Guidelines, and applicable law. You are responsible for ensuring your use of Mallow Bot is allowed in your jurisdiction.
 
-## 2. Acceptable use
+## 2. Acceptable use and prohibited illegal activity
+
+Mallow Bot and its operator are not affiliated with, do not endorse, and do not participate in illegal activity carried out by users or servers. The bot is provided for lawful community use only.
 
 You agree not to:
-- Use the bot to harass, threaten, impersonate, or abuse others.
+- Use Mallow Bot to plan, facilitate, promote, conceal, or carry out illegal activity, or to distribute unlawful content.
+- Use the bot to harass, threaten, impersonate, exploit, defraud, or abuse others.
 - Exploit bugs, automate abusive command activity, interfere with the bot, or attempt unauthorized access to its systems or data.
-- Use the bot to violate Discord rules, infringe others’ rights, or break applicable law.
+- Use the bot to violate Discord’s Terms of Service or Community Guidelines, infringe others’ rights, or break applicable law.
 - Abuse or manipulate leaderboards, XP, cooldowns, games, or virtual currency systems.
+
+**Illegal use or serious misuse may result in a permanent ban of the responsible Discord account and/or server from using Mallow Bot.** We may remove the bot from a server, block accounts or server IDs, and preserve or report relevant information when reasonably necessary and legally permitted. We do not promise to investigate or monitor every server or message, and use of the bot does not imply that a server has been reviewed or approved.
 
 Server owners and moderators remain responsible for their server’s rules, permissions, and moderation.
 

@@ -4,14 +4,9 @@ import json
 import logging
 import os
 import re
-import secrets
-import shutil
 import time
 from datetime import datetime, timezone
-from pathlib import Path
 from zoneinfo import ZoneInfo
-from urllib.parse import urlparse
-from html import escape
 
 import aiohttp
 import discord
@@ -39,46 +34,6 @@ from lavalink_manager import (
 
 load_dotenv()
 
-
-BASE_DIR = Path(__file__).resolve().parent
-MOVIES_DIR = BASE_DIR / "Movies"
-CONFIG_FILE = BASE_DIR / "config.json"
-SUPPORTED_EXTENSIONS = {".mp4", ".mp3"}
-M3U8_SUFFIX = ".m3u8"
-# Allow hosts to provide system-installed media tools at nonstandard paths.
-# These executables are deliberately not downloaded by the bot at startup.
-FFMPEG_BIN = os.getenv("FFMPEG_BIN", "ffmpeg").strip() or "ffmpeg"
-FFPROBE_BIN = os.getenv("FFPROBE_BIN", "ffprobe").strip() or "ffprobe"
-DOWNLOAD_TIMEOUT_SECONDS = 30 * 60
-HOST_EXPIRY_BUFFER_SECONDS = 30
-WEB_HOST = os.getenv("MOVIE_HOST", "0.0.0.0")
-WEB_PORT = int(os.getenv("MOVIE_PORT", "8080"))
-HLS_CACHE_DIR = BASE_DIR / ".movie_hls"
-PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "https://wisp.uno").strip().rstrip("/")
-# Downloaded VidNest/M3U8/Cineby movies are deleted after this long to keep
-# the 512 MB disk quota from filling up. Hosting works from the HLS cache
-# while a movie plays, so deleting later is safe.
-DOWNLOAD_LIFETIME_SECONDS = 24 * 3600
-# Browser identity used when downloading streams; many CDNs reject ffmpeg's
-# default User-Agent.
-BROWSER_USER_AGENT = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
-)
-CINEBY_REFERER = "https://cineby.tech/"
-
-# TMDB provides movie search results; VidNest accepts TMDB IDs in its player URL.
-TMDB_API_KEY = os.getenv(
-    "TMDB_API_KEY",
-    os.getenv("CINEBY_TMDB_API_KEY", "8871b4dba1715cd776c063a458ae8795"),
-).strip()
-TMDB_SEARCH_URL = "https://api.themoviedb.org/3/search/movie"
-CLOUDFLARED_BIN = os.getenv("CLOUDFLARED_BIN", "cloudflared").strip() or "cloudflared"
-
-active_host = None
-host_lock = asyncio.Lock()
-cloudflared_process = None
-cloudflared_log_task = None
 
 logging.basicConfig(
     level=logging.INFO,
@@ -2150,8 +2105,7 @@ async def _dashboard_tree_interaction_check(interaction: discord.Interaction) ->
             "xp": {"xp","level","leaderboard"},
             "music": {"play","pause","resume","lyrics","skip","queue","volume","stop","join","leave"},
             "moderation": {"dm","set-log","timeout-minutes"},
-            "movies": {"movie","channel"},
-            "fun": {"vibecheck","ship","fortune","wyr"},
+                "fun": {"vibecheck","ship","fortune","wyr"},
             "utility": {"uptime","update","commands","help","sync","countdown"},
             "social": {"youtube"},
         }
@@ -2338,6 +2292,43 @@ async def on_ready() -> None:
     logger.info("Logged in as %s (%s).", bot.user, bot.user.id if bot.user else "unknown")
 
 
+def _banned_guild_ids() -> set[int]:
+    raw = os.getenv("BANNED_GUILD_IDS", "")
+    banned: set[int] = set()
+    for item in raw.split(","):
+        item = item.strip()
+        if item.isdecimal():
+            try:
+                banned.add(int(item))
+            except (TypeError, ValueError):
+                pass
+    return banned
+
+@bot.event
+async def on_guild_join(guild: discord.Guild) -> None:
+    """Leave blacklisted guilds without exposing blacklist details publicly."""
+    try:
+        if guild.id in _banned_guild_ids():
+            await guild.leave()
+            try:
+                logger.info("Left blacklisted guild %s.", guild.id)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+def _tos_embed() -> discord.Embed:
+    embed = discord.Embed(title="Mallow Bot — Acceptable Use", description="By using Mallow Bot, you agree to the Terms of Service. If you do not agree, stop using the bot.", color=discord.Color.blurple(), url="https://github.com/WebsiteDevelopmentStudios/Mallow-Bot/blob/main/TERMS_OF_SERVICE.md")
+    embed.add_field(name="You must not", value="• Harass, threaten, impersonate, or abuse others.\n• Exploit bugs, automate abusive command activity, interfere with the bot, or attempt unauthorized access to its systems or data.\n• Use the bot to violate Discord rules, infringe others' rights, or break applicable law.\n• Abuse or manipulate leaderboards, XP, cooldowns, games, or virtual currency.", inline=False)
+    embed.add_field(name="Illegal use and enforcement", value="• Mallow Bot is not affiliated with or an accomplice to illegal activity.\\n• Illegal use or serious misuse may permanently ban the responsible account and/or server from using Mallow Bot.\\n• Follow Discord's Terms of Service and Community Guidelines.", inline=False)
+    embed.add_field(name="Other important rules", value="• Server owners and moderators remain responsible for their server's rules and permissions.\\n• Mallow Coins, XP, levels, and game results are for in-bot entertainment only and have no real-world value.\\n• Features and availability may change.", inline=False)
+    embed.add_field(name="Full Terms of Service", value="[Read the complete Terms of Service](https://github.com/WebsiteDevelopmentStudios/Mallow-Bot/blob/main/TERMS_OF_SERVICE.md)", inline=False)
+    embed.set_footer(text="Mallow Bot • Terms of Service")
+    return embed
+
+@bot.tree.command(name="tos", description="Show Mallow Bot acceptable-use rules")
+async def bot_tos(interaction: discord.Interaction) -> None:
+    await send_interaction_response(interaction, embed=_tos_embed(), ephemeral=True)
 @bot.tree.command(name="play", description="Play a song or Spotify track in your voice channel.")
 @app_commands.describe(song="A song name, or an open.spotify.com/track URL.")
 async def music_play(interaction: discord.Interaction, song: str) -> None:
@@ -2636,7 +2627,8 @@ async def on_message(message: discord.Message) -> None:
     if message.author.bot:
         return
     if message.guild is None:
-        await process_community_message(bot, message)
+        # community_features registers its own listener for inbound DMs; do not
+        # process the same private message twice here.
         return
     # Run dashboard-configured auto replies, XP, moderation and social handlers
     # before the legacy prefix-command dispatcher returns for ordinary messages.
@@ -2655,12 +2647,15 @@ async def on_message(message: discord.Message) -> None:
     parts = raw.split(maxsplit=1)
     command_name = parts[0].lower()
     argument = parts[1].strip() if len(parts) > 1 else ""
+
+    if command_name in {"tos", "terms", "terms-of-service"}:
+        await message.reply(embed=_tos_embed(), mention_author=False)
+        return
     feature_groups = {
         "economy": {"balance","daily","gamble","coinflip","slots","roulette","dice","blackjack","work","pay","rob"},
         "xp": {"xp","level","leaderboard"},
         "music": {"play","pause","resume","lyrics","skip","queue","volume","stop","join","leave"},
         "moderation": {"dm","set-log","timeout-minutes"},
-        "movies": {"movie","channel"},
         "fun": {"vibecheck","ship","fortune","wyr"},
         "utility": {"uptime","update","commands","help","sync","countdown","say"},
         "social": {"youtube"},
@@ -3379,8 +3374,6 @@ async def voice_leave(interaction: discord.Interaction) -> None:
 
 
 
-bot.tree.add_command(channel_group)
-bot.tree.add_command(movie_group)
 
 
 
@@ -3430,8 +3423,6 @@ async def on_app_command_error(
 
 
 def main() -> None:
-    ensure_movies_dir()
-
     token = os.getenv("DISCORD_TOKEN", "").strip()
     if not token:
         raise SystemExit(
