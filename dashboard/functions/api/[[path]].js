@@ -244,6 +244,12 @@ async function route(request, env) {
   await env.MALLOW_DB.prepare("DELETE FROM premium_bans WHERE discord_id=?").bind(id).run();
   return json({ok:true,discord_id:id,revoked:true,banned:false});
  }
+ if(path==="premium-check"&&request.method==="GET"){
+  const id=String(url.searchParams.get("discord_id")||"").trim();
+  if(!/^\\d{17,20}$/.test(id))return json({error:"Invalid Discord ID."},400);
+  const premium=await premiumFor(env,id);
+  return json({ok:true,active:premium.active,expires_at:premium.expires_at,banned:premium.banned});
+ }
  if(path==="premium-status"&&request.method==="GET"){
   const s=await session(request,env);if(!s)return json({error:"Sign in with Discord first."},401);
   const premium=await premiumFor(env,s.user.id);
