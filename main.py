@@ -82,7 +82,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
 )
-logger = logging.getLogger("movie-bot")
+logger = logging.getLogger("mochi-bot")
 
 async def acknowledge_command(interaction: discord.Interaction) -> None:
     """Acknowledge a slash command immediately so long-running work cannot expire it."""
@@ -949,7 +949,7 @@ async def hosted_movie_handler(request: web.Request) -> web.StreamResponse:
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{title} - Movie Bot</title>
+<title>{title} - Mochi Bot</title>
 <meta property="og:title" content="Watch {title}">
 <meta property="og:description" content="Watch {title} directly in your browser.">
 <meta property="og:type" content="video.other">
@@ -1454,7 +1454,7 @@ async def search_movies(query: str) -> list[dict]:
         raise RuntimeError("TMDB_API_KEY is not configured.")
 
     timeout = aiohttp.ClientTimeout(total=15)
-    headers = {"User-Agent": "Movie-Bot/1.0 (+https://vidnest.fun)"}
+    headers = {"User-Agent": "Mochi-Bot/1.0 (+https://vidnest.fun)"}
     async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
         async with session.get(
             TMDB_SEARCH_URL,
@@ -2118,7 +2118,7 @@ intents = discord.Intents.default()
 intents.message_content = True
 
 
-class MovieBot(commands.Bot):
+class MochiBot(commands.Bot):
     async def setup_hook(self) -> None:
         # Connect to the configured external Lavalink node and publish slash commands.
         await initialize_lavalink()
@@ -2129,7 +2129,7 @@ class MovieBot(commands.Bot):
             logger.warning("Could not sync global slash commands on startup: %s", exc)
 
 
-bot = MovieBot(command_prefix=commands.when_mentioned, intents=intents)
+bot = MochiBot(command_prefix=commands.when_mentioned, intents=intents)
 
 # Register optional community features before the global slash-command sync.
 from community_features import setup as setup_community_features
@@ -2544,7 +2544,7 @@ async def music_stop(interaction: discord.Interaction) -> None:
 
 
 BOT_START_TIME = time.monotonic()
-GITHUB_UPDATES_RAW_URL = "https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Movie-Bot/main/updates.txt"
+GITHUB_UPDATES_RAW_URL = "https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mochi-Bot/main/updates.txt"
 
 
 def format_uptime() -> str:
