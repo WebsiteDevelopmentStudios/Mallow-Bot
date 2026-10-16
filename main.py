@@ -2696,7 +2696,7 @@ async def on_message(message: discord.Message) -> None:
             )
             await message.reply(
                 f"Synced **{standard_count} commands** and **{premium_count} Premium commands**. "
-                "Deleted this server's old command registrations. Discord may take a few minutes to update the list.",
+                "Removed this server's duplicate guild-only registrations. Global slash-command updates can take a little while to appear.",
                 mention_author=False,
             )
             return
@@ -2717,6 +2717,9 @@ async def on_message(message: discord.Message) -> None:
 
         if command_name in {"vibecheck", "ship", "fortune", "wyr"}:
             return
+
+        if command_name in {"embed", "snipe", "sticky", "backup", "custom-command", "vanity", "premium-status"}:
+            return  # Prefix variants are handled by community_features.
 
         if command_name in {"help", "commands"}:
             await message.reply(
@@ -3043,25 +3046,18 @@ async def on_message(message: discord.Message) -> None:
 
 
 async def refresh_application_commands(guild: discord.Guild) -> list:
-    """Publish all current commands globally and to this guild for immediate visibility."""
-    # Publish globally for all servers, including the Premium commands registered by
-    # community_features.setup(bot).
-    global_synced = await bot.tree.sync()
-
-    # Guild registrations update immediately. Replace old guild-only commands with
-    # a copy of the complete current global tree, not an empty guild tree.
+    """Remove duplicate guild-only registrations and publish the global command tree."""
     bot.tree.clear_commands(guild=guild)
-    bot.tree.copy_global_to(guild=guild)
-    guild_synced = await bot.tree.sync(guild=guild)
-
+    await bot.tree.sync(guild=guild)
+    global_synced = await bot.tree.sync()
     premium_names = {"embed", "snipe", "sticky", "backup", "custom-command", "vanity", "premium-status"}
-    premium_count = sum(1 for command in guild_synced if command.name in premium_names)
-    standard_count = len(guild_synced) - premium_count
+    premium_count = sum(1 for command in global_synced if command.name in premium_names)
+    standard_count = len(global_synced) - premium_count
     logger.info(
-        "Synced %d commands and %d Premium commands for %s (%s); global total: %d.",
-        standard_count, premium_count, guild.name, guild.id, len(global_synced),
+        "Synced %d standard commands and %d Premium commands globally; cleared guild-only duplicates for %s (%s).",
+        standard_count, premium_count, guild.name, guild.id,
     )
-    return guild_synced
+    return global_synced
 
 
 @bot.tree.command(name="sync", description="Delete stale command registrations and refresh slash commands.")
