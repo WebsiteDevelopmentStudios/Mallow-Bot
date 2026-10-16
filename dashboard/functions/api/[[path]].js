@@ -46,6 +46,19 @@ async function route(request, env) {
  const signed=await token(payload,env.SESSION_SECRET);const h=new Headers({"location":"/","cache-control":"no-store"});h.append("set-cookie",cookieHeader(signed,7*24*60*60));h.append("set-cookie","mallow_oauth_state=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0");return new Response(null,{status:302,headers:h});
  }
 
+
+ if(path==="runtime-config"&&request.method==="GET"){
+  const expected=String(env.RUNTIME_CONFIG_SECRET||"");
+  const supplied=(request.headers.get("Authorization")||"").replace(/^Bearer\s+/i,"");
+  if(!expected||!supplied||supplied!==expected)return json({error:"Unauthorized."},401);
+  const guildId=url.searchParams.get("guild_id")||"";
+  if(!/^\d{17,20}$/.test(guildId))return json({error:"Invalid server ID."},400);
+  await ensureGuildSettings(env);
+  const row=await env.MALLOW_DB.prepare("SELECT prefix,greeting,greetings,mention_only,disabled_commands FROM guild_settings WHERE guild_id=?").bind(guildId).first();
+  let disabled=[];try{disabled=JSON.parse(row?.disabled_commands||"[]");if(!Array.isArray(disabled))disabled=[]}catch{}
+  return json({guild_id:guildId,settings:{prefix:row?.prefix||defaults.prefix,greeting:row?.greeting||defaults.greeting,greetings:row?!!row.greetings:true,mention_only:row?!!row.mention_only:true,disabled_commands:disabled}});
+ }
+
  if(path==="guild-settings"&&(request.method==="GET"||request.method==="PUT")){
   const s=await session(request,env);if(!s)return json({error:"Sign in required."},401);
   const guildId=url.searchParams.get("guild_id")||"";
