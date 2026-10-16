@@ -217,7 +217,7 @@ async function route(request, env) {
    return json({ok:true,subscriptions:subs.results||[],bans:bans.results||[]});
   }
   let body;try{body=await request.json()}catch{return json({error:"Invalid JSON."},400)}
-  const id=String(body.discord_id||"").trim();if(!/^\\d{17,20}$/.test(id))return json({error:"Enter a valid 17–20 digit Discord user ID."},400);
+  const id=String(body.discord_id||"").trim();if(!/^\d{17,20}$/.test(id))return json({error:"Enter a valid 17–20 digit Discord user ID."},400);
   if(id===String(env.BOT_OWNER_ID))return json({error:"The owner cannot be banned or have Premium revoked here."},400);
   if(request.method==="POST"){
    const action=String(body.action||"");
