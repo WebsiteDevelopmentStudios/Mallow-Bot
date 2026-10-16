@@ -1084,7 +1084,7 @@ def setup(bot):
             message = str(ticket_cfg.get("welcome_message") or "Thanks for opening a ticket. A staff member will be with you soon.")[:1800]
             mentions = " ".join(f"<@&{rid}>" for rid in role_ids if interaction.guild.get_role(rid))
             await channel.send(
-                content=(mentions + "\\n" if mentions else "") + f"{interaction.user.mention}\\n{message}",
+                content=(mentions + "\n" if mentions else "") + f"{interaction.user.mention}\n{message}",
                 view=TicketControlsView(),
                 allowed_mentions=discord.AllowedMentions(users=True, roles=True, everyone=False),
             )
