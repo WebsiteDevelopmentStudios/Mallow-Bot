@@ -2134,7 +2134,7 @@ class MallowBot(commands.Bot):
 bot = MallowBot(command_prefix=commands.when_mentioned, intents=intents)
 
 # Register optional community features before the global slash-command sync.
-from community_features import setup as setup_community_features
+from community_features import process_message as process_community_message, setup as setup_community_features
 setup_community_features(bot)
 
 # Enforce per-server command switches for slash commands as well as text commands.
@@ -2633,8 +2633,14 @@ async def post_updates(channel) -> int:
 
 @bot.event
 async def on_message(message: discord.Message) -> None:
-    if message.author.bot or message.guild is None:
+    if message.author.bot:
         return
+    if message.guild is None:
+        await process_community_message(bot, message)
+        return
+    # Run dashboard-configured auto replies, XP, moderation and social handlers
+    # before the legacy prefix-command dispatcher returns for ordinary messages.
+    await process_community_message(bot, message)
     guild_id = message.guild.id
     dashboard_config = await get_guild_config(guild_id)
     prefix = dashboard_config.get("prefix", "-mb")
