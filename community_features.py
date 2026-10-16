@@ -184,7 +184,7 @@ async def prefix(bot, message, command, argument):
     starting_money = int(economy_cfg.get("starting_money", 100))
     premium_commands = {"embed", "snipe", "sticky", "backup", "custom-command", "vanity", "premium-status"}
     if command in premium_commands:
-        if uid != OWNER_USER_ID:
+        if uid != OWNER_USER_ID and command != "premium-status":
             try:
                 async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
                     async with session.get("https://mallowbot.devs.surf/api/premium-check", params={"discord_id": str(uid)}) as response:
