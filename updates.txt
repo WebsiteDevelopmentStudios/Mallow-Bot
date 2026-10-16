@@ -9,13 +9,13 @@
 • Eligible chat messages award 10–20 XP, with a 60-second per-user cooldown. Messages beginning with `-mb` do not award XP.
 
 𝗠𝗢𝗩𝗜𝗘 𝗖𝗢𝗜𝗡𝗦 & 𝗚𝗔𝗠𝗕𝗟𝗜𝗡𝗚
-• Added `/balance` and `-mb balance` to check your Mochi Coins.
-• Added `/daily` and `-mb daily` to claim 100 Mochi Coins once every 24 hours. Both command styles share the same saved cooldown.
+• Added `/balance` and `-mb balance` to check your Mallow Coins.
+• Added `/daily` and `-mb daily` to claim 100 Mallow Coins once every 24 hours. Both command styles share the same saved cooldown.
 • Added `/gamble`, `/coinflip`, `/slots`, `/roulette`, `/dice`, and `/blackjack`, with matching `-mb` commands.
-• Added `/work` and `-mb work` to earn Mochi Coins.
+• Added `/work` and `-mb work` to earn Mallow Coins.
 • Added `/pay` and `-mb pay` to transfer coins to another member.
 • Added `/rob` and `-mb rob` to attempt to steal coins from another member.
-• Mochi Coins are fictional server currency and have no real-world value.
+• Mallow Coins are fictional server currency and have no real-world value.
 
 𝗙𝗨𝗡 & 𝗦𝗢𝗖𝗜𝗔𝗟
 • Added `/vibecheck` and `-mb vibecheck` for a random vibe score.

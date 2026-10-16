@@ -1,12 +1,12 @@
-# Mochi Bot Privacy Policy
+# Mallow Bot Privacy Policy
 
 **Effective date:** October 15, 2026
 
-Mochi Bot (“Mochi,” “we,” “us”) is a Discord bot that provides community features such as commands, XP and levels, leaderboards, virtual Mochi Coins, games, and other server utilities. This policy explains what information the bot may process when you use it.
+Mallow Bot (“Mallow,” “we,” “us”) is a Discord bot that provides community features such as commands, XP and levels, leaderboards, virtual Mallow Coins, games, and other server utilities. This policy explains what information the bot may process when you use it.
 
 ## 1. Information the bot may process
 
-Depending on the features enabled and how you interact with Mochi Bot, it may process or store:
+Depending on the features enabled and how you interact with Mallow Bot, it may process or store:
 
 - Discord user, server, and channel IDs needed to respond to commands and keep server-specific data separate.
 - Usernames or display names and message/command content that you send to the bot, where needed to respond or process a feature.
@@ -24,7 +24,7 @@ Information may be used to:
 - Prevent abuse, enforce cooldowns, troubleshoot errors, and maintain service reliability.
 - Respond to support requests and improve the bot.
 
-Mochi Coins are fictional in-bot points. They are not real money, have no cash value, and cannot be redeemed for money through the bot.
+Mallow Coins are fictional in-bot points. They are not real money, have no cash value, and cannot be redeemed for money through the bot.
 
 ## 3. Storage and sharing
 
@@ -42,13 +42,13 @@ When a command requests an external service, relevant query or link information 
 
 Data is retained for as long as needed to provide the relevant features, maintain records, and troubleshoot or protect the service. Retention periods may vary by data type and hosting configuration.
 
-To request access to, correction of, or deletion of bot-stored data, contact the bot operator through the support or contact method listed where Mochi Bot is distributed. Include your Discord user ID and the relevant server or feature so the request can be located. Do not include passwords or other secrets. We may need to retain some records for security, legal, or operational reasons.
+To request access to, correction of, or deletion of bot-stored data, contact the bot operator through the support or contact method listed where Mallow Bot is distributed. Include your Discord user ID and the relevant server or feature so the request can be located. Do not include passwords or other secrets. We may need to retain some records for security, legal, or operational reasons.
 
 Removing the bot from a server may stop future processing for that server, but it may not automatically erase previously stored records.
 
 ## 6. Children
 
-Mochi Bot is a community tool on Discord and is not designed to collect personal information directly from children. Users must comply with Discord’s minimum-age requirements and applicable local law.
+Mallow Bot is a community tool on Discord and is not designed to collect personal information directly from children. Users must comply with Discord’s minimum-age requirements and applicable local law.
 
 ## 7. Security
 
@@ -60,7 +60,7 @@ This policy may be updated as features, hosting, or legal requirements change. T
 
 ## 9. Contact
 
-For privacy questions or data requests, contact the Mochi Bot operator through the official support or contact channel associated with the bot.
+For privacy questions or data requests, contact the Mallow Bot operator through the official support or contact channel associated with the bot.
 
 ---
 

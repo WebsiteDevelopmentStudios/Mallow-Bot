@@ -1,12 +1,12 @@
-# Mochi Bot Terms of Service
+# Mallow Bot Terms of Service
 
 **Effective date:** October 15, 2026
 
-These Terms of Service (“Terms”) govern your use of Mochi Bot (“Mochi,” “the bot”), a Discord bot that provides community commands, XP and levels, leaderboards, virtual Mochi Coins, games, and other features. By using the bot, you agree to these Terms. If you do not agree, do not use the bot.
+These Terms of Service (“Terms”) govern your use of Mallow Bot (“Mallow,” “the bot”), a Discord bot that provides community commands, XP and levels, leaderboards, virtual Mallow Coins, games, and other features. By using the bot, you agree to these Terms. If you do not agree, do not use the bot.
 
 ## 1. Eligibility and Discord
 
-You must be permitted to use Discord and comply with Discord’s Terms of Service, Community Guidelines, and applicable law. You are responsible for ensuring your use of Mochi Bot is allowed in your jurisdiction.
+You must be permitted to use Discord and comply with Discord’s Terms of Service, Community Guidelines, and applicable law. You are responsible for ensuring your use of Mallow Bot is allowed in your jurisdiction.
 
 ## 2. Acceptable use
 
@@ -20,17 +20,17 @@ Server owners and moderators remain responsible for their server’s rules, perm
 
 ## 3. Virtual currency and games
 
-Mochi Coins, XP, levels, game results, and related virtual items or scores are for entertainment within the bot only. They:
+Mallow Coins, XP, levels, game results, and related virtual items or scores are for entertainment within the bot only. They:
 - Have no real-world monetary value.
 - Are not deposits, investments, or financial accounts.
-- Cannot be exchanged for cash, cryptocurrency, goods, or services through Mochi Bot.
+- Cannot be exchanged for cash, cryptocurrency, goods, or services through Mallow Bot.
 - May be adjusted, reset, limited, or removed to fix errors, prevent abuse, or change features.
 
 Game results and balances may be affected by bugs, maintenance, data loss, or changes to the bot. Do not treat them as real assets.
 
 ## 4. Availability and changes
 
-Mochi Bot is provided on an “as available” basis. Features may be changed, suspended, limited, or discontinued at any time, including for maintenance, security, cost, or abuse-prevention reasons. We do not guarantee uninterrupted service, data preservation, or that every command will always work.
+Mallow Bot is provided on an “as available” basis. Features may be changed, suspended, limited, or discontinued at any time, including for maintenance, security, cost, or abuse-prevention reasons. We do not guarantee uninterrupted service, data preservation, or that every command will always work.
 
 ## 5. Third-party services
 
@@ -38,7 +38,7 @@ The bot relies on Discord and may rely on external hosting providers or APIs. Th
 
 ## 6. User content and permissions
 
-You are responsible for content you submit through commands or messages and for having the rights and permissions necessary to submit it. You must not use Mochi Bot to distribute unlawful content or content that violates Discord’s rules.
+You are responsible for content you submit through commands or messages and for having the rights and permissions necessary to submit it. You must not use Mallow Bot to distribute unlawful content or content that violates Discord’s rules.
 
 ## 7. Suspension or termination
 
@@ -46,7 +46,7 @@ Access may be restricted or the bot may stop responding to a user or server when
 
 ## 8. Disclaimers
 
-To the extent permitted by law, Mochi Bot is provided without warranties of any kind, express or implied, including warranties of availability, reliability, fitness for a particular purpose, and non-infringement. Nothing in these Terms excludes a warranty or right that cannot legally be excluded.
+To the extent permitted by law, Mallow Bot is provided without warranties of any kind, express or implied, including warranties of availability, reliability, fitness for a particular purpose, and non-infringement. Nothing in these Terms excludes a warranty or right that cannot legally be excluded.
 
 ## 9. Limitation of liability
 
@@ -58,7 +58,7 @@ These Terms may be updated as the bot changes or legal requirements evolve. The 
 
 ## 11. Contact
 
-For questions about these Terms, contact the Mochi Bot operator through the official support or contact channel associated with the bot.
+For questions about these Terms, contact the Mallow Bot operator through the official support or contact channel associated with the bot.
 
 ---
 
