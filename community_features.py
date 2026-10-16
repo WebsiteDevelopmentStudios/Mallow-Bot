@@ -22,12 +22,12 @@ def load():
     try:
         value = json.loads(DATA_FILE.read_text(encoding="utf-8"))
         if isinstance(value, dict):
-            for key in ("xp", "currency", "log_channels", "timeout_minutes", "last_xp", "daily_claims"):
+            for key in ("xp", "currency", "log_channels", "timeout_minutes", "last_xp", "daily_claims", "snipes", "sticky_messages", "custom_commands", "vanity"):
                 value.setdefault(key, {})
             return value
     except (OSError, json.JSONDecodeError):
         pass
-    return {key: {} for key in ("xp", "currency", "log_channels", "timeout_minutes", "last_xp", "daily_claims")}
+    return {key: {} for key in ("xp", "currency", "log_channels", "timeout_minutes", "last_xp", "daily_claims", "snipes", "sticky_messages", "custom_commands", "vanity")}
 
 data = load()
 _last_description = None
@@ -669,6 +669,144 @@ def setup(bot):
         questions = ["Would you rather live inside your favorite movie or have your life directed by your least favorite director?", "Would you rather know every movie spoiler in advance or never be able to watch a trailer again?", "Would you rather have unlimited Mallow Coins or pick the movie every movie night forever?", "Would you rather be the hero with terrible luck or the villain with a perfect plan?", "Would you rather only watch sequels or only watch movies with cliffhanger endings?", "Would you rather have a personal theme song or dramatic slow motion whenever you enter a room?", "Would you rather swap lives with a fictional character for a week or meet the actor who plays them?", "Would you rather erase one bad movie from existence or make one cancelled show get a perfect finale?"]
         await interaction.response.send_message(f"🎬 **Would You Rather?**\n{random.choice(questions)}\n\nReact with your choice or explain your answer!")
 
+
+    async def premium_gate(interaction: discord.Interaction) -> bool:
+        if interaction.guild is None:
+            await interaction.response.send_message("Use this Premium command in a server.", ephemeral=True)
+            return False
+        if interaction.user.id == OWNER_USER_ID:
+            return True
+        try:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
+                async with session.get("https://mallowbot.devs.surf/api/premium-check", params={"discord_id": str(interaction.user.id)}) as response:
+                    result = await response.json()
+            if response.status == 200 and result.get("active"):
+                return True
+        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
+            pass
+        await interaction.response.send_message("👑 **Mallow Premium required**\nYou can run this command, but need an active Premium subscription. Get Premium at https://mallowbot.devs.surf/subscriptions.html", ephemeral=True)
+        return False
+
+    @bot.tree.command(name="embed", description="Create and send a custom embed (Premium).")
+    @app_commands.describe(title="Embed title", description="Embed text", color="Hex color such as #8B5CF6", channel="Where to send the embed")
+    @app_commands.checks.has_permissions(manage_messages=True)
+    async def premium_embed(interaction: discord.Interaction, title: str, description: str, color: str = "#8B5CF6", channel: discord.TextChannel | None = None):
+        if not await premium_gate(interaction): return
+        try:
+            color_value = int(color.strip().lstrip("#"), 16)
+            if not 0 <= color_value <= 0xFFFFFF: raise ValueError
+        except ValueError:
+            await interaction.response.send_message("Use a valid hex color, for example #8B5CF6.", ephemeral=True); return
+        embed = discord.Embed(title=title[:256], description=description[:4000], color=discord.Color(color_value))
+        target = channel or interaction.channel
+        await target.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
+        await interaction.response.send_message(f"Embed sent to {target.mention}.", ephemeral=True)
+
+    @bot.tree.command(name="snipe", description="Show the most recently deleted message in this channel (Premium).")
+    async def premium_snipe(interaction: discord.Interaction):
+        if not await premium_gate(interaction): return
+        entry = data.get("snipes", {}).get(str(interaction.channel_id))
+        if not entry:
+            await interaction.response.send_message("There is no recently deleted message saved for this channel.", ephemeral=True); return
+        embed = discord.Embed(title="Recently deleted message", description=str(entry.get("content") or "[No text content]")[:4000], color=discord.Color.orange())
+        embed.add_field(name="Author", value=str(entry.get("author", "Unknown"))[:256])
+        embed.set_footer(text="Deleted message content is only retained while the bot is running.")
+        await interaction.response.send_message(embed=embed, ephemeral=True, allowed_mentions=discord.AllowedMentions.none())
+
+    @bot.tree.command(name="sticky", description="Set or clear a sticky message in this channel (Premium).")
+    @app_commands.describe(message="Sticky text; leave blank to clear the sticky message")
+    @app_commands.checks.has_permissions(manage_messages=True)
+    async def premium_sticky(interaction: discord.Interaction, message: str = ""):
+        if not await premium_gate(interaction): return
+        sticks = data.setdefault("sticky_messages", {})
+        cid = str(interaction.channel_id)
+        if not message.strip():
+            sticks.pop(cid, None); save()
+            await interaction.response.send_message("Sticky message cleared for this channel.", ephemeral=True); return
+        sticks[cid] = {"guild_id": interaction.guild_id, "content": message[:1800], "message_id": None}
+        posted = await interaction.channel.send("📌 " + message[:1800], allowed_mentions=discord.AllowedMentions.none())
+        sticks[cid]["message_id"] = posted.id; save()
+        await interaction.response.send_message("Sticky message set. Use /sticky without a message to clear it.", ephemeral=True)
+
+    @bot.tree.command(name="backup", description="Export this server's roles and channel layout (Premium).")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def premium_backup(interaction: discord.Interaction):
+        if not await premium_gate(interaction): return
+        guild = interaction.guild
+        payload = {"guild_id": str(guild.id), "guild_name": guild.name, "created_at": discord.utils.utcnow().isoformat(),
+          "roles": [{"name": r.name, "permissions": r.permissions.value, "color": r.color.value, "hoist": r.hoist, "mentionable": r.mentionable} for r in guild.roles if not r.is_default()],
+          "categories": [{"name": ch.name, "position": ch.position} for ch in guild.categories],
+          "channels": [{"name": ch.name, "type": str(ch.type), "position": ch.position, "category": ch.category.name if ch.category else None, "topic": getattr(ch, "topic", None)} for ch in guild.channels if isinstance(ch, (discord.TextChannel, discord.VoiceChannel, discord.StageChannel, discord.ForumChannel))]}
+        import io
+        raw = json.dumps(payload, indent=2, ensure_ascii=False).encode("utf-8")
+        await interaction.response.send_message("Server configuration backup (JSON). This exports structure only; it does not automatically restore roles, permissions, or messages.", file=discord.File(io.BytesIO(raw), filename=f"mallow-backup-{guild.id}.json"), ephemeral=True)
+
+    @bot.tree.command(name="custom-command", description="Create, list, or remove a custom text command (Premium).")
+    @app_commands.describe(action="Create, list, or delete", name="Command name", response="Text the bot should reply with")
+    @app_commands.choices(action=[app_commands.Choice(name="Create", value="create"), app_commands.Choice(name="List", value="list"), app_commands.Choice(name="Delete", value="delete")])
+    @app_commands.checks.has_permissions(manage_guild=True)
+    async def premium_custom_command(interaction: discord.Interaction, action: app_commands.Choice[str], name: str = "", response: str = ""):
+        if not await premium_gate(interaction): return
+        commands_by_guild = data.setdefault("custom_commands", {}).setdefault(str(interaction.guild_id), {})
+        key_name = re.sub(r"[^a-z0-9_-]", "", name.casefold())[:32]
+        if action.value == "list":
+            await interaction.response.send_message("Custom commands: " + (", ".join(key for key in commands_by_guild) or "none"), ephemeral=True); return
+        if not key_name:
+            await interaction.response.send_message("Provide a command name.", ephemeral=True); return
+        if action.value == "delete":
+            commands_by_guild.pop(key_name, None); save()
+            await interaction.response.send_message(f"Deleted custom command {key_name} (if it existed).", ephemeral=True); return
+        if not response.strip():
+            await interaction.response.send_message("Provide a response for the custom command.", ephemeral=True); return
+        if len(commands_by_guild) >= 25 and key_name not in commands_by_guild:
+            await interaction.response.send_message("This server has reached the 25 custom-command limit.", ephemeral=True); return
+        commands_by_guild[key_name] = response[:1500]; save()
+        await interaction.response.send_message(f"Created {key_name}. Members can use it with the server prefix followed by the name.", ephemeral=True)
+
+    @bot.tree.command(name="vanity", description="Set or view your server's custom tagline (Premium).")
+    @app_commands.describe(tagline="New tagline; leave blank to view current tagline")
+    @app_commands.checks.has_permissions(manage_guild=True)
+    async def premium_vanity(interaction: discord.Interaction, tagline: str = ""):
+        if not await premium_gate(interaction): return
+        vanity = data.setdefault("vanity", {})
+        gid = str(interaction.guild_id)
+        if tagline.strip():
+            vanity[gid] = tagline.strip()[:160]; save()
+        current = vanity.get(gid, "")
+        await interaction.response.send_message(f"{interaction.guild.name} tagline: {current or 'No tagline set.'}", ephemeral=not bool(tagline.strip()))
+
+    @bot.tree.command(name="premium-status", description="Check your Mallow Premium status.")
+    async def premium_status(interaction: discord.Interaction):
+        if interaction.user.id == OWNER_USER_ID:
+            await interaction.response.send_message("Mallow Premium: developer access is enabled.", ephemeral=True); return
+        try:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
+                async with session.get("https://mallowbot.devs.surf/api/premium-check", params={"discord_id": str(interaction.user.id)}) as response:
+                    result = await response.json()
+            if response.status == 200 and result.get("active"):
+                await interaction.response.send_message(f"Mallow Premium is active. Expires: {result.get('expires_at') or 'unknown'}", ephemeral=True)
+            else:
+                await interaction.response.send_message("Mallow Premium is not active for your Discord account. Get Premium at https://mallowbot.devs.surf/subscriptions.html", ephemeral=True)
+        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
+            await interaction.response.send_message("I couldn't check Premium right now. Please try again shortly.", ephemeral=True)
+
+    async def deleted_message_listener(message: discord.Message):
+        if message.guild and not message.author.bot:
+            data.setdefault("snipes", {})[str(message.channel.id)] = {"content": message.content, "author": str(message.author), "deleted_at": discord.utils.utcnow().isoformat()}
+    async def sticky_message_listener(message: discord.Message):
+        if message.guild is None or message.author.bot: return
+        item = data.setdefault("sticky_messages", {}).get(str(message.channel.id))
+        if not item or item.get("message_id") == message.id: return
+        try:
+            old_id = item.get("message_id")
+            if old_id:
+                old = await message.channel.fetch_message(int(old_id))
+                await old.delete()
+            posted = await message.channel.send("📌 " + str(item.get("content", ""))[:1800], allowed_mentions=discord.AllowedMentions.none())
+            item["message_id"] = posted.id; save()
+        except (discord.NotFound, discord.Forbidden, discord.HTTPException, ValueError):
+            pass
+
     async def message_listener(message):
         await process_message(bot, message)
     async def prefix_listener(message):
@@ -751,6 +889,8 @@ def setup(bot):
         except (ValueError, TypeError, discord.Forbidden, discord.HTTPException):
             pass
 
+    bot.add_listener(deleted_message_listener, "on_message_delete")
+    bot.add_listener(sticky_message_listener, "on_message")
     bot.add_listener(message_listener, "on_message")
     bot.add_listener(prefix_listener, "on_message")
     bot.add_listener(member_join_listener, "on_member_join")
