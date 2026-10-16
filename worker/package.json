@@ -1,5 +1,5 @@
 {
-  "name": "movie-bot-discord-worker",
+  "name": "mochi-bot-discord-worker",
   "private": true,
   "type": "module",
   "scripts": {
