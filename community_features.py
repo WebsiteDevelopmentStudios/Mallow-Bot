@@ -74,6 +74,19 @@ async def process_message(bot, message):
     content = message.content or ""
     dashboard_config = await get_guild_config(guild.id)
     command_prefix = dashboard_config.get("prefix", "-mb")
+    message_cfg = dashboard_config.get("messages_config", {})
+    if message_cfg.get("auto_reply_enabled") and content.strip() and not content.casefold().startswith(command_prefix.casefold()):
+        folded = content.strip().casefold()
+        for item in message_cfg.get("auto_replies", [])[:30]:
+            trigger = str(item.get("trigger", "")).strip()
+            response = str(item.get("response", "")).strip()
+            mode = item.get("match_type", "exact")
+            if trigger and response and ((folded == trigger.casefold()) if mode != "contains" else (trigger.casefold() in folded)):
+                try:
+                    await message.reply(response[:1900], mention_author=False, allowed_mentions=discord.AllowedMentions.none())
+                except discord.HTTPException:
+                    pass
+                break
     if dashboard_config.get("features", {}).get("moderation", True) and INVITE_RE.search(content) and not message.author.guild_permissions.manage_messages:
         minutes = int(data["timeout_minutes"].get(str(guild.id), 10))
         try:
