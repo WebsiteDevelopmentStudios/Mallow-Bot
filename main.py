@@ -2150,8 +2150,7 @@ async def _dashboard_tree_interaction_check(interaction: discord.Interaction) ->
             "xp": {"xp","level","leaderboard"},
             "music": {"play","pause","resume","lyrics","skip","queue","volume","stop","join","leave"},
             "moderation": {"dm","set-log","timeout-minutes"},
-            "movies": {"movie","channel"},
-            "fun": {"vibecheck","ship","fortune","wyr"},
+                "fun": {"vibecheck","ship","fortune","wyr"},
             "utility": {"uptime","update","commands","help","sync","countdown"},
             "social": {"youtube"},
         }
@@ -2338,6 +2337,42 @@ async def on_ready() -> None:
     logger.info("Logged in as %s (%s).", bot.user, bot.user.id if bot.user else "unknown")
 
 
+def _banned_guild_ids() -> set[int]:
+    raw = os.getenv("BANNED_GUILD_IDS", "")
+    banned: set[int] = set()
+    for item in raw.split(","):
+        item = item.strip()
+        if item.isdecimal():
+            try:
+                banned.add(int(item))
+            except (TypeError, ValueError):
+                pass
+    return banned
+
+@bot.event
+async def on_guild_join(guild: discord.Guild) -> None:
+    """Leave blacklisted guilds without exposing blacklist details publicly."""
+    try:
+        if guild.id in _banned_guild_ids():
+            await guild.leave()
+            try:
+                logger.info("Left blacklisted guild %s.", guild.id)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+def _tos_embed() -> discord.Embed:
+    embed = discord.Embed(title="Mallow Bot — Acceptable Use", description="By using Mallow Bot, you agree to the Terms of Service. If you do not agree, stop using the bot.", color=discord.Color.blurple(), url="https://github.com/WebsiteDevelopmentStudios/Mallow-Bot/blob/main/TERMS_OF_SERVICE.md")
+    embed.add_field(name="You must not", value="• Harass, threaten, impersonate, or abuse others.\n• Exploit bugs, automate abusive command activity, interfere with the bot, or attempt unauthorized access to its systems or data.\n• Use the bot to violate Discord rules, infringe others' rights, or break applicable law.\n• Abuse or manipulate leaderboards, XP, cooldowns, games, or virtual currency.", inline=False)
+    embed.add_field(name="Other important rules", value="• Follow Discord's Terms of Service and Community Guidelines.\n• Server owners and moderators remain responsible for their server's rules and permissions.\n• Mallow Coins, XP, levels, and game results are for in-bot entertainment only and have no real-world value.\n• Features and availability may change.", inline=False)
+    embed.add_field(name="Full Terms of Service", value=f"[Read the complete Terms of Service]({url})", inline=False)
+    embed.set_footer(text="Mallow Bot • Terms of Service")
+    return embed
+
+@bot.tree.command(name="tos", description="Show Mallow Bot acceptable-use rules")
+async def bot_tos(interaction: discord.Interaction) -> None:
+    await send_interaction_response(interaction, embed=_tos_embed(), ephemeral=True)
 @bot.tree.command(name="play", description="Play a song or Spotify track in your voice channel.")
 @app_commands.describe(song="A song name, or an open.spotify.com/track URL.")
 async def music_play(interaction: discord.Interaction, song: str) -> None:
@@ -2655,6 +2690,10 @@ async def on_message(message: discord.Message) -> None:
     parts = raw.split(maxsplit=1)
     command_name = parts[0].lower()
     argument = parts[1].strip() if len(parts) > 1 else ""
+
+    if command_name in {"tos", "terms", "terms-of-service"}:
+        await message.reply(embed=_tos_embed(), mention_author=False)
+        return
     feature_groups = {
         "economy": {"balance","daily","gamble","coinflip","slots","roulette","dice","blackjack","work","pay","rob"},
         "xp": {"xp","level","leaderboard"},
@@ -3380,7 +3419,6 @@ async def voice_leave(interaction: discord.Interaction) -> None:
 
 
 bot.tree.add_command(channel_group)
-bot.tree.add_command(movie_group)
 
 
 
@@ -3430,8 +3468,6 @@ async def on_app_command_error(
 
 
 def main() -> None:
-    ensure_movies_dir()
-
     token = os.getenv("DISCORD_TOKEN", "").strip()
     if not token:
         raise SystemExit(
