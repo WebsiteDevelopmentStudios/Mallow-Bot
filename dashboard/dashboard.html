@@ -1,4 +1,99 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0b0a10"><title>Dashboard · Mallow Bot</title><link rel="icon" type="image/png" href="https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/MallowBot.png"><link rel="apple-touch-icon" href="https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/MallowBot.png"><link rel="stylesheet" href="/mallow.css"></head><body><div id="app" class="wrap hidden"><header class="site-header"><a class="brand-lockup" href="/server-select.html" aria-label="Mallow Bot home"><img class="brand-icon" src="https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/MallowBot.png" alt="Mallow Bot" onerror="this.style.display='none'"><span>Mallow<span class="brand-accent">Bot</span></span></a><nav class="main-nav" aria-label="Main navigation"><a data-nav="servers" href="/server-select.html">Servers</a><a data-nav="profile" href="/profile.html">Profile</a></nav><div class="nav-user"><span id="topUser" class="nav-user-name muted"></span><button id="logout" class="button-quiet">Sign out</button></div></header><section class="panel hero"><div><div class="eyebrow">Your bot, your space</div><h1>Welcome to the<br><span style="color:#d8a7ff">Mallow dashboard.</span></h1><p class="muted">Configure Mallow Bot for this community, with everything in one place.</p></div><img class="hero-logo" src="https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/MallowBot.png" alt="Mallow Bot" onerror="this.style.display='none'"></section><main class="panel settings-panel"><section id="settings"><div class="eyebrow">Configuration</div><h2>Bot settings</h2><p class="muted">Preferences are saved to Cloudflare D1. Settings shown here require the dashboard API and bot runtime to support per-server configuration.</p><div class="field"><label for="prefix">Command prefix</label><input id="prefix" maxlength="8" value="-mb"></div><div class="field"><label for="greeting">Greeting message</label><textarea id="greeting" rows="3" maxlength="500">hey! i'm Mallow Bot ☁️</textarea></div><div class="row"><div><b>Direct-mention greetings</b><div class="muted">Enable the greeting feature.</div></div><button id="greetings" class="switch on" aria-label="Toggle greetings"><span></span></button></div><div class="row"><div><b>Only respond to direct mentions</b><div class="muted">Don't trigger inside replies.</div></div><button id="mentionOnly" class="switch on" aria-label="Toggle direct mentions"><span></span></button></div><p><button id="save">Save settings</button> <span id="status" class="status"></span></p></section></main></div><div id="signin" class="signin"><div class="panel"><div class="logo">☁</div><div class="eyebrow">Discord sign-in required</div><h1>Welcome to Mallow Bot</h1><p class="muted">Sign in with Discord to unlock all dashboard features. Everything stays blocked until you authenticate.</p><button id="login">Continue with Discord</button><p id="error" class="status"></p></div></div>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0b0a10">
+<title>Server dashboard · Mallow Bot</title>
+<link rel="icon" type="image/png" href="https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/MallowBot.png">
+<link rel="apple-touch-icon" href="https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/MallowBot.png">
+<link rel="stylesheet" href="/mallow.css">
+</head>
+<body><div id="app" class="wrap hidden">
+<header class="site-header">
+<a class="brand-lockup" href="/server-select.html" aria-label="Mallow Bot home"><img class="brand-icon" src="https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/MallowBot.png" alt="Mallow Bot"><span>Mallow<span class="brand-accent">Bot</span></span></a>
+<nav class="main-nav" aria-label="Main navigation"><a data-nav="servers" href="/server-select.html">Servers</a><a data-nav="profile" href="/profile.html">Profile</a></nav>
+<div class="nav-user"><span id="topUser" class="nav-user-name muted"></span><button id="logout" class="button-quiet">Sign out</button></div>
+</header>
+<section class="panel hero dashboard-hero"><div><div class="eyebrow">Server control center</div><h1 id="welcome">Mallow <span>dashboard.</span></h1><p id="guildSubtitle" class="muted">Configure commands and behavior for the selected Discord server.</p></div><img class="hero-logo" src="https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/MallowBot.png" alt="Mallow Bot"></section>
+<div id="errorPanel" class="panel hidden config-error"></div>
+<main class="dashboard-layout">
+<aside class="panel config-sidebar"><div class="eyebrow">Selected server</div><h2 id="guildName">Loading server…</h2><p class="muted small">These preferences are stored separately for each server.</p><a class="text-link" href="/server-select.html">← Change server</a><hr>
+<div class="eyebrow">Configuration</div><a class="side-link active" href="#general">General settings</a><a class="side-link" href="#commands">Command manager</a><div class="side-count"><span>Commands</span><b id="commandCount">—</b></div>
+</aside>
+<div class="config-main">
+<section id="general" class="panel settings-panel">
+<div class="section-heading"><div><div class="eyebrow">General</div><h2>Server settings</h2><p class="muted">Set the command prefix and greeting behavior for this server.</p></div><span class="saved-indicator" id="saveIndicator">Not saved</span></div>
+<div class="field"><label for="prefix">Command prefix</label><input id="prefix" maxlength="8" value="-mb" autocomplete="off" spellcheck="false"><p class="field-hint">Examples: <code>-mb</code>, <code>-m</code>, <code>!mb</code>, <code>!</code>. No spaces.</p><div class="prefix-preview">Try it: <code id="prefixExample">-mb help</code> <span>→ opens the command help</span></div></div>
+<div class="field"><label for="greeting">Greeting message</label><textarea id="greeting" rows="3" maxlength="500">hey! i'm Mallow Bot ☁️</textarea></div>
+<div class="row"><div><b>Direct-mention greetings</b><div class="muted">Reply when someone directly mentions Mallow Bot.</div></div><button id="greetings" class="switch on" type="button" aria-label="Toggle greetings" aria-pressed="true"><span></span></button></div>
+<div class="row"><div><b>Only respond to direct mentions</b><div class="muted">Ignore mentions inside replies.</div></div><button id="mentionOnly" class="switch on" type="button" aria-label="Toggle direct mentions" aria-pressed="true"><span></span></button></div>
+<div class="save-row"><button id="save" type="button">Save server settings</button><span id="status" class="status" role="status"></span></div>
+</section>
+<section id="commands" class="panel settings-panel commands-panel">
+<div class="section-heading"><div><div class="eyebrow">Command manager</div><h2>All commands</h2><p class="muted">Browse the full command list and choose which commands should be disabled in this server.</p></div><span class="command-total" id="commandTotal">35 commands</span></div>
+<div class="command-toolbar"><input id="commandSearch" type="search" placeholder="Search commands…" aria-label="Search commands"><select id="categoryFilter" aria-label="Filter command category"><option value="all">All categories</option><option value="music">Music</option><option value="utility">Utility</option><option value="community">Community & XP</option><option value="coins">Mallow Coins</option><option value="fun">Fun</option><option value="moderation">Moderation</option><option value="movies">Movies</option></select><select id="enabledFilter" aria-label="Filter command status"><option value="all">Enabled and disabled</option><option value="enabled">Enabled only</option><option value="disabled">Disabled only</option></select></div>
+<div class="command-summary"><span><i class="status-dot enabled-dot"></i><b id="enabledCount">—</b> enabled</span><span><i class="status-dot disabled-dot"></i><b id="disabledCount">0</b> disabled</span><button id="enableAll" class="button-quiet" type="button">Enable all</button></div>
+<div id="commandList" class="command-list" aria-live="polite"></div>
+<div id="noCommands" class="empty-commands hidden">No commands match your search.</div>
+<p class="field-hint command-note">Slash commands use Discord’s <code>/</code> menu and cannot be renamed by changing this prefix. Prefix commands use the custom prefix above. Changes are scoped to the selected server.</p>
+<div class="save-row"><button id="saveCommands" type="button">Save command settings</button><span id="commandStatus" class="status" role="status"></span></div>
+</section>
+</div></main></div>
+<div id="signin" class="signin"><div class="panel"><div class="logo"></div><div class="eyebrow">Discord sign-in required</div><h1>Welcome to Mallow Bot</h1><p class="muted">Sign in with Discord to manage your server’s Mallow Bot settings.</p><button id="login" type="button">Continue with Discord</button><p id="error" class="status"></p></div></div>
 <script>
-const $=id=>document.getElementById(id);let current={};async function api(p,o={}){let r=await fetch('/api/'+p,{credentials:'same-origin',headers:{'Content-Type':'application/json'},...o});let j=await r.json().catch(()=>({}));if(!r.ok)throw Error(j.error||'Request failed');return j}function sw(id,v){$(id).classList.toggle('on',v);$(id).setAttribute('aria-pressed',String(v))}async function boot(){try{let d=await api('me');if(!d.user)throw Error();current=d.settings;$('signin').classList.add('hidden');$('app').classList.remove('hidden');$('topUser').textContent=d.user.global_name||d.user.username;$('prefix').value=current.prefix||'-mb';$('greeting').value=current.greeting||'';sw('greetings',current.greetings!==false);sw('mentionOnly',current.mention_only!==false);if(!d.is_owner){$('save').disabled=true;$('status').textContent='Server-specific settings require a server manager permission check.'}}catch{$('error').textContent=location.search?'Sign-in failed. Please try again.':''}}$('login').onclick=()=>location.href='/api/login';async function logout(){try{await api('logout',{method:'POST',body:'{}'})}finally{location.href='/'}}$('logout').onclick=logout;document.querySelector('[data-nav="servers"]')?.classList.add('active');['greetings','mentionOnly'].forEach(id=>$(id).onclick=()=>sw(id,!$(id).classList.contains('on')));$('save').onclick=async()=>{try{let d=await api('settings',{method:'PUT',body:JSON.stringify({prefix:$('prefix').value,greeting:$('greeting').value,greetings:$('greetings').classList.contains('on'),mention_only:$('mentionOnly').classList.contains('on')})});current=d.settings;$('status').textContent='Saved.'}catch(e){$('status').textContent=e.message}};boot();
+const $=id=>document.getElementById(id);
+const params=new URLSearchParams(location.search);const guildId=params.get('guild_id')||'';
+let currentSettings={},dirty=false;
+const commands=[
+['play','Play a song or Spotify track in your voice channel.','music','/play · prefix'],
+['pause','Pause the current song.','music','/pause · prefix'],
+['resume','Resume the paused song.','music','/resume · prefix'],
+['lyrics','Toggle synchronized lyrics on or off.','music','/lyrics · prefix'],
+['skip','Skip the currently playing song.','music','/skip · prefix'],
+['queue','Show the current music queue.','music','/queue · prefix'],
+['volume','Set the music volume.','music','/volume · prefix'],
+['stop','Stop music and clear the queue.','music','/stop · prefix'],
+['join','Join your current voice channel.','music','/join · prefix'],
+['leave','Leave the voice channel and clear the music queue.','music','/leave · prefix'],
+['uptime','Show how long the bot has been online.','utility','/uptime · prefix'],
+['update','Post the bot update log in this channel.','utility','/update · prefix'],
+['commands','List the bot commands.','utility','/commands · prefix'],
+['sync','Refresh slash-command registrations.','utility','/sync'],
+['say','Make the bot post a message in this channel.','utility','/say'],
+['countdown','Start a countdown.','utility','prefix'],
+['movie','Browse or search the movie library.','movies','prefix'],
+['channel','Configure the movie channel.','movies','/channel'],
+['youtube','Look up a YouTube video link.','utility','/youtube · prefix'],
+['xp','Show your XP and level.','community','/xp · prefix'],
+['level','Show your XP level.','community','prefix'],
+['leaderboard','Show the server XP leaderboard.','community','/leaderboard · prefix'],
+['balance','Show your virtual Mallow Coins.','coins','/balance · prefix'],
+['daily','Claim daily Mallow Coins.','coins','/daily · prefix'],
+['gamble','Bet virtual Mallow Coins on a coin flip.','coins','/gamble · prefix'],
+['coinflip','Bet virtual Mallow Coins on a coin flip.','coins','/coinflip · prefix'],
+['slots','Play the virtual slot machine.','coins','/slots · prefix'],
+['roulette','Bet virtual coins on roulette.','coins','/roulette · prefix'],
+['dice','Roll dice and bet virtual coins.','coins','/dice · prefix'],
+['blackjack','Play a quick virtual blackjack round.','coins','/blackjack · prefix'],
+['work','Work to earn virtual Mallow Coins.','coins','/work · prefix'],
+['pay','Give virtual Mallow Coins to a member.','coins','/pay · prefix'],
+['rob','Try to steal virtual Mallow Coins from a member.','coins','/rob · prefix'],
+['vibecheck','Run a completely unscientific vibe scan.','fun','/vibecheck'],
+['ship','Get a just-for-fun compatibility score for two members.','fun','/ship'],
+['fortune','Draw a random Mallow Bot fortune.','fun','/fortune'],
+['wyr','Get a movie-themed Would You Rather question.','fun','/wyr'],
+['dm','Send a direct message to a server member.','moderation','/dm'],
+['set-log','Set the bot DM log channel (developer only).','moderation','/set-log'],
+['timeout-minutes','Set automatic timeout duration for invite links.','moderation','prefix']
+];
+const categoryNames={music:'Music',utility:'Utility',community:'Community & XP',coins:'Mallow Coins',fun:'Fun',moderation:'Moderation',movies:'Movies'};
+function setSwitch(id,value){$(id).classList.toggle('on',!!value);$(id).setAttribute('aria-pressed',String(!!value))}
+function switchValue(id){return $(id).classList.contains('on')}
+function markDirty(){dirty=true;$('saveIndicator').textContent='Unsaved changes';$('saveIndicator').classList.add('unsaved')}
+function api(path,options={}){return fetch('/api/'+path,{credentials:'same-origin',headers:{'Content-Type':'application/json'},...options}).then(async r=>{const j=await r.json().catch(()=>({}));if(!r.ok)throw Error(j.error||'Request failed');return j})}
+function renderCommands(){const query=$('commandSearch').value.trim().toLowerCase(),cat=$('categoryFilter').value,status=$('enabledFilter').value,disabled=new Set(currentSettings.disabled_commands||[]);const list=$('commandList');list.replaceChildren();let shown=0;for(const [name,description,category,syntax] of commands){const isDisabled=disabled.has(name);if(cat!=='all'&&cat!==category)continue;if(status==='enabled'&&isDisabled||status==='disabled'&&!isDisabled)continue;if(query&&!([name,description,categoryNames[category],syntax].join(' ').toLowerCase().includes(query)))continue;shown++;const row=document.createElement('article');row.className='command-row'+(isDisabled?' is-disabled':'');const main=document.createElement('div');main.className='command-info';const title=document.createElement('div');title.className='command-title';const code=document.createElement('code');code.textContent=name;const badge=document.createElement('span');badge.className='category-chip';badge.textContent=categoryNames[category];title.append(code,badge);const desc=document.createElement('p');desc.textContent=description;const meta=document.createElement('span');meta.className='command-syntax';meta.textContent=syntax;main.append(title,desc,meta);const control=document.createElement('label');control.className='command-toggle';const input=document.createElement('input');input.type='checkbox';input.checked=!isDisabled;input.setAttribute('aria-label',(isDisabled?'Enable ':'Disable ')+name);const slider=document.createElement('span');slider.className='command-toggle-ui';const state=document.createElement('span');state.className='command-state';state.textContent=isDisabled?'Disabled':'Enabled';input.addEventListener('change',()=>{const next=new Set(currentSettings.disabled_commands||[]);if(input.checked)next.delete(name);else next.add(name);currentSettings.disabled_commands=[...next];renderCommands();markDirty()});control.append(input,slider);control.append(state);row.append(main,control);list.append(row)}$('noCommands').classList.toggle('hidden',shown!==0);$('enabledCount').textContent=commands.length-disabled.size;$('disabledCount').textContent=disabled.size;$('commandCount').textContent=commands.length;$('commandTotal').textContent=commands.length+' commands';}
+function prefixPreview(){$('prefixExample').textContent=($('prefix').value||'-mb')+' help'}
+async function boot(){try{const me=await api('me');if(!me.user)throw Error('Sign in required');if(!guildId)throw Error('No server selected. Go back to Servers and choose a server.');$('signin').classList.add('hidden');$('app').classList.remove('hidden');$('topUser').textContent=me.user.global_name||me.user.username;const data=await api('guild-settings?guild_id='+encodeURIComponent(guildId));currentSettings=data.settings;$('guildName').textContent=data.guild.name;$('welcome').innerHTML='Manage <span>'+escapeHtml(data.guild.name)+'</span>';document.title=data.guild.name+' · Mallow Bot';$('guildSubtitle').textContent='Configure commands and behavior for '+data.guild.name+'.';$('prefix').value=currentSettings.prefix||'-mb';$('greeting').value=currentSettings.greeting||'';setSwitch('greetings',currentSettings.greetings!==false);setSwitch('mentionOnly',currentSettings.mention_only!==false);renderCommands();prefixPreview()}catch(e){$('error').textContent=e.message;$('signin').classList.remove('hidden');$('app').classList.add('hidden')}}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+async function saveSettings(){const status=$('status');status.textContent='Saving…';try{const d=await api('guild-settings?guild_id='+encodeURIComponent(guildId),{method:'PUT',body:JSON.stringify({prefix:$('prefix').value,greeting:$('greeting').value,greetings:switchValue('greetings'),mention_only:switchValue('mentionOnly'),disabled_commands:currentSettings.disabled_commands||[]})});currentSettings={...currentSettings,...d.settings};status.textContent='Saved for this server.';$('saveIndicator').textContent='All changes saved';$('saveIndicator').classList.remove('unsaved');dirty=false;prefixPreview()}catch(e){status.textContent=e.message}}
+$('login').onclick=()=>location.href='/api/login';$('logout').onclick=async()=>{try{await api('logout',{method:'POST',body:'{}'})}finally{location.href='/'}};['greetings','mentionOnly'].forEach(id=>$(id).onclick=()=>{setSwitch(id,!switchValue(id));markDirty()});$('prefix').addEventListener('input',()=>{prefixPreview();markDirty()});$('greeting').addEventListener('input',markDirty);$('save').onclick=saveSettings;$('saveCommands').onclick=saveSettings;['commandSearch','categoryFilter','enabledFilter'].forEach(id=>$(id).addEventListener(id==='commandSearch'?'input':'change',renderCommands));$('enableAll').onclick=()=>{currentSettings.disabled_commands=[];renderCommands();markDirty()};document.querySelector('[data-nav="servers"]')?.classList.add('active');window.addEventListener('beforeunload',e=>{if(dirty){e.preventDefault();e.returnValue=''}});boot();
 </script></body></html>
