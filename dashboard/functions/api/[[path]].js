@@ -92,7 +92,7 @@ async function route(request, env) {
  if(path==="guild-resources"&&request.method==="GET"){
   const s=await session(request,env);if(!s)return json({error:"Sign in required."},401);
   const guildId=url.searchParams.get("guild_id")||"";
-  const access=await authorizedGuild(s,env,guildId);if(access.error)return json({error:access.error},access.status);
+  const access=await authorizedGuild(s,env,guildId);if(access.error)return json({error:access.error},access.status);const premium=await premiumFor(env,s.user.id);if(!premium.active&&s.user.id!==String(env.BOT_OWNER_ID))return json({error:"An active seven-day Premium subscription is required to configure roles and channels."},402);
   if(!env.BOT_TOKEN)return json({error:"Bot token is not configured."},503);
   const headers={authorization:"Bot "+env.BOT_TOKEN};
   const [rr,cr]=await Promise.all([
@@ -106,7 +106,7 @@ async function route(request, env) {
  if(path==="messages-settings"&&(request.method==="GET"||request.method==="PUT")){
   const s=await session(request,env);if(!s)return json({error:"Sign in required."},401);
   const guildId=url.searchParams.get("guild_id")||"";
-  const access=await authorizedGuild(s,env,guildId);if(access.error)return json({error:access.error},access.status);
+  const access=await authorizedGuild(s,env,guildId);if(access.error)return json({error:access.error},access.status);const premium=await premiumFor(env,s.user.id);if(!premium.active&&s.user.id!==String(env.BOT_OWNER_ID))return json({error:"An active seven-day Premium subscription is required to configure roles and channels."},402);
   await ensureGuildSettings(env);
   const row=await env.MALLOW_DB.prepare("SELECT messages_config FROM guild_settings WHERE guild_id=?").bind(guildId).first();
   const fallback={welcome_enabled:false,welcome_channel_id:"",welcome_message:"Welcome {user} to {server}!",goodbye_enabled:false,goodbye_channel_id:"",goodbye_message:"{user} left {server}.",auto_reply_enabled:false,auto_replies:[]};
@@ -123,7 +123,7 @@ async function route(request, env) {
  if(path==="tickets-settings"&&(request.method==="GET"||request.method==="PUT")){
   const s=await session(request,env);if(!s)return json({error:"Sign in required."},401);
   const guildId=url.searchParams.get("guild_id")||"";
-  const access=await authorizedGuild(s,env,guildId);if(access.error)return json({error:access.error},access.status);
+  const access=await authorizedGuild(s,env,guildId);if(access.error)return json({error:access.error},access.status);const premium=await premiumFor(env,s.user.id);if(!premium.active&&s.user.id!==String(env.BOT_OWNER_ID))return json({error:"An active seven-day Premium subscription is required to configure roles and channels."},402);
   await ensureGuildSettings(env);
   const row=await env.MALLOW_DB.prepare("SELECT tickets_config FROM guild_settings WHERE guild_id=?").bind(guildId).first();
   const fallback={enabled:false,category_id:"",support_role_ids:[],transcript_channel_id:"",welcome_message:"Thanks for opening a ticket. A staff member will be with you soon."};
