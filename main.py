@@ -2311,6 +2311,9 @@ async def on_ready() -> None:
 @app_commands.describe(song="A song name, or an open.spotify.com/track URL.")
 async def music_play(interaction: discord.Interaction, song: str) -> None:
     await acknowledge_command(interaction)
+    await send_interaction_response(interaction, "temporarilly unavalible", ephemeral=True)
+    return
+    await acknowledge_command(interaction)
     await interaction.followup.send("The music player is in beta.", ephemeral=True)
     if interaction.guild is None:
         await send_interaction_response(interaction, "This command only works in a server.", ephemeral=True)
@@ -2363,6 +2366,9 @@ async def music_play(interaction: discord.Interaction, song: str) -> None:
 @bot.tree.command(name="pause", description="Pause the current song.")
 async def music_pause(interaction: discord.Interaction) -> None:
     await acknowledge_command(interaction)
+    await send_interaction_response(interaction, "temporarilly unavalible", ephemeral=True)
+    return
+    await acknowledge_command(interaction)
     if interaction.guild is None:
         await send_interaction_response(interaction, "This command only works in a server.", ephemeral=True)
         return
@@ -2382,6 +2388,9 @@ async def music_pause(interaction: discord.Interaction) -> None:
 
 @bot.tree.command(name="resume", description="Resume the paused song.")
 async def music_resume(interaction: discord.Interaction) -> None:
+    await acknowledge_command(interaction)
+    await send_interaction_response(interaction, "temporarilly unavalible", ephemeral=True)
+    return
     await acknowledge_command(interaction)
     if interaction.guild is None:
         await send_interaction_response(interaction, "This command only works in a server.", ephemeral=True)
@@ -2403,6 +2412,9 @@ async def music_resume(interaction: discord.Interaction) -> None:
 @bot.tree.command(name="lyrics", description="Toggle synchronized lyrics on or off.")
 @app_commands.describe(enabled="Turn synchronized lyrics on or off. Leave empty to toggle.")
 async def music_lyrics(interaction: discord.Interaction, enabled: bool | None = None) -> None:
+    await acknowledge_command(interaction)
+    await send_interaction_response(interaction, "temporarilly unavalible", ephemeral=True)
+    return
     await acknowledge_command(interaction)
     if interaction.guild is None:
         await send_interaction_response(interaction, "This command only works in a server.", ephemeral=True)
@@ -2438,6 +2450,9 @@ async def music_lyrics(interaction: discord.Interaction, enabled: bool | None = 
 @bot.tree.command(name="skip", description="Skip the currently playing song.")
 async def music_skip(interaction: discord.Interaction) -> None:
     await acknowledge_command(interaction)
+    await send_interaction_response(interaction, "temporarilly unavalible", ephemeral=True)
+    return
+    await acknowledge_command(interaction)
     if interaction.guild is None:
         await send_interaction_response(interaction, "This command only works in a server.", ephemeral=True)
         return
@@ -2458,6 +2473,9 @@ async def music_skip(interaction: discord.Interaction) -> None:
 
 @bot.tree.command(name="queue", description="Show the current music queue.")
 async def music_queue(interaction: discord.Interaction) -> None:
+    await acknowledge_command(interaction)
+    await send_interaction_response(interaction, "temporarilly unavalible", ephemeral=True)
+    return
     await acknowledge_command(interaction)
     if interaction.guild is None:
         await send_interaction_response(interaction, "This command only works in a server.", ephemeral=True)
@@ -2481,6 +2499,9 @@ async def music_queue(interaction: discord.Interaction) -> None:
 @app_commands.describe(level="Volume from 0 to 100.")
 async def music_volume(interaction: discord.Interaction, level: app_commands.Range[int, 0, 100]) -> None:
     await acknowledge_command(interaction)
+    await send_interaction_response(interaction, "temporarilly unavalible", ephemeral=True)
+    return
+    await acknowledge_command(interaction)
     if interaction.guild is None:
         await send_interaction_response(interaction, "This command only works in a server.", ephemeral=True)
         return
@@ -2499,6 +2520,9 @@ async def music_volume(interaction: discord.Interaction, level: app_commands.Ran
 
 @bot.tree.command(name="stop", description="Stop music and clear the queue.")
 async def music_stop(interaction: discord.Interaction) -> None:
+    await acknowledge_command(interaction)
+    await send_interaction_response(interaction, "temporarilly unavalible", ephemeral=True)
+    return
     await acknowledge_command(interaction)
     if interaction.guild is None:
         await send_interaction_response(interaction, "This command only works in a server.", ephemeral=True)
@@ -2646,9 +2670,7 @@ async def on_message(message: discord.Message) -> None:
                 "`-mb coinflip <bet>` · `-mb slots <bet>` · `-mb roulette <bet>`\n"
                 "`-mb dice <bet>` · `-mb blackjack <bet>` · `-mb work`\n"
                 "`-mb pay @member <amount>` · `-mb rob @member`\n\n"
-                "**Music commands**\n"
-                "`-mb play <song>` · `-mb pause` · `-mb resume` · `-mb skip` · `-mb stop`\n"
-                "`-mb queue` · `-mb volume <0-100>` · `-mb lyrics [on|off]` · `-mb join` · `-mb leave`\n\n"
+                "**Music commands disabled** — temporarily unavailable.\n\n"
                 "**Utility & movie commands**\n"
                 "`-mb uptime` · `-mb update` · `-mb help` / `-mb commands` · `-mb sync` (Administrator)\n"
                 "`-mb countdown` · `-mb movie list` · `-mb movie search <title>` · `-mb movie play <URL>`\n"
@@ -2794,6 +2816,10 @@ async def on_message(message: discord.Message) -> None:
                 await message.reply("I couldn't save the movie channel configuration.", mention_author=False)
                 return
             await message.reply(f"Movie channel linked to {linked_channel.mention}.", mention_author=False)
+            return
+
+        if command_name in {"play", "pause", "resume", "skip", "stop", "queue", "volume", "lyrics", "join", "leave"}:
+            await message.reply("temporarilly unavalible", mention_author=False)
             return
 
         if command_name == "play":
@@ -3235,6 +3261,9 @@ async def on_wavelink_websocket_closed(payload) -> None:
 @bot.tree.command(name="join", description="Join your current voice channel.")
 async def voice_join(interaction: discord.Interaction) -> None:
     await acknowledge_command(interaction)
+    await send_interaction_response(interaction, "temporarilly unavalible", ephemeral=True)
+    return
+    await acknowledge_command(interaction)
     if not lavalink_ready:
         await send_interaction_response(interaction, "The music backend is currently unavailable.", ephemeral=True)
         return
@@ -3247,6 +3276,9 @@ async def voice_join(interaction: discord.Interaction) -> None:
 
 @bot.tree.command(name="leave", description="Leave the voice channel and clear the music queue.")
 async def voice_leave(interaction: discord.Interaction) -> None:
+    await acknowledge_command(interaction)
+    await send_interaction_response(interaction, "temporarilly unavalible", ephemeral=True)
+    return
     await acknowledge_command(interaction)
     if interaction.guild is None:
         await send_interaction_response(interaction, "This command only works in a server.", ephemeral=True)
