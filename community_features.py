@@ -121,7 +121,7 @@ async def process_message(bot, message):
                 if item.strip()
             ]
         except OSError as exc:
-            print(f"[MovieBot] Could not read description.txt: {exc}", flush=True)
+            print(f"[MochiBot] Could not read description.txt: {exc}", flush=True)
 
         if not descriptions:
             descriptions = [
