@@ -11,6 +11,8 @@ import aiohttp
 import discord
 from discord import app_commands
 
+from dashboard_config import get_guild_config
+
 OWNER_USER_ID = 1021068313071210498
 DATA_FILE = Path(__file__).resolve().parent / "community_data.json"
 INVITE_RE = re.compile(r"(?:https?://)?(?:www\.)?(?:discord\.gg|discord(?:app)?\.com/invite)/[A-Za-z0-9-]+", re.I)
@@ -70,6 +72,8 @@ async def process_message(bot, message):
 
     guild = message.guild
     content = message.content or ""
+    dashboard_config = await get_guild_config(guild.id)
+    command_prefix = dashboard_config.get("prefix", "-mb")
     if INVITE_RE.search(content) and not message.author.guild_permissions.manage_messages:
         minutes = int(data["timeout_minutes"].get(str(guild.id), 10))
         try:
@@ -82,7 +86,7 @@ async def process_message(bot, message):
             pass
         return
 
-    if content.strip() and not content.lower().startswith("-mb"):
+    if content.strip() and not content.casefold().startswith(command_prefix.casefold()):
         k = key(guild.id, message.author.id)
         now = time.time()
         if now - float(data["last_xp"].get(k, 0)) >= 60:
@@ -96,7 +100,7 @@ async def process_message(bot, message):
 
     # A -mb youtube command is handled by the prefix-command listener below.
     # Skip the automatic URL preview here to avoid posting a second embed.
-    yt = None if re.match(r"^\\s*-mb\\s+youtube\\b", content, re.I) else YT_RE.search(content)
+    yt = None if content.casefold().startswith((command_prefix + " youtube").casefold()) else YT_RE.search(content)
     if yt:
         url = "https://www.youtube.com/watch?v=" + yt.group(1)
         try:
@@ -617,12 +621,20 @@ def setup(bot):
     async def message_listener(message):
         await process_message(bot, message)
     async def prefix_listener(message):
-        if message.author.bot or message.guild is None or not message.content.lower().startswith("-mb"):
+        if message.author.bot or message.guild is None:
             return
-        raw=message.content[3:].strip()
+        cfg = await get_guild_config(message.guild.id)
+        command_prefix = cfg.get("prefix", "-mb")
+        if not command_prefix or not message.content.casefold().startswith(command_prefix.casefold()):
+            return
+        raw=message.content[len(command_prefix):].strip()
         if not raw: return
         parts=raw.split(maxsplit=1)
-        await prefix(bot,message,parts[0].lower(),parts[1] if len(parts)>1 else "")
+        command_name=parts[0].lower()
+        if command_name in set(cfg.get("disabled_commands", [])):
+            await message.reply("The " + command_prefix + command_name + " command is disabled in this server.", mention_author=False)
+            return
+        await prefix(bot,message,command_name,parts[1] if len(parts)>1 else "")
     @bot.tree.command(name="dm", description="Send a direct message to a server member.")
     @app_commands.checks.has_permissions(manage_messages=True)
     @app_commands.describe(member="Member to message", message="Message to send")
