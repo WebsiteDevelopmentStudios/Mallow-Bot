@@ -4,8 +4,13 @@ import json
 import logging
 import os
 import re
+import secrets
+import shutil
 import time
 from datetime import datetime, timezone
+from pathlib import Path
+from urllib.parse import urlparse
+from html import escape
 from zoneinfo import ZoneInfo
 
 import aiohttp
@@ -33,6 +38,36 @@ from lavalink_manager import (
 )
 
 load_dotenv()
+
+
+# Paths and settings referenced by the remaining media-hosting code.
+BASE_DIR = Path(__file__).resolve().parent
+MOVIES_DIR = BASE_DIR / "Movies"
+CONFIG_FILE = BASE_DIR / "config.json"
+SUPPORTED_EXTENSIONS = {".mp4", ".mp3"}
+M3U8_SUFFIX = ".m3u8"
+FFMPEG_BIN = os.getenv("FFMPEG_BIN", "ffmpeg").strip() or "ffmpeg"
+FFPROBE_BIN = os.getenv("FFPROBE_BIN", "ffprobe").strip() or "ffprobe"
+DOWNLOAD_TIMEOUT_SECONDS = 30 * 60
+HOST_EXPIRY_BUFFER_SECONDS = 30
+WEB_HOST = os.getenv("MOVIE_HOST", "0.0.0.0")
+WEB_PORT = int(os.getenv("MOVIE_PORT", "8080"))
+HLS_CACHE_DIR = BASE_DIR / ".movie_hls"
+PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "https://wisp.uno").strip().rstrip("/")
+DOWNLOAD_LIFETIME_SECONDS = 24 * 3600
+BROWSER_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+)
+CINEBY_REFERER = "https://cineby.tech/"
+TMDB_API_KEY = os.getenv("TMDB_API_KEY", os.getenv("CINEBY_TMDB_API_KEY", "")).strip()
+TMDB_SEARCH_URL = "https://api.themoviedb.org/3/search/movie"
+CLOUDFLARED_BIN = os.getenv("CLOUDFLARED_BIN", "cloudflared").strip() or "cloudflared"
+
+active_host = None
+host_lock = asyncio.Lock()
+cloudflared_process = None
+cloudflared_log_task = None
 
 
 logging.basicConfig(
