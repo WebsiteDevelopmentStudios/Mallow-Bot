@@ -101,7 +101,7 @@ async function route(request, env) {
   ]);
   if(!rr.ok||!cr.ok)return json({error:"Could not load server roles and channels. Make sure Mallow is in this server and has permission to view it."},502);
   const [roles,channels]=await Promise.all([rr.json(),cr.json()]);
-  return json({roles:roles.filter(r=>r.id!==guildId).map(r=>({id:r.id,name:r.name,position:r.position})).sort((a,b)=>b.position-a.position),channels:channels.filter(ch=>[0,5,15].includes(ch.type)).map(ch=>({id:ch.id,name:ch.name,type:ch.type,parent_id:ch.parent_id||null}))});
+  return json({roles:roles.filter(r=>r.id!==guildId).map(r=>({id:r.id,name:r.name,position:r.position})).sort((a,b)=>b.position-a.position),channels:channels.filter(ch=>[0,4,5,15].includes(ch.type)).map(ch=>({id:ch.id,name:ch.name,type:ch.type,parent_id:ch.parent_id||null}))});
  }
  if(path==="messages-settings"&&(request.method==="GET"||request.method==="PUT")){
   const s=await session(request,env);if(!s)return json({error:"Sign in required."},401);
