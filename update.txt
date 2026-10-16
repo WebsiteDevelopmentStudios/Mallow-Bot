@@ -1,27 +1,30 @@
-Mallow Bot Updates
+Mallow Bot — Current Command Reference
 
-Premium commands added:
+Premium commands
 - /embed — create and send a custom embed (Manage Messages permission required).
-- /snipe — show the latest deleted message in the current channel.
+- /snipe — show the most recently deleted message in the channel, while the bot has been running.
 - /sticky — set or clear a sticky message (Manage Messages permission required).
-- /backup — export server role and channel layout to a JSON file (Administrator required).
-- /custom-command — create, list, or delete server custom text commands (Manage Server permission required).
-- /vanity — set or view the server tagline (Manage Server permission required).
-- /premium-status — check your Mallow Premium status and expiry.
+- /backup — export the server's role and channel layout to JSON; this is not a full server backup (Administrator required).
+- /custom-command — create, list, or delete custom text commands (Manage Server permission required).
+- /vanity — set or view the server tagline; this does not change the Discord invite URL (Manage Server permission required).
+- /premium-status — check Premium status and expiry.
 
-Premium access is checked when using Premium features. Without an active subscription, the bot should direct you to:
-https://mallowbot.devs.surf/subscriptions.html
-
-Prefix help: -mb help
-
-
-Premium prefix command variants:
+Premium text command equivalents
 - -mb embed <title> | <description> [| #hexcolor] [| #channel or channel ID]
 - -mb snipe
 - -mb sticky <message> (omit the message to clear it)
-- -mb backup (Administrator; exports roles and channel layout JSON only)
-- -mb custom-command create <name> <response> | list | delete <name>
-- -mb vanity [tagline] (sets or views the server tagline)
-- -mb premium-status
+- -mb backup (Administrator; exports role and channel layout JSON only)
+- -mb custom-command create <name> <response>
+- -mb custom-command list
+- -mb custom-command delete <name>
+- -mb vanity [tagline]
+- -mb premium-status (available even without Premium)
 
-Slash-command sync clears guild-only duplicates and publishes the global command list once.
+Premium features require an active subscription, except the Premium status check. Premium details:
+https://mallowbot.devs.surf/subscriptions.html
+
+Command syncing
+- /sync or -mb sync clears guild-only command registrations for the server where it is run, then syncs the global command list.
+- Run the sync command in each server that still has duplicate server-specific commands. Discord may take a little time to refresh its command list.
+
+For the full text-command list, run -mb help or -mb commands.
