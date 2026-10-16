@@ -38,7 +38,7 @@ export async function onRequest(context) {
  // OAuth state is issued as a separate cookie before leaving for Discord.
  const url=new URL(request.url);
  if(url.pathname==="/api/login"&&request.method==="GET"){
-  if(!env.CLIENT_ID||!env.SESSION_SECRET)return json({error:"OAuth configuration missing."},503);
+  const missing=["CLIENT_ID","SESSION_SECRET","REDIRECT_URI"].filter(k=>!env[k]);if(missing.length)return json({error:"OAuth configuration missing at runtime.",missing},503);
   const state=b64(crypto.getRandomValues(new Uint8Array(24)));const signed=await token({state,exp:Date.now()+10*60*1000},env.SESSION_SECRET);const auth=new URL("https://discord.com/oauth2/authorize");auth.searchParams.set("client_id",env.CLIENT_ID);auth.searchParams.set("redirect_uri",env.REDIRECT_URI);auth.searchParams.set("response_type","code");auth.searchParams.set("scope","identify");auth.searchParams.set("state",state);
   return new Response(null,{status:302,headers:{"location":auth.toString(),"set-cookie":"mallow_oauth_state="+encodeURIComponent(signed)+"; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=600","cache-control":"no-store"}});
  }
