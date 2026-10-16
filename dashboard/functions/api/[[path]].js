@@ -148,7 +148,7 @@ async function route(request, env) {
    if(!row)row={prefix:defaults.prefix,greeting:defaults.greeting,greetings:1,mention_only:1,disabled_commands:"[]",features:"{}",economy_config:"{}",xp_config:"{}",updated_at:null};
    let disabled=[];try{disabled=JSON.parse(row.disabled_commands||"[]");if(!Array.isArray(disabled))disabled=[]}catch{}
    const parse=(v,fallback)=>{try{return {...fallback,...JSON.parse(v||"{}")}}catch{return fallback}};
-   return json({guild:{id:guildId,name:access.guild.name},settings:{prefix:row.prefix,greeting:row.greeting,greetings:!!row.greetings,mention_only:!!row.mention_only,disabled_commands:disabled,features:parse(row.features,{economy:true,xp:true,moderation:true,music:true,fun:true,movies:true,utility:true,social:true}),economy_config:parse(row.economy_config,{starting_money:100,daily_reward:100,work_min:20,work_max:80}),xp_config:parse(row.xp_config,{min_xp:10,max_xp:20,cooldown_seconds:60,announce_level_up:true}),updated_at:row.updated_at}});
+   return json({guild:{id:guildId,name:access.guild.name},settings:{prefix:row.prefix,greeting:row.greeting,greetings:!!row.greetings,mention_only:!!row.mention_only,disabled_commands:disabled,features:parse(row.features,{economy:true,xp:true,moderation:true,music:true,fun:true,movies:true,utility:true,social:true}),economy_config:parse(row.economy_config,{starting_money:100,daily_reward:100,work_min:20,work_max:80,currency_symbol:"M$",multiplier:1}),xp_config:parse(row.xp_config,{min_xp:10,max_xp:20,cooldown_seconds:60,announce_level_up:true}),updated_at:row.updated_at}});
   }
   let body;try{body=await request.json()}catch{return json({error:"Invalid JSON."},400)}
   const prefix=String(body.prefix??"-mb").trim(),greeting=String(body.greeting??defaults.greeting);
@@ -160,7 +160,7 @@ async function route(request, env) {
   const features=Object.fromEntries(Object.keys(featureDefaults).map(k=>[k,featureInput[k]===undefined?true:!!featureInput[k]]));
   const clamp=(v,min,max,fallback)=>Number.isFinite(Number(v))?Math.max(min,Math.min(max,Math.round(Number(v)))):fallback;
   const ec=body.economy_config||{},xc=body.xp_config||{};
-  const economy={starting_money:clamp(ec.starting_money,0,100000000,100),daily_reward:clamp(ec.daily_reward,0,1000000,100),work_min:clamp(ec.work_min,0,1000000,20),work_max:clamp(ec.work_max,0,1000000,80)};
+  const economy={starting_money:clamp(ec.starting_money,0,100000000,100),daily_reward:clamp(ec.daily_reward,0,1000000,100),work_min:clamp(ec.work_min,0,1000000,20),work_max:clamp(ec.work_max,0,1000000,80),currency_symbol:String(ec.currency_symbol??"M$").trim().slice(0,8)||"M$",multiplier:Number.isFinite(Number(ec.multiplier))?Math.max(0,Math.min(100,Number(ec.multiplier))):1};
   if(economy.work_max<economy.work_min)return json({error:"Maximum work reward must be at least the minimum."},400);
   const xp={min_xp:clamp(xc.min_xp,0,10000,10),max_xp:clamp(xc.max_xp,0,10000,20),cooldown_seconds:clamp(xc.cooldown_seconds,0,86400,60),announce_level_up:xc.announce_level_up!==false};
   if(xp.max_xp<xp.min_xp)return json({error:"Maximum XP must be at least the minimum."},400);
