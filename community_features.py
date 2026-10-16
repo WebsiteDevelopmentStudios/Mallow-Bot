@@ -86,16 +86,18 @@ async def process_message(bot, message):
             pass
         return
 
-    if content.strip() and not content.casefold().startswith(command_prefix.casefold()):
+    if dashboard_config.get("features", {}).get("xp", True) and content.strip() and not content.casefold().startswith(command_prefix.casefold()):
         k = key(guild.id, message.author.id)
         now = time.time()
-        if now - float(data["last_xp"].get(k, 0)) >= 60:
+        xp_cfg = dashboard_config.get("xp_config", {})
+        cooldown = int(xp_cfg.get("cooldown_seconds", 60))
+        if now - float(data["last_xp"].get(k, 0)) >= cooldown:
             old = int(data["xp"].get(k, 0))
-            new = old + random.randint(10, 20)
+            new = old + random.randint(int(xp_cfg.get("min_xp", 10)), int(xp_cfg.get("max_xp", 20)))
             data["xp"][k] = new
             data["last_xp"][k] = now
             save()
-            if level(new) > level(old):
+            if xp_cfg.get("announce_level_up", True) and level(new) > level(old):
                 await message.channel.send(f"{message.author.mention} reached level {level(new)}. Try not to let it go to your head.", delete_after=12)
 
     # A -mb youtube command is handled by the prefix-command listener below.
@@ -149,6 +151,23 @@ async def prefix(bot, message, command, argument):
     if message.guild is None:
         return False
     gid, uid = message.guild.id, message.author.id
+    guild_cfg = await get_guild_config(gid)
+    feature_groups = {
+        "economy": {"balance","daily","gamble","coinflip","slots","roulette","dice","blackjack","work","pay","rob"},
+        "xp": {"xp","level","leaderboard"},
+        "moderation": {"dm","set-log","timeout-minutes"},
+        "movies": {"movie","channel"},
+        "fun": {"vibecheck","ship","fortune","wyr"},
+    }
+    feature = next((group for group, names in feature_groups.items() if command in names), None)
+    if feature and not guild_cfg.get("features", {}).get(feature, True):
+        await message.reply("The " + command + " feature is disabled in this server.", mention_author=False)
+        return True
+    if command in set(guild_cfg.get("disabled_commands", [])):
+        await message.reply("The " + command + " command is disabled in this server.", mention_author=False)
+        return True
+    economy_cfg = guild_cfg.get("economy_config", {})
+    starting_money = int(economy_cfg.get("starting_money", 100))
     if command == "set-log":
         if uid != OWNER_USER_ID:
             await message.reply("Only the bot developer can configure DM logs.", mention_author=False)
@@ -225,7 +244,7 @@ async def prefix(bot, message, command, argument):
         return True
     if command == "gamble":
         k = key(gid, uid)
-        balance = int(data["currency"].get(k, 100))
+        balance = int(data["currency"].get(k, starting_money))
         try:
             bet = int(argument.split()[0]) if argument else 10
         except ValueError:
@@ -287,7 +306,7 @@ async def prefix(bot, message, command, argument):
         return True
     if command == "work":
         k = key(gid, uid)
-        earned = random.randint(20, 80)
+        earned = random.randint(int(economy_cfg.get("work_min", 20)), int(economy_cfg.get("work_max", 80)))
         data["currency"][k] = int(data["currency"].get(k, 100)) + earned
         save()
         await message.reply(f"You worked a shift and earned {earned} Mallow Coins.", mention_author=False)
@@ -298,14 +317,14 @@ async def prefix(bot, message, command, argument):
             await message.reply("Usage: -mb rob @member", mention_author=False)
             return True
         target_key = key(gid, target.id)
-        target_balance = int(data["currency"].get(target_key, 100))
+        target_balance = int(data["currency"].get(target_key, starting_money))
         if target_balance < 1:
             await message.reply("That member has no Mallow Coins to steal.", mention_author=False)
             return True
         if random.random() < 0.35:
             stolen = min(target_balance, random.randint(1, max(1, target_balance // 4)))
             data["currency"][target_key] = target_balance - stolen
-            data["currency"][key(gid, uid)] = int(data["currency"].get(key(gid, uid), 100)) + stolen
+            data["currency"][key(gid, uid)] = int(data["currency"].get(key(gid, uid), starting_money)) + stolen
             result = f"You stole {stolen} Mallow Coins from {target.display_name}."
         else:
             fine = min(int(data["currency"].get(key(gid, uid), 100)), 25)
@@ -331,7 +350,7 @@ async def prefix(bot, message, command, argument):
             return True
         tk = key(gid, target.id)
         data["currency"][k] = balance - amount
-        data["currency"][tk] = int(data["currency"].get(tk, 100)) + amount
+        data["currency"][tk] = int(data["currency"].get(tk, starting_money)) + amount
         save()
         await message.reply(f"Paid {amount} Mallow Coins to {target.display_name}.", mention_author=False)
         return True
@@ -369,7 +388,7 @@ async def prefix(bot, message, command, argument):
         await message.reply(f"🎬 **Would You Rather?**\n{random.choice(questions)}\n\nReact with your choice or explain your answer!", mention_author=False)
         return True
     if command == "balance":
-        await message.reply(f"You have {int(data['currency'].get(key(gid,uid),100))} Mallow Coins.", mention_author=False)
+        await message.reply(f"You have {int(data['currency'].get(key(gid,uid),starting_money))} Mallow Coins.", mention_author=False)
         return True
     if command == "daily":
         k = key(gid, uid)
