@@ -373,3 +373,64 @@ body.mallow-dashboard .main-nav a{color:#c1c5d0}
 body.mallow-dashboard .main-nav a:hover,body.mallow-dashboard .main-nav a.active{background:#34394a;color:#fff}
 @media(max-width:1100px){body.mallow-dashboard .wrap{margin-left:320px;padding-right:20px}body.mallow-dashboard .feature-grid{grid-template-columns:repeat(2,minmax(0,1fr))}body.mallow-dashboard .overview-grid{grid-template-columns:repeat(2,minmax(0,1fr))}body.mallow-dashboard .dashboard-layout{grid-template-columns:230px minmax(0,1fr)}}
 @media(max-width:760px){body.mallow-dashboard .wrap{margin-left:64px;padding:0 14px 35px}body.mallow-dashboard .site-header{margin:0 -14px 20px;padding:12px 14px;grid-template-columns:1fr auto}body.mallow-dashboard .main-nav{display:none}body.mallow-dashboard .dashboard-layout{grid-template-columns:1fr}body.mallow-dashboard .config-sidebar{position:static;min-height:0}body.mallow-dashboard .feature-grid,body.mallow-dashboard .overview-grid,body.mallow-dashboard .two-cards{grid-template-columns:1fr}body.mallow-dashboard .commands-panel .command-toolbar{grid-template-columns:1fr}body.mallow-dashboard .page-heading{flex-direction:column}}
+
+
+/* Reference-matched dashboard layout: cool charcoal surfaces, blue accents, fixed server rail */
+body.mallow-dashboard{--bg:#222735;--surface:#252b3a;--surface-2:#1b202c;--line:#303747;--text:#f4f6fb;--muted:#c0c5d0;--purple:#2680ff;--purple-2:#0969e8;background:#222735;color:#f4f6fb;font-family:'DM Sans',sans-serif;line-height:1.5}
+body.mallow-dashboard:before{display:none}
+body.mallow-dashboard .wrap{width:auto;max-width:none;margin:0 0 0 360px;padding:16px 4.4vw 64px 0}
+body.mallow-dashboard .server-rail{position:fixed;z-index:20;inset:0 auto 0 0;width:81px;padding:7px 13px;background:#1b202c;display:flex;align-items:center;flex-direction:column;gap:12px;overflow-y:auto}
+body.mallow-dashboard .rail-home,body.mallow-dashboard .server-rail-link,body.mallow-dashboard .rail-add{width:54px;height:54px;min-height:54px;display:flex;align-items:center;justify-content:center;border-radius:50%;overflow:hidden;flex:0 0 auto;background:#343b4b;color:#fff;border:0;box-shadow:none;padding:0;font-size:24px;font-weight:700;transition:border-radius .15s,background .15s}
+body.mallow-dashboard .rail-home{background:#252b3a;border:2px solid #3b4355}
+body.mallow-dashboard .server-rail-link:hover,body.mallow-dashboard .server-rail-link.active{border-radius:16px;background:#0969e8;color:#fff}
+body.mallow-dashboard .server-rail-link img{width:100%;height:100%;object-fit:cover}
+body.mallow-dashboard .rail-add{background:#343b4b;color:#dce3ef}
+body.mallow-dashboard .site-header{display:none}
+body.mallow-dashboard .dashboard-hero{display:none}
+body.mallow-dashboard .dashboard-layout{grid-template-columns:279px minmax(0,1fr);gap:0;align-items:stretch;min-height:calc(100vh - 16px)}
+body.mallow-dashboard .config-sidebar{position:sticky;top:0;height:calc(100vh - 16px);overflow-y:auto;border:0;border-radius:22px 22px 0 0;background:#2b3243;padding:28px 24px!important;margin:0!important;box-shadow:none}
+body.mallow-dashboard .server-identity{display:block;text-align:center;margin:0 0 28px}
+body.mallow-dashboard .server-identity-icon{width:108px;height:108px;border-radius:50%;margin:0 auto 12px;background:#1b202c;color:#fff;display:grid;place-items:center;font-size:32px;font-weight:700;border:0}
+body.mallow-dashboard .config-sidebar .eyebrow{display:none}
+body.mallow-dashboard .config-sidebar h2{font-size:14px;letter-spacing:0;margin:0;font-weight:700}
+body.mallow-dashboard .config-sidebar .small{display:none}
+body.mallow-dashboard .config-sidebar hr{display:none}
+body.mallow-dashboard .sidebar-label{font-size:10px;letter-spacing:.03em;font-weight:800;color:#c6ccda;margin:20px 0 6px}
+body.mallow-dashboard .side-link{font-size:14px;color:#f2f4fa;border-radius:8px;padding:8px 10px;margin:2px 0}
+body.mallow-dashboard .side-link:hover,body.mallow-dashboard .side-link.active{background:#0969e8;color:#fff}
+body.mallow-dashboard .side-count{border-top:1px solid #ffffff12;color:#c4cada}
+body.mallow-dashboard .side-count b{color:#fff}
+body.mallow-dashboard .text-link{color:#c6d9ff}
+body.mallow-dashboard .config-main{padding:22px 0 0 0;gap:20px}
+body.mallow-dashboard .settings-panel{background:transparent;border:0;box-shadow:none;border-radius:0;padding:0!important;margin:0!important}
+body.mallow-dashboard .section-heading{margin:0 0 14px;align-items:center}
+body.mallow-dashboard .section-heading .eyebrow{display:none}
+body.mallow-dashboard .section-heading h2{font-size:29px;letter-spacing:-.035em;margin:0 0 4px}
+body.mallow-dashboard .section-heading p{color:#c0c5d0!important;font-size:13px}
+body.mallow-dashboard .saved-indicator,body.mallow-dashboard .command-total{border:0;border-radius:7px;background:#303747;color:#dce3ef}
+body.mallow-dashboard .feature-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:30px}
+body.mallow-dashboard .feature-card{min-height:124px;background:#1b202c;border:0;border-radius:8px;padding:19px 20px;box-shadow:none}
+body.mallow-dashboard .feature-card:hover{background:#202635;transform:none;border-color:transparent}
+body.mallow-dashboard .feature-card-top{display:flex;align-items:center;gap:10px}
+body.mallow-dashboard .feature-icon{display:inline-grid;place-items:center;width:32px;height:32px;flex:0 0 32px;border-radius:7px;background:#132d54;color:#2582ff;font-size:18px}
+body.mallow-dashboard .feature-card h3{font-size:19px;letter-spacing:-.025em;margin:0;color:#f5f7fc}
+body.mallow-dashboard .feature-card p{font-size:13px;line-height:1.5;color:#d0d4de!important;margin:14px 0 0}
+body.mallow-dashboard .feature-card-bottom{margin-top:16px}
+body.mallow-dashboard .feature-state{color:#c0c7d4}
+body.mallow-dashboard .feature-switch{margin-left:auto;min-width:42px!important;width:42px!important;min-height:24px!important;height:24px!important;padding:3px!important;background:#3b4352!important;border:0!important;box-shadow:none!important}
+body.mallow-dashboard .feature-switch span{width:18px;height:18px}
+body.mallow-dashboard .feature-switch.on{background:#0969e8!important}
+body.mallow-dashboard .feature-switch.on span{transform:translateX(18px)}
+body.mallow-dashboard button,body.mallow-dashboard .action{background:#0969e8;color:white;box-shadow:none;border-radius:7px}
+body.mallow-dashboard button:hover,body.mallow-dashboard .action:hover{background:#217cff;color:white;transform:none}
+body.mallow-dashboard button.button-quiet{background:#303747!important;color:#f4f6fb!important;border-color:transparent!important}
+body.mallow-dashboard .field input,body.mallow-dashboard .field textarea,body.mallow-dashboard input,body.mallow-dashboard textarea,body.mallow-dashboard select{background:#1b202c;border:1px solid #3b4353;color:#f4f6fb;border-radius:7px}
+body.mallow-dashboard .row{border-color:#3b4353}
+body.mallow-dashboard .command-row{background:#1b202c;border-color:#303747}
+body.mallow-dashboard .feature-manage{margin-top:24px;padding:24px;background:#1b202c;border-radius:8px}
+body.mallow-dashboard .config-error{background:#1b202c;color:#fff}
+body.mallow-dashboard .signin{background:#222735f5!important}
+body.mallow-dashboard .signin .panel{background:#2b3243;border:0;border-radius:12px;box-shadow:none}
+body.mallow-dashboard .signin button{background:#0969e8}
+@media(max-width:1150px){body.mallow-dashboard .wrap{margin-left:81px;padding:16px 22px 48px}body.mallow-dashboard .dashboard-layout{grid-template-columns:240px minmax(0,1fr)}body.mallow-dashboard .feature-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){body.mallow-dashboard .wrap{margin-left:68px;padding:10px 12px 40px}body.mallow-dashboard .server-rail{width:68px;padding:7px}body.mallow-dashboard .rail-home,body.mallow-dashboard .server-rail-link,body.mallow-dashboard .rail-add{width:48px;height:48px;min-height:48px}body.mallow-dashboard .dashboard-layout{grid-template-columns:1fr;gap:16px}body.mallow-dashboard .config-sidebar{position:relative;top:auto;height:auto;max-height:none;border-radius:12px;padding:18px!important}body.mallow-dashboard .server-identity{display:flex;align-items:center;text-align:left;gap:12px;margin-bottom:14px}body.mallow-dashboard .server-identity-icon{width:48px;height:48px;margin:0;flex:0 0 48px}body.mallow-dashboard .feature-grid{grid-template-columns:1fr;gap:12px}body.mallow-dashboard .config-main{padding-top:0}body.mallow-dashboard .section-heading h2{font-size:25px}}
