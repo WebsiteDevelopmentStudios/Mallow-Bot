@@ -45,6 +45,8 @@ The bot relies on Discord and may rely on external hosting providers or APIs. Th
 
 You are responsible for content you submit through commands or messages and for having the rights and permissions necessary to submit it. You must not use Mallow Bot to distribute unlawful content or content that violates Discord’s rules.
 
+When adding Mallow Bot to a Discord server, the authorization flow may request the **Administrator** permission. Administrator grants broad control over server settings, channels, roles, and other resources. This permission is requested to allow Mallow Bot to perform its server features, including creating server invite links where supported. Only authorize the bot with Administrator if you trust it and have authority to grant that permission. Server owners and administrators are responsible for reviewing the requested permissions and deciding whether to install or continue using the bot. Discord may impose additional limits, and invite creation is not guaranteed in every server or channel.
+
 ## 7. Suspension or termination
 
 Access may be restricted or the bot may stop responding to a user or server when reasonably necessary to address abuse, security concerns, legal requirements, or operational issues. You may stop using the bot at any time by no longer interacting with it or removing it from your server.
