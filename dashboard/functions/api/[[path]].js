@@ -38,20 +38,29 @@ async function route(request, env) {
   const ur=await fetch("https://discord.com/api/users/@me/guilds?with_counts=true",{headers:{authorization:"Bearer "+s.user.access_token}});
   if(!ur.ok)return json({error:ur.status===401?"Discord sign-in expired. Sign out and sign in again.":"Could not load your Discord servers."},ur.status===401?401:502);
   const all=await ur.json();const manageable=all.filter(g=>{try{const p=BigInt(g.permissions||"0");return (p&8n)!==0n||(p&32n)!==0n}catch{return false}});
-  // The Discord bot API cannot use /users/@me/guilds. Check each manageable
-  // server directly; GET /guilds/{guild.id} succeeds only when this bot can see it.
-  const botGuildIds=new Set();
-  if(env.BOT_TOKEN){
-   await Promise.all(manageable.map(async g=>{
-    try{
-     const br=await fetch("https://discord.com/api/guilds/"+g.id,{headers:{authorization:"Bot "+env.BOT_TOKEN}});
-     if(br.ok)botGuildIds.add(g.id);
-     else if(br.status!==404&&br.status!==403)console.error("Mallow bot guild check failed",g.id,br.status);
-    }catch(e){console.error("Mallow bot guild check errored",g.id,String(e?.message||e).slice(0,160));}
-   }));
+  if(!env.BOT_TOKEN)return json({error:"Bot presence checking is not configured. Add the Mallow Bot token as the BOT_TOKEN secret in Cloudflare Pages → Settings → Variables and Secrets, then redeploy."},503);
+  const botHeaders={authorization:"Bot "+env.BOT_TOKEN};
+  const botMeResponse=await fetch("https://discord.com/api/users/@me",{headers:botHeaders});
+  if(!botMeResponse.ok){
+   console.error("Mallow BOT_TOKEN validation failed",botMeResponse.status);
+   return json({error:botMeResponse.status===401?"The configured BOT_TOKEN is invalid or expired. Replace it with the token for the Mallow Bot application in Cloudflare Pages → Settings → Variables and Secrets, then redeploy.":"Discord could not verify BOT_TOKEN. Check the Cloudflare Pages secret and try again."},503);
   }
+  const botMe=await botMeResponse.json();
+  if(botMe.id!==env.CLIENT_ID)return json({error:"BOT_TOKEN belongs to a different Discord application than CLIENT_ID. Set both to the Mallow Bot application, then redeploy."},503);
+  // Check each manageable server directly using the verified bot token.
+  const checks=await Promise.all(manageable.map(async g=>{
+   try{
+    const br=await fetch("https://discord.com/api/guilds/"+g.id,{headers:botHeaders});
+    if(br.ok)return [g.id,true];
+    if(br.status===403||br.status===404)return [g.id,false];
+    console.error("Mallow bot guild check failed",g.id,br.status);
+    throw new Error("Discord returned "+br.status+" while checking server access.");
+   }catch(e){console.error("Mallow bot guild check errored",g.id,String(e?.message||e).slice(0,160));throw e;}
+  })).catch(()=>null);
+  if(!checks)return json({error:"Discord could not verify whether Mallow is in your servers. Check the Cloudflare Pages Function logs and try again."},502);
+  const botGuildIds=new Set(checks.filter(([,present])=>present).map(([id])=>id));
   const guilds=manageable.map(g=>({id:g.id,name:g.name,icon_url:g.icon?"https://cdn.discordapp.com/icons/"+g.id+"/"+g.icon+".png?size=128":null,member_count:g.approximate_member_count??null,bot_present:botGuildIds.has(g.id)}));
-  return json({guilds,bot_status_available:!!env.BOT_TOKEN});
+  return json({guilds,bot_status_available:true});
  }
  if(path==="invite"&&request.method==="GET"){
   const s=await session(request,env);if(!s)return Response.redirect("/api/login",302);
