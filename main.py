@@ -51,7 +51,7 @@ FFPROBE_BIN = os.getenv("FFPROBE_BIN", "ffprobe").strip() or "ffprobe"
 DOWNLOAD_TIMEOUT_SECONDS = 30 * 60
 HOST_EXPIRY_BUFFER_SECONDS = 30
 WEB_HOST = os.getenv("MOVIE_HOST", "0.0.0.0")
-WEB_PORT = int(os.getenv("MOVIE_PORT", "8080"))
+WEB_PORT = int(os.getenv("PORT", os.getenv("MOVIE_PORT", "8080")))
 HLS_CACHE_DIR = BASE_DIR / ".movie_hls"
 PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "https://wisp.uno").strip().rstrip("/")
 DOWNLOAD_LIFETIME_SECONDS = 24 * 3600
@@ -1250,16 +1250,65 @@ async def stop_cloudflare_quick_tunnel() -> None:
 
 
 
-async def start_movie_web_server() -> web.AppRunner:
+async def dashboard_owner_authorized(request: web.Request) -> bool:
+    """Authenticate Cloudflare dashboard owner API calls with the bot token."""
+    expected = os.getenv("DISCORD_TOKEN", "").strip()
+    supplied = request.headers.get("Authorization", "")
+    return bool(expected) and supplied == f"Bot {expected}"
+
+
+async def dashboard_owner_guilds(request: web.Request) -> web.Response:
+    if not await dashboard_owner_authorized(request):
+        return web.json_response({"error": "Unauthorized."}, status=401)
+    client = request.app["discord_bot"]
+    await client.wait_until_ready()
+    guilds = [
+        {
+            "id": str(guild.id),
+            "name": guild.name,
+            "icon_url": str(guild.icon.url) if guild.icon else None,
+            "member_count": guild.member_count,
+        }
+        for guild in client.guilds
+    ]
+    return web.json_response({"guilds": guilds})
+
+
+async def dashboard_owner_leave(request: web.Request) -> web.Response:
+    if not await dashboard_owner_authorized(request):
+        return web.json_response({"error": "Unauthorized."}, status=401)
+    try:
+        body = await request.json()
+    except (ValueError, TypeError):
+        return web.json_response({"error": "Invalid JSON."}, status=400)
+    guild_id = str(body.get("guild_id", "")).strip() if isinstance(body, dict) else ""
+    if not guild_id.isdecimal():
+        return web.json_response({"error": "Invalid Discord server ID."}, status=400)
+    guild = request.app["discord_bot"].get_guild(int(guild_id))
+    if guild is None:
+        return web.json_response({"error": "Mallow is not in that server."}, status=404)
+    try:
+        await guild.leave()
+    except discord.HTTPException:
+        logger.exception("Dashboard leave request failed for guild %s", guild_id)
+        return web.json_response({"error": "Discord rejected the leave request."}, status=502)
+    logger.info("Dashboard requested that Mallow leave guild %s.", guild_id)
+    return web.json_response({"ok": True, "guild_id": guild_id})
+
+
+async def start_movie_web_server(discord_bot: commands.Bot | None = None) -> web.AppRunner:
     app = web.Application()
+    app["discord_bot"] = discord_bot or bot
     app.router.add_get("/movie/{token}", hosted_movie_handler)
     app.router.add_get("/media/{token}", hosted_media_handler)
     app.router.add_get("/parts/{token}/{filename}", hosted_part_handler)
     app.router.add_get("/hls/{token}/{filename}", hosted_hls_handler)
+    app.router.add_get("/owner/guilds", dashboard_owner_guilds)
+    app.router.add_post("/owner/leave", dashboard_owner_leave)
     runner = web.AppRunner(app)
     await runner.setup()
     await web.TCPSite(runner, WEB_HOST, WEB_PORT).start()
-    logger.info("Movie web server listening on %s:%d", WEB_HOST, WEB_PORT)
+    logger.info("Bot web/API server listening on %s:%d", WEB_HOST, WEB_PORT)
     return runner
 
 
@@ -2112,6 +2161,8 @@ intents.message_content = True
 
 class MallowBot(commands.Bot):
     async def setup_hook(self) -> None:
+        # Expose the dashboard owner API and hosted media on the platform's web port.
+        self.web_runner = await start_movie_web_server(self)
         # Connect to the configured external Lavalink node and publish slash commands.
         await initialize_lavalink()
         try:
