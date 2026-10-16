@@ -336,7 +336,7 @@ async function route(request, env) {
    if(!botMeResponse.ok)return json({error:botMeResponse.status===401?"The configured BOT_TOKEN is invalid.":"Discord could not verify BOT_TOKEN."},503);
    const botMe=await botMeResponse.json();
    if(botMe.id!==env.CLIENT_ID)return json({error:"BOT_TOKEN belongs to a different Discord application than CLIENT_ID."},503);
-   const backendUrl=String(env.BOT_BACKEND_URL||"https://mochi-bot-57j2.onrender.com").replace(/\/$/,"");
+   const backendUrl=String(env.BOT_BACKEND_URL||"https://d7lyw2yvj2.apps.bot-hosting.cloud").replace(/\/$/,"");
    const response=await fetch(backendUrl+"/owner/guilds",{headers:botHeaders});
    const data=await response.json().catch(()=>({}));
    if(!response.ok)return json({error:data.error||"Could not retrieve Mallow's live server list from the bot service."},response.status===401?503:502);
@@ -350,7 +350,7 @@ if(path==="leave"&&request.method==="POST"){
    let body;try{body=await request.json()}catch{return json({error:"Invalid JSON."},400)}
    const guildId=String(body.guild_id||"");if(!/^\d{17,20}$/.test(guildId))return json({error:"Invalid Discord server ID."},400);
    const botHeaders={authorization:"Bot "+env.BOT_TOKEN,"content-type":"application/json"};
-   const backendUrl=String(env.BOT_BACKEND_URL||"https://mochi-bot-57j2.onrender.com").replace(/\/$/,"");
+   const backendUrl=String(env.BOT_BACKEND_URL||"https://d7lyw2yvj2.apps.bot-hosting.cloud").replace(/\/$/,"");
    const response=await fetch(backendUrl+"/owner/leave",{method:"POST",headers:botHeaders,body:JSON.stringify({guild_id:guildId})});
    const data=await response.json().catch(()=>({}));
    if(!response.ok)return json({error:data.error||"Mallow could not leave that server."},response.status===401?503:502);
