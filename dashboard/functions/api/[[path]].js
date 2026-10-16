@@ -360,14 +360,12 @@ if(path==="server-invite"&&request.method==="GET"){
   const s=await session(request,env);if(!s)return Response.redirect("/api/login",302);
   if(s.user.id!==env.BOT_OWNER_ID)return json({error:"Only the bot owner can generate server invite links."},403);
   if(!env.BOT_TOKEN)return json({error:"Bot token is not configured."},503);
-  const guildId=url.searchParams.get("guild_id")||"";if(!/^\\d{17,20}$/.test(guildId))return json({error:"Invalid Discord server ID."},400);
+  const guildId=url.searchParams.get("guild_id")||"";if(!/^\d{17,20}$/.test(guildId))return json({error:"Invalid Discord server ID."},400);
   const headers={authorization:"Bot "+env.BOT_TOKEN};
   const membership=await fetch("https://discord.com/api/guilds/"+guildId,{headers});
   if(membership.status===404)return json({error:"Mallow is not in this server, so it cannot create an invite for you."},409);
   if(!membership.ok)return json({error:"Discord could not verify Mallow's membership in this server."},502);
-  const membership=await fetch("https://discord.com/api/guilds/"+guildId,{headers});
-  if(membership.status===404)return json({error:"Mallow is not in this server, so it cannot create an invite for you."},409);
-  if(!membership.ok)return json({error:"Discord could not verify Mallow's membership in this server."},502);
+
   const channelsResponse=await fetch("https://discord.com/api/guilds/"+guildId+"/channels",{headers});
   if(!channelsResponse.ok)return json({error:"Could not list server channels to create an invite."},502);
   const channels=await channelsResponse.json();
