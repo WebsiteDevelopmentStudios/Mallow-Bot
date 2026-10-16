@@ -182,6 +182,123 @@ async def prefix(bot, message, command, argument):
         return True
     economy_cfg = guild_cfg.get("economy_config", {})
     starting_money = int(economy_cfg.get("starting_money", 100))
+    premium_commands = {"embed", "snipe", "sticky", "backup", "custom-command", "vanity", "premium-status"}
+    if command in premium_commands:
+        if uid != OWNER_USER_ID:
+            try:
+                async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
+                    async with session.get("https://mallowbot.devs.surf/api/premium-check", params={"discord_id": str(uid)}) as response:
+                        premium_result = await response.json()
+                premium_active = response.status == 200 and bool(premium_result.get("active"))
+            except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
+                await message.reply("I couldn't check Premium right now. Please try again shortly.", mention_author=False)
+                return True
+            if not premium_active:
+                await message.reply("Mallow Premium is required. Get Premium at https://mallowbot.devs.surf/subscriptions.html", mention_author=False)
+                return True
+        if command == "premium-status":
+            if uid == OWNER_USER_ID:
+                await message.reply("Mallow Premium: developer access is enabled.", mention_author=False)
+                return True
+            try:
+                async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
+                    async with session.get("https://mallowbot.devs.surf/api/premium-check", params={"discord_id": str(uid)}) as response:
+                        result = await response.json()
+                if response.status == 200 and result.get("active"):
+                    await message.reply(f"Mallow Premium is active. Expires: {result.get('expires_at') or 'unknown'}", mention_author=False)
+                else:
+                    await message.reply("Mallow Premium is not active for your Discord account. Get Premium at https://mallowbot.devs.surf/subscriptions.html", mention_author=False)
+            except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
+                await message.reply("I couldn't check Premium right now. Please try again shortly.", mention_author=False)
+            return True
+        if command == "embed":
+            if not message.author.guild_permissions.manage_messages:
+                await message.reply("You need Manage Messages permission to use this command.", mention_author=False); return True
+            parts = argument.split("|", 3)
+            if len(parts) < 2 or not parts[0].strip() or not parts[1].strip():
+                await message.reply("Usage: -mb embed <title> | <description> [| #hexcolor] [| #channel or channel ID]", mention_author=False); return True
+            title, description = parts[0].strip(), parts[1].strip()
+            color_text = parts[2].strip() if len(parts) > 2 and parts[2].strip() else "#8B5CF6"
+            target = message.channel
+            if len(parts) > 3 and parts[3].strip():
+                match = re.fullmatch(r"<#(\d+)>|(\d+)", parts[3].strip())
+                if not match:
+                    await message.reply("Use a channel mention or channel ID for the final argument.", mention_author=False); return True
+                target = message.guild.get_channel(int(match.group(1) or match.group(2)))
+                if not isinstance(target, discord.TextChannel):
+                    await message.reply("I couldn't find that text channel.", mention_author=False); return True
+            try:
+                color_value = int(color_text.lstrip("#"), 16)
+                if not 0 <= color_value <= 0xFFFFFF: raise ValueError
+            except ValueError:
+                await message.reply("Use a valid hex color such as #8B5CF6.", mention_author=False); return True
+            embed = discord.Embed(title=title[:256], description=description[:4000], color=discord.Color(color_value))
+            await target.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
+            await message.reply(f"Embed sent to {target.mention}.", mention_author=False); return True
+        if command == "snipe":
+            entry = data.get("snipes", {}).get(str(message.channel.id))
+            if not entry:
+                await message.reply("There is no recently deleted message saved for this channel.", mention_author=False); return True
+            embed = discord.Embed(title="Recently deleted message", description=str(entry.get("content") or "[No text content]")[:4000], color=discord.Color.orange())
+            embed.add_field(name="Author", value=str(entry.get("author", "Unknown"))[:256])
+            embed.set_footer(text="Deleted message content is only retained while the bot is running.")
+            await message.reply(embed=embed, mention_author=False, allowed_mentions=discord.AllowedMentions.none()); return True
+        if command == "sticky":
+            if not message.author.guild_permissions.manage_messages:
+                await message.reply("You need Manage Messages permission to use this command.", mention_author=False); return True
+            sticks = data.setdefault("sticky_messages", {})
+            cid = str(message.channel.id)
+            if not argument.strip():
+                sticks.pop(cid, None); save()
+                await message.reply("Sticky message cleared for this channel.", mention_author=False); return True
+            sticks[cid] = {"guild_id": gid, "content": argument[:1800], "message_id": None}
+            posted = await message.channel.send("📌 " + argument[:1800], allowed_mentions=discord.AllowedMentions.none())
+            sticks[cid]["message_id"] = posted.id; save()
+            await message.reply("Sticky message set. Use -mb sticky without text to clear it.", mention_author=False); return True
+        if command == "backup":
+            if not message.author.guild_permissions.administrator:
+                await message.reply("You need Administrator permission to use this command.", mention_author=False); return True
+            guild = message.guild
+            payload = {"guild_id": str(guild.id), "guild_name": guild.name, "created_at": discord.utils.utcnow().isoformat(),
+              "roles": [{"name": r.name, "permissions": r.permissions.value, "color": r.color.value, "hoist": r.hoist, "mentionable": r.mentionable} for r in guild.roles if not r.is_default()],
+              "categories": [{"name": ch.name, "position": ch.position} for ch in guild.categories],
+              "channels": [{"name": ch.name, "type": str(ch.type), "position": ch.position, "category": ch.category.name if ch.category else None, "topic": getattr(ch, "topic", None)} for ch in guild.channels if isinstance(ch, (discord.TextChannel, discord.VoiceChannel, discord.CategoryChannel))]}
+            raw = json.dumps(payload, indent=2).encode("utf-8")
+            import io
+            await message.reply("Server layout export attached. This is not a full message/permission restore backup.", file=discord.File(io.BytesIO(raw), filename=f"mallow-backup-{guild.id}.json"), mention_author=False); return True
+        if command == "custom-command":
+            if not message.author.guild_permissions.manage_guild:
+                await message.reply("You need Manage Server permission to use this command.", mention_author=False); return True
+            parts = argument.split(maxsplit=2)
+            action = parts[0].lower() if parts else ""
+            name = re.sub(r"[^a-z0-9_-]", "", parts[1].casefold())[:32] if len(parts) > 1 else ""
+            response_text = parts[2] if len(parts) > 2 else ""
+            commands_by_guild = data.setdefault("custom_commands", {}).setdefault(str(gid), {})
+            if action == "list":
+                await message.reply("Custom commands: " + (", ".join(commands_by_guild) if commands_by_guild else "none"), mention_author=False); return True
+            if action == "delete":
+                if not name or name not in commands_by_guild:
+                    await message.reply("Usage: -mb custom-command delete <name>", mention_author=False); return True
+                del commands_by_guild[name]; save()
+                await message.reply(f"Deleted custom command {name}.", mention_author=False); return True
+            if action == "create":
+                if not name or not response_text.strip():
+                    await message.reply("Usage: -mb custom-command create <name> <response>", mention_author=False); return True
+                commands_by_guild[name] = response_text[:1500]; save()
+                await message.reply(f"Created custom command {name}. Members can use -mb {name}.", mention_author=False); return True
+            await message.reply("Usage: -mb custom-command create <name> <response> | list | delete <name>", mention_author=False); return True
+        if command == "vanity":
+            if not message.author.guild_permissions.manage_guild:
+                await message.reply("You need Manage Server permission to use this command.", mention_author=False); return True
+            vanity = data.setdefault("vanity", {})
+            gid_text = str(gid)
+            if argument.strip(): vanity[gid_text] = argument.strip()[:160]; save()
+            await message.reply(f"{message.guild.name} tagline: {vanity.get(gid_text) or 'No tagline set.'}", mention_author=False); return True
+
+    custom_commands = data.get("custom_commands", {}).get(str(gid), {})
+    if command in custom_commands:
+        await message.reply(str(custom_commands[command])[:1900], mention_author=False, allowed_mentions=discord.AllowedMentions.none())
+        return True
     if command == "set-log":
         if uid != OWNER_USER_ID:
             await message.reply("Only the bot developer can configure DM logs.", mention_author=False)
