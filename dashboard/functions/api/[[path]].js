@@ -199,11 +199,50 @@ async function route(request, env) {
  async function ensurePremiumTables(env){
   await env.MALLOW_DB.prepare("CREATE TABLE IF NOT EXISTS premium_codes (code TEXT PRIMARY KEY, created_by TEXT NOT NULL, created_at TEXT NOT NULL, redeemed_by TEXT, redeemed_at TEXT, expires_at TEXT)").run();
   await env.MALLOW_DB.prepare("CREATE TABLE IF NOT EXISTS premium_subscriptions (discord_id TEXT PRIMARY KEY, starts_at TEXT NOT NULL, expires_at TEXT NOT NULL, source_code TEXT NOT NULL)").run();
+  await env.MALLOW_DB.prepare("CREATE TABLE IF NOT EXISTS premium_bans (discord_id TEXT PRIMARY KEY, banned_by TEXT NOT NULL, banned_at TEXT NOT NULL, reason TEXT NOT NULL DEFAULT '')").run();
  }
  async function premiumFor(env,id){
   await ensurePremiumTables(env);
+  const ban=await env.MALLOW_DB.prepare("SELECT discord_id,reason,banned_at FROM premium_bans WHERE discord_id=?").bind(String(id)).first();
   const row=await env.MALLOW_DB.prepare("SELECT starts_at,expires_at,source_code FROM premium_subscriptions WHERE discord_id=?").bind(String(id)).first();
-  return row&&Date.parse(row.expires_at)>Date.now()?{active:true,starts_at:row.starts_at,expires_at:row.expires_at,source_code:row.source_code}:{active:false,starts_at:row?.starts_at||null,expires_at:row?.expires_at||null};
+  return {active:!ban&&!!row&&Date.parse(row.expires_at)>Date.now(),banned:!!ban,ban_reason:ban?.reason||null,banned_at:ban?.banned_at||null,starts_at:row?.starts_at||null,expires_at:row?.expires_at||null,source_code:row?.source_code||null};
+ }
+ if(path==="premium-admin"&&(request.method==="GET"||request.method==="POST"||request.method==="DELETE")){
+  const s=await session(request,env);if(!s)return json({error:"Sign in with Discord first."},401);
+  if(s.user.id!==String(env.BOT_OWNER_ID))return json({error:"Only the owner can manage Premium subscriptions and bans."},403);
+  await ensurePremiumTables(env);
+  if(request.method==="GET"){
+   const subs=await env.MALLOW_DB.prepare("SELECT discord_id,starts_at,expires_at,source_code FROM premium_subscriptions ORDER BY expires_at DESC LIMIT 500").all();
+   const bans=await env.MALLOW_DB.prepare("SELECT discord_id,banned_by,banned_at,reason FROM premium_bans ORDER BY banned_at DESC LIMIT 500").all();
+   return json({ok:true,subscriptions:subs.results||[],bans:bans.results||[]});
+  }
+  let body;try{body=await request.json()}catch{return json({error:"Invalid JSON."},400)}
+  const id=String(body.discord_id||"").trim();if(!/^\\d{17,20}$/.test(id))return json({error:"Enter a valid 17–20 digit Discord user ID."},400);
+  if(id===String(env.BOT_OWNER_ID))return json({error:"The owner cannot be banned or have Premium revoked here."},400);
+  if(request.method==="POST"){
+   const action=String(body.action||"");
+   if(action==="grant"){
+    const days=Math.max(1,Math.min(3650,Number.parseInt(body.days||"7",10)||7));
+    const ban=await env.MALLOW_DB.prepare("SELECT discord_id FROM premium_bans WHERE discord_id=?").bind(id).first();
+    if(ban)return json({error:"Unban this user before granting Premium."},409);
+    const oldSub=await env.MALLOW_DB.prepare("SELECT starts_at,expires_at FROM premium_subscriptions WHERE discord_id=?").bind(id).first();
+    const now=Date.now();const active=oldSub&&Date.parse(oldSub.expires_at)>now;const startsAt=active?oldSub.starts_at:new Date(now).toISOString();const base=active?Date.parse(oldSub.expires_at):now;const expiresAt=new Date(base+days*86400000).toISOString();
+    await env.MALLOW_DB.prepare("INSERT INTO premium_subscriptions(discord_id,starts_at,expires_at,source_code) VALUES(?,?,?,?) ON CONFLICT(discord_id) DO UPDATE SET starts_at=excluded.starts_at,expires_at=excluded.expires_at,source_code=excluded.source_code").bind(id,startsAt,expiresAt,"owner:"+s.user.id).run();
+    return json({ok:true,discord_id:id,premium:{active:true,starts_at:startsAt,expires_at:expiresAt}});
+   }
+   if(action==="ban"){
+    const reason=String(body.reason||"").trim().slice(0,500);
+    await env.MALLOW_DB.prepare("INSERT INTO premium_bans(discord_id,banned_by,banned_at,reason) VALUES(?,?,?,?) ON CONFLICT(discord_id) DO UPDATE SET banned_by=excluded.banned_by,banned_at=excluded.banned_at,reason=excluded.reason").bind(id,s.user.id,new Date().toISOString(),reason).run();
+    await env.MALLOW_DB.prepare("DELETE FROM premium_subscriptions WHERE discord_id=?").bind(id).run();
+    return json({ok:true,discord_id:id,banned:true});
+   }
+   if(action==="unban"){await env.MALLOW_DB.prepare("DELETE FROM premium_bans WHERE discord_id=?").bind(id).run();return json({ok:true,discord_id:id,banned:false});}
+   if(action==="revoke"){await env.MALLOW_DB.prepare("DELETE FROM premium_subscriptions WHERE discord_id=?").bind(id).run();return json({ok:true,discord_id:id,revoked:true});}
+   return json({error:"Unknown action."},400);
+  }
+  await env.MALLOW_DB.prepare("DELETE FROM premium_subscriptions WHERE discord_id=?").bind(id).run();
+  await env.MALLOW_DB.prepare("DELETE FROM premium_bans WHERE discord_id=?").bind(id).run();
+  return json({ok:true,discord_id:id,revoked:true,banned:false});
  }
  if(path==="premium-status"&&request.method==="GET"){
   const s=await session(request,env);if(!s)return json({error:"Sign in with Discord first."},401);
