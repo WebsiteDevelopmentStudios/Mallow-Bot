@@ -2626,7 +2626,8 @@ async def on_message(message: discord.Message) -> None:
     if message.author.bot:
         return
     if message.guild is None:
-        await process_community_message(bot, message)
+        # community_features registers its own listener for inbound DMs; do not
+        # process the same private message twice here.
         return
     # Run dashboard-configured auto replies, XP, moderation and social handlers
     # before the legacy prefix-command dispatcher returns for ordinary messages.
