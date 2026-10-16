@@ -168,6 +168,34 @@ async function route(request, env) {
   return json({ok:true,settings:{prefix,greeting,greetings:!!body.greetings,mention_only:!!body.mention_only,disabled_commands:disabled,features,economy_config:economy,xp_config:xp}});
  }
 
+ if(path==="developers"&&request.method==="GET"){
+  const s=await session(request,env);if(!s)return json({error:"Sign in with Discord first."},401);
+  await env.MALLOW_DB.prepare("CREATE TABLE IF NOT EXISTS dashboard_developers (discord_id TEXT PRIMARY KEY, added_by TEXT NOT NULL, added_at TEXT NOT NULL)").run();
+  const owner=s.user.id===String(env.BOT_OWNER_ID);
+  const listed=owner?true:!!(await env.MALLOW_DB.prepare("SELECT discord_id FROM dashboard_developers WHERE discord_id=?").bind(s.user.id).first());
+  if(!listed)return json({error:"Developer access required.",is_owner:false,is_developer:false},403);
+  const rows=await env.MALLOW_DB.prepare("SELECT discord_id,added_by,added_at FROM dashboard_developers ORDER BY added_at DESC").all();
+  return json({ok:true,is_owner:owner,is_developer:true,owner_id:String(env.BOT_OWNER_ID),developers:rows.results||[]});
+ }
+ if(path==="developers"&&request.method==="POST"){
+  const s=await session(request,env);if(!s)return json({error:"Sign in with Discord first."},401);
+  if(s.user.id!==String(env.BOT_OWNER_ID))return json({error:"Only the bot owner can add developers."},403);
+  let body;try{body=await request.json()}catch{return json({error:"Invalid JSON."},400)}
+  const id=String(body.discord_id||"").trim();if(!/^\d{17,20}$/.test(id))return json({error:"Enter a valid 17–20 digit Discord user ID."},400);
+  if(id===String(env.BOT_OWNER_ID))return json({error:"The owner already has full access and does not need to be added."},400);
+  await env.MALLOW_DB.prepare("CREATE TABLE IF NOT EXISTS dashboard_developers (discord_id TEXT PRIMARY KEY, added_by TEXT NOT NULL, added_at TEXT NOT NULL)").run();
+  await env.MALLOW_DB.prepare("INSERT INTO dashboard_developers(discord_id,added_by,added_at) VALUES(?,?,?) ON CONFLICT(discord_id) DO NOTHING").bind(id,s.user.id,new Date().toISOString()).run();
+  return json({ok:true,discord_id:id});
+ }
+ if(path==="developers"&&request.method==="DELETE"){
+  const s=await session(request,env);if(!s)return json({error:"Sign in with Discord first."},401);
+  if(s.user.id!==String(env.BOT_OWNER_ID))return json({error:"Only the bot owner can remove developers."},403);
+  let body;try{body=await request.json()}catch{return json({error:"Invalid JSON."},400)}
+  const id=String(body.discord_id||"").trim();if(!/^\d{17,20}$/.test(id))return json({error:"Invalid Discord user ID."},400);
+  if(id===String(env.BOT_OWNER_ID))return json({error:"The owner cannot be removed."},400);
+  await env.MALLOW_DB.prepare("DELETE FROM dashboard_developers WHERE discord_id=?").bind(id).run();
+  return json({ok:true,discord_id:id});
+ }
  if(path==="me"&&request.method==="GET"){const s=await session(request,env);if(!s)return json({user:null,settings:defaults,is_owner:false});return json({user:s.user,settings:await settings(env),is_owner:s.user.id===env.BOT_OWNER_ID});}
  if(path==="logout"&&request.method==="POST")return json({ok:true},200,{"set-cookie":cookieHeader("",0)});
  if(path==="settings"&&request.method==="GET"){const s=await session(request,env);if(!s)return json({error:"Sign in required."},401);return json({settings:await settings(env),is_owner:s.user.id===env.BOT_OWNER_ID});}
