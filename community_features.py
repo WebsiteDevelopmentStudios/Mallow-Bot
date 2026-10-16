@@ -336,14 +336,24 @@ async def prefix(bot, message, command, argument):
         await message.reply(f"📡 Vibe scan for **{target.display_name}**: **{score}/100** — {verdict}.", mention_author=False)
         return True
     if command == "ship":
-        target = message.mentions[0] if message.mentions else None
-        if target is None or target.bot or target.id == uid:
-            await message.reply("Usage: -mb ship @member (just for fun, not a real compatibility test)", mention_author=False)
+        targets = message.mentions
+        if len(targets) >= 2:
+            first, second = targets[0], targets[1]
+        elif len(targets) == 1:
+            first, second = message.author, targets[0]
+        else:
+            await message.reply(
+                "Usage: -mb ship [optional @member] @member — if you provide one member, I'll pair them with you.",
+                mention_author=False,
+            )
             return True
-        pair = ":".join(map(str, sorted((uid, target.id)))) + f":{gid}"
+        if first.bot or second.bot or first.id == second.id:
+            await message.reply("Choose two different human members. This is just for fun!", mention_author=False)
+            return True
+        pair = ":".join(map(str, sorted((first.id, second.id)))) + f":{gid}"
         score = int(__import__("hashlib").sha256(pair.encode()).hexdigest()[:8], 16) % 101
         verdict = "cinematic soulmates 💞" if score >= 90 else "power couple material ✨" if score >= 70 else "chaotic duo 🤝" if score >= 40 else "better as movie buddies 🍿"
-        await message.reply(f"💘 **{message.author.display_name} + {target.display_name}** = **{score}%** — {verdict}. (For fun only!)", mention_author=False)
+        await message.reply(f"💘 **{first.display_name} + {second.display_name}** = **{score}%** — {verdict}. (For fun only!)", mention_author=False)
         return True
     if command == "fortune":
         fortunes = ["A plot twist is closer than you think.", "Today, your side quest becomes the main story.", "The next message you send will be oddly important. Probably.", "A small win is loading. Please do not refresh.", "Your future contains snacks and questionable decisions.", "The universe says yes—but asks you to read the patch notes first.", "Someone in this server owes you a high five.", "Avoid suspiciously confident people bearing spoilers."]
