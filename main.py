@@ -2687,14 +2687,16 @@ async def on_message(message: discord.Message) -> None:
                     mention_author=False,
                 )
                 return
+            premium_names = {"embed", "snipe", "sticky", "backup", "custom-command", "vanity", "premium-status"}
+            premium_count = sum(1 for item in synced if item.name in premium_names)
+            standard_count = len(synced) - premium_count
             logger.info(
-                "Deleted stale guild commands and refreshed %d global slash command(s) for %s (%s) via -mb sync.",
-                len(synced),
-                message.guild.name,
-                message.guild.id,
+                "Synced %d commands and %d Premium commands for %s (%s) via -mb sync.",
+                standard_count, premium_count, message.guild.name, message.guild.id,
             )
             await message.reply(
-                f"Deleted this server's old command registrations and refreshed {len(synced)} global slash command(s). Discord may take a few minutes to update the list.",
+                f"Synced **{standard_count} commands** and **{premium_count} Premium commands**. "
+                "Deleted this server's old command registrations. Discord may take a few minutes to update the list.",
                 mention_author=False,
             )
             return
@@ -3047,9 +3049,16 @@ async def refresh_application_commands(guild: discord.Guild) -> list:
     bot.tree.clear_commands(guild=guild)
     await bot.tree.sync(guild=guild)
 
-    # Syncing the global tree replaces the remote global list, removing stale
-    # commands left behind by older versions and publishing the current list.
-    return await bot.tree.sync()
+    # Sync the current tree (including Premium commands) and count Premium separately.
+    synced = await bot.tree.sync()
+    premium_names = {"embed", "snipe", "sticky", "backup", "custom-command", "vanity", "premium-status"}
+    premium_synced = [command for command in synced if command.name in premium_names]
+    standard_synced = [command for command in synced if command.name not in premium_names]
+    logger.info(
+        "Synced %d commands and %d Premium commands for %s (%s).",
+        len(standard_synced), len(premium_synced), guild.name, guild.id,
+    )
+    return synced
 
 
 @bot.tree.command(name="sync", description="Delete stale command registrations and refresh slash commands.")
@@ -3068,8 +3077,12 @@ async def bot_sync(interaction: discord.Interaction) -> None:
             ephemeral=True,
         )
         return
+    premium_names = {"embed", "snipe", "sticky", "backup", "custom-command", "vanity", "premium-status"}
+    premium_count = sum(1 for command in synced if command.name in premium_names)
+    standard_count = len(synced) - premium_count
     await interaction.followup.send(
-        f"Deleted this server's old command registrations and refreshed {len(synced)} global slash command(s). Discord may take a few minutes to update the list.",
+        f"Synced **{standard_count} commands** and **{premium_count} Premium commands**. "
+        "Deleted this server's old command registrations. Discord may take a few minutes to update the list.",
         ephemeral=True,
     )
 
