@@ -2144,7 +2144,17 @@ async def _dashboard_tree_interaction_check(interaction: discord.Interaction) ->
         cfg = await get_guild_config(interaction.guild_id)
         command = interaction.command
         command_name = getattr(command, "name", "") if command else ""
-        if command_name and command_name.lower() in set(cfg.get("disabled_commands", [])):
+        name_lower = command_name.lower().replace("_", "-")
+        feature_groups = {
+            "economy": {"balance","daily","gamble","coinflip","slots","roulette","dice","blackjack","work","pay","rob"},
+            "xp": {"xp","level","leaderboard"},
+            "music": {"play","pause","resume","lyrics","skip","queue","volume","stop","join","leave"},
+            "moderation": {"dm","set-log","timeout-minutes"},
+            "movies": {"movie","channel"},
+            "fun": {"vibecheck","ship","fortune","wyr"},
+        }
+        disabled_feature = next((feature for feature, names in feature_groups.items() if name_lower in names and not cfg.get("features", {}).get(feature, True)), None)
+        if disabled_feature or (command_name and name_lower in set(cfg.get("disabled_commands", []))):
             message = f"The /{command_name} command is disabled in this server."
             if not interaction.response.is_done():
                 await interaction.response.send_message(message, ephemeral=True)
