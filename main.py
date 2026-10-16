@@ -2664,6 +2664,7 @@ async def on_message(message: discord.Message) -> None:
         "fun": {"vibecheck","ship","fortune","wyr"},
         "utility": {"uptime","update","commands","help","sync","countdown","say"},
         "social": {"youtube"},
+        "premium": {"embed","snipe","sticky","backup","custom-command","vanity","premium-status","premium"},
     }
     feature = next((group for group, names in feature_groups.items() if command_name in names), None)
     if (feature and not dashboard_config.get("features", {}).get(feature, True)) or command_name in set(dashboard_config.get("disabled_commands", [])):
@@ -2733,6 +2734,9 @@ async def on_message(message: discord.Message) -> None:
                 "`-mb countdown` · `-mb movie list` · `-mb movie search <title>` · `-mb movie play <URL>`\n"
                 "`-mb channel link <#channel or ID>` (Administrator)\n"
                 "`-mb youtube <URL>` · `-mb set-log [#channel]` · `-mb timeout-minutes <1-10080>`\n"
+                "**Premium commands** (requires active Mallow Premium)\n"
+                "`/embed` · `/snipe` · `/sticky` · `/backup` · `/custom-command` · `/vanity` · `/premium-status`\n"
+                "Use `/premium-status` to check access. Get Premium: https://mallowbot.devs.surf/subscriptions.html\n"
                 "XP is awarded for eligible chat messages. Mallow Coins are fictional. `/say` has no `-mb say` equivalent.",
                 mention_author=False,
                 allowed_mentions=discord.AllowedMentions.none(),
