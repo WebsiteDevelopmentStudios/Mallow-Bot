@@ -10,18 +10,29 @@
 
 𝗠𝗢𝗩𝗜𝗘 𝗖𝗢𝗜𝗡𝗦 & 𝗚𝗔𝗠𝗕𝗟𝗜𝗡𝗚
 • Added `/balance` and `-mb balance` to check your Movie Coins.
-• Added `/daily` and `-mb daily` to claim 100 Movie Coins.
+• Added `/daily` and `-mb daily` to claim 100 Movie Coins once every 24 hours. Both command styles share the same saved cooldown.
 • Added `/gamble`, `/coinflip`, `/slots`, `/roulette`, `/dice`, and `/blackjack`, with matching `-mb` commands.
 • Added `/work` and `-mb work` to earn Movie Coins.
 • Added `/pay` and `-mb pay` to transfer coins to another member.
 • Added `/rob` and `-mb rob` to attempt to steal coins from another member.
 • Movie Coins are fictional server currency and have no real-world value.
 
+𝗙𝗨𝗡 & 𝗦𝗢𝗖𝗜𝗔𝗟
+• Added `/vibecheck` and `-mb vibecheck` for a random vibe score.
+• Added `/ship` and `-mb ship` for a just-for-fun compatibility score between two members.
+• Added `/fortune` and `-mb fortune` for a random humorous fortune.
+• Added `/wyr` and `-mb wyr` for a movie-themed Would You Rather prompt.
+
 𝗧𝗘𝗫𝗧 𝗖𝗢𝗠𝗠𝗔𝗡𝗗𝗦
 • Use `-mb help` or `-mb commands` to see the command list.
-• The help list includes XP, gambling, utility, music, and movie commands.
+• The help list includes XP, gambling, utility, social, music, and movie commands.
 • Added `-mb uptime`, `-mb update`, `-mb commands`, and `-mb sync`.
+• Bot mentions now reply with a randomized short self-description from `description.txt), avoiding immediate repetition.
 • `/say` has no `-mb say` equivalent; its invocation is private and the bot message is public.
+
+𝗠𝗨𝗦𝗜𝗖 & 𝗩𝗢𝗜𝗖𝗘
+• Music and voice commands are temporarily unavailable. Slash and prefix music/join/leave commands reply with “temporarilly unavalible”.
+• The help text labels the section “Music commands disabled”.
 
 𝗠𝗢𝗩𝗜𝗘 𝗖𝗢𝗠𝗠𝗔𝗡𝗗𝗦
 • Added `-mb movie list` to list local movie files.
@@ -32,14 +43,17 @@
 
 𝗦𝗜𝗠𝗣𝗟𝗜𝗙𝗜𝗘𝗗 𝗦𝗘𝗧𝗨𝗣
 • Removed the YouTube login command, OAuth callback, and cookie-import features.
+• AI responses have been removed; bot mentions use the self-description replies instead.
+
+𝗙𝗜𝗫𝗘𝗦
+• Fixed the daily reward so it checks and saves a persistent 24-hour cooldown shared by slash and prefix commands.
+• Fixed literal `\\n` text appearing in the prefix help output.
+• Updated `-mb help` / `-mb commands` to include XP, gambling, social, music, utility, and movie commands.
+• Fixed slash-command sync to remove duplicate server-specific registrations before syncing the global command set.
+• XP leaderboards use a formatted embed and mention ranked members. Role-wide pings are disabled to prevent accidental server-wide notifications.
 
 𝗨𝗣𝗗𝗔𝗧𝗘 𝗟𝗢𝗚
 • `/update` and `-mb update` post this file in the current channel.
 
 ━━━━━━━━━━━━━━━━━━━━
 𝗧𝗵𝗮𝗻𝗸 𝘆𝗼𝘂 𝗳𝗼𝗿 𝘂𝘀𝗶𝗻𝗴 𝗠𝗼𝘃𝗶𝗲 𝗕𝗼𝘁.
-
-𝗙𝗜𝗫𝗘𝗦
-• Updated `-mb help` / `-mb commands` to include XP, gambling, music, utility, and movie commands.
-• Fixed slash-command sync to remove duplicate server-specific registrations before syncing the global command set.
-• XP leaderboards now use a formatted embed and mention the ranked members. Role-wide pings are disabled to prevent accidental server-wide notifications.
