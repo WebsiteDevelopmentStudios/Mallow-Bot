@@ -45,7 +45,7 @@ def forward_interaction(payload: dict[str, Any]) -> None:
         method="POST",
         headers={
             "Content-Type": "application/json",
-            "X-Movie-Bot-Secret": secret,
+            "X-Mochi-Bot-Secret": secret,
         },
     )
 
@@ -83,7 +83,7 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         self._json(200, {
             "ok": True,
-            "service": "Movie Bot",
+            "service": "Mochi Bot",
             "runtime": "Vercel",
             "endpoint": "Discord interactions",
         })
