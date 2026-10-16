@@ -38,11 +38,17 @@ async function route(request, env) {
   const ur=await fetch("https://discord.com/api/users/@me/guilds?with_counts=true",{headers:{authorization:"Bearer "+s.user.access_token}});
   if(!ur.ok)return json({error:ur.status===401?"Discord sign-in expired. Sign out and sign in again.":"Could not load your Discord servers."},ur.status===401?401:502);
   const all=await ur.json();const manageable=all.filter(g=>{try{const p=BigInt(g.permissions||"0");return (p&8n)!==0n||(p&32n)!==0n}catch{return false}});
-  let botGuildIds=new Set();
+  // The Discord bot API cannot use /users/@me/guilds. Check each manageable
+  // server directly; GET /guilds/{guild.id} succeeds only when this bot can see it.
+  const botGuildIds=new Set();
   if(env.BOT_TOKEN){
-   const br=await fetch("https://discord.com/api/users/@me/guilds?with_counts=true",{headers:{authorization:"Bot "+env.BOT_TOKEN}});
-   if(br.ok){const bg=await br.json();botGuildIds=new Set(bg.map(g=>g.id));}
-   else console.error("Mallow bot guild lookup failed",br.status);
+   await Promise.all(manageable.map(async g=>{
+    try{
+     const br=await fetch("https://discord.com/api/guilds/"+g.id,{headers:{authorization:"Bot "+env.BOT_TOKEN}});
+     if(br.ok)botGuildIds.add(g.id);
+     else if(br.status!==404&&br.status!==403)console.error("Mallow bot guild check failed",g.id,br.status);
+    }catch(e){console.error("Mallow bot guild check errored",g.id,String(e?.message||e).slice(0,160));}
+   }));
   }
   const guilds=manageable.map(g=>({id:g.id,name:g.name,icon_url:g.icon?"https://cdn.discordapp.com/icons/"+g.id+"/"+g.icon+".png?size=128":null,member_count:g.approximate_member_count??null,bot_present:botGuildIds.has(g.id)}));
   return json({guilds,bot_status_available:!!env.BOT_TOKEN});
