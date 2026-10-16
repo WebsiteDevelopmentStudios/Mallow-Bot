@@ -158,7 +158,6 @@ async def prefix(bot, message, command, argument):
         "moderation": {"dm","set-log","timeout-minutes"},
         "movies": {"movie","channel"},
         "fun": {"vibecheck","ship","fortune","wyr"},
-        "utility": {"youtube"},
         "social": {"youtube"},
     }
     feature = next((group for group, names in feature_groups.items() if command in names), None)
