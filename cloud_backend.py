@@ -94,6 +94,50 @@ async def discord_interaction(request: web.Request) -> web.Response:
     return web.json_response({"ok": True})
 
 
+async def owner_authorized(request: web.Request) -> bool:
+    expected = os.getenv("DISCORD_TOKEN", "").strip()
+    supplied = request.headers.get("Authorization", "")
+    return bool(expected) and supplied.startswith("Bot ") and supplied[4:].strip() == expected
+
+
+async def owner_guilds(request: web.Request) -> web.Response:
+    if not await owner_authorized(request):
+        return web.json_response({"error": "unauthorized"}, status=401)
+    if not movie_bot.bot.is_ready():
+        return web.json_response({"error": "Mallow Bot is still starting."}, status=503)
+    guilds = []
+    for guild in movie_bot.bot.guilds:
+        guilds.append({
+            "id": str(guild.id),
+            "name": guild.name,
+            "icon_url": str(guild.icon.url) if guild.icon else None,
+            "member_count": guild.member_count,
+        })
+    guilds.sort(key=lambda item: item["name"].casefold())
+    return web.json_response({"guilds": guilds})
+
+
+async def owner_leave(request: web.Request) -> web.Response:
+    if not await owner_authorized(request):
+        return web.json_response({"error": "unauthorized"}, status=401)
+    try:
+        payload = await request.json()
+    except (ValueError, aiohttp.ContentTypeError):
+        return web.json_response({"error": "invalid JSON"}, status=400)
+    guild_id = str(payload.get("guild_id", "")) if isinstance(payload, dict) else ""
+    if not guild_id.isdigit() or not 17 <= len(guild_id) <= 20:
+        return web.json_response({"error": "Invalid Discord server ID."}, status=400)
+    guild = movie_bot.bot.get_guild(int(guild_id))
+    if guild is None:
+        return web.json_response({"error": "Mallow is not in that server anymore."}, status=404)
+    try:
+        await guild.leave()
+    except discord.HTTPException as exc:
+        movie_bot.logger.exception("Failed to leave Discord guild %s", guild_id)
+        return web.json_response({"error": f"Discord refused the leave request (HTTP {exc.status})."}, status=502)
+    return web.json_response({"ok": True})
+
+
 async def health(request: web.Request) -> web.Response:
     return web.json_response(
         {
@@ -157,6 +201,8 @@ async def proxy_movie_server(request: web.Request) -> web.StreamResponse:
 async def start_bridge() -> None:
     app = web.Application(client_max_size=1024 * 1024 * 1024 * 2)
     app.router.add_get("/health", health)
+    app.router.add_get("/owner/guilds", owner_guilds)
+    app.router.add_post("/owner/leave", owner_leave)
     app.router.add_post("/discord/interactions", discord_interaction)
     app.router.add_route("*", "/movie/{tail:.*}", proxy_movie_server)
     app.router.add_route("*", "/media/{tail:.*}", proxy_movie_server)
