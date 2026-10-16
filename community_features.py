@@ -54,7 +54,7 @@ async def process_message(bot, message):
             try:
                 channel = bot.get_channel(int(channel_id)) or await bot.fetch_channel(int(channel_id))
                 if isinstance(channel, discord.TextChannel):
-                    embed = discord.Embed(title="Movie-Bot DM received", color=discord.Color.orange())
+                    embed = discord.Embed(title="Mochi-Bot DM received", color=discord.Color.orange())
                     embed.add_field(name="From", value=f"{message.author} (ID {message.author.id})", inline=False)
                     embed.add_field(name="Message", value=(message.content or "[No text content]")[:4000], inline=False)
                     embed.timestamp = message.created_at
@@ -125,14 +125,14 @@ async def process_message(bot, message):
 
         if not descriptions:
             descriptions = [
-                "hello im Movie Bot... I can help with movie and YouTube links, XP and leaderboards, Movie Coins, games, music features, and server utilities. Try -mb help or /commands to see what is available."
+                "hello im Mochi Bot... I can help with movie and YouTube links, XP and leaderboards, Movie Coins, games, music features, and server utilities. Try -mb help or /commands to see what is available."
             ]
         global _last_description
         choices = [item for item in descriptions if item != _last_description] or descriptions
         reply = random.choice(choices)
         _last_description = reply
-        if not reply.lower().startswith("hello im movie bot..."):
-            reply = "hello im Movie Bot... " + reply
+        if not reply.lower().startswith("hello im Mochi Bot..."):
+            reply = "hello im Mochi Bot... " + reply
         await message.reply(
             reply[:1900],
             mention_author=False,
@@ -356,7 +356,7 @@ async def prefix(bot, message, command, argument):
         return True
     if command == "fortune":
         fortunes = ["A plot twist is closer than you think.", "Today, your side quest becomes the main story.", "The next message you send will be oddly important. Probably.", "A small win is loading. Please do not refresh.", "Your future contains snacks and questionable decisions.", "The universe says yes—but asks you to read the patch notes first.", "Someone in this server owes you a high five.", "Avoid suspiciously confident people bearing spoilers."]
-        await message.reply(f"🔮 **Your Movie Bot fortune:** {random.choice(fortunes)}", mention_author=False)
+        await message.reply(f"🔮 **Your Mochi Bot fortune:** {random.choice(fortunes)}", mention_author=False)
         return True
     if command == "wyr":
         questions = ["Would you rather live inside your favorite movie or have your life directed by your least favorite director?", "Would you rather know every movie spoiler in advance or never be able to watch a trailer again?", "Would you rather have unlimited Movie Coins or pick the movie every movie night forever?", "Would you rather be the hero with terrible luck or the villain with a perfect plan?", "Would you rather only watch sequels or only watch movies with cliffhanger endings?", "Would you rather have a personal theme song or dramatic slow motion whenever you enter a room?", "Would you rather swap lives with a fictional character for a week or meet the actor who plays them?", "Would you rather erase one bad movie from existence or make one cancelled show get a perfect finale?"]
@@ -602,10 +602,10 @@ def setup(bot):
         verdict = "cinematic soulmates 💞" if score >= 90 else "power couple material ✨" if score >= 70 else "chaotic duo 🤝" if score >= 40 else "better as movie buddies 🍿"
         await interaction.response.send_message(f"💘 **{interaction.user.display_name} + {member.display_name}** = **{score}%** — {verdict}. (For fun only!)", allowed_mentions=discord.AllowedMentions.none())
 
-    @bot.tree.command(name="fortune", description="Draw a random Movie Bot fortune.")
+    @bot.tree.command(name="fortune", description="Draw a random Mochi Bot fortune.")
     async def fortune_slash(interaction: discord.Interaction):
         fortunes = ["A plot twist is closer than you think.", "Today, your side quest becomes the main story.", "The next message you send will be oddly important. Probably.", "A small win is loading. Please do not refresh.", "Your future contains snacks and questionable decisions.", "The universe says yes—but asks you to read the patch notes first.", "Someone in this server owes you a high five.", "Avoid suspiciously confident people bearing spoilers."]
-        await interaction.response.send_message(f"🔮 **Your Movie Bot fortune:** {random.choice(fortunes)}")
+        await interaction.response.send_message(f"🔮 **Your Mochi Bot fortune:** {random.choice(fortunes)}")
 
     @bot.tree.command(name="wyr", description="Get a movie-themed Would You Rather question.")
     async def wyr_slash(interaction: discord.Interaction):
