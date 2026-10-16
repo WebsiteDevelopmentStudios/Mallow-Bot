@@ -2647,8 +2647,17 @@ async def on_message(message: discord.Message) -> None:
     parts = raw.split(maxsplit=1)
     command_name = parts[0].lower()
     argument = parts[1].strip() if len(parts) > 1 else ""
-    if command_name in set(dashboard_config.get("disabled_commands", [])):
-        await message.reply(f"The {prefix}{command_name} command is disabled in this server.", mention_author=False)
+    feature_groups = {
+        "economy": {"balance","daily","gamble","coinflip","slots","roulette","dice","blackjack","work","pay","rob"},
+        "xp": {"xp","level","leaderboard"},
+        "music": {"play","pause","resume","lyrics","skip","queue","volume","stop","join","leave"},
+        "moderation": {"dm","set-log","timeout-minutes"},
+        "movies": {"movie","channel"},
+        "fun": {"vibecheck","ship","fortune","wyr"},
+    }
+    feature = next((group for group, names in feature_groups.items() if command_name in names), None)
+    if (feature and not dashboard_config.get("features", {}).get(feature, True)) or command_name in set(dashboard_config.get("disabled_commands", [])):
+        await message.reply("The " + prefix + command_name + " command is disabled in this server.", mention_author=False)
         return
     state = get_music_state(guild_id)
     player = state.get("player")
