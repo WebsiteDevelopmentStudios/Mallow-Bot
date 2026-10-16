@@ -569,12 +569,19 @@ def setup(bot):
     async def balance_slash(interaction: discord.Interaction):
         if interaction.guild_id is None:
             await interaction.response.send_message("Use this in a server.", ephemeral=True); return
-        await interaction.response.send_message(f"You have {int(data['currency'].get(key(interaction.guild_id,interaction.user.id),100))} Mallow Coins.", ephemeral=True)
+        cfg = await get_guild_config(interaction.guild_id)
+        start = int(cfg.get("economy_config", {}).get("starting_money", 100))
+        balance = int(data["currency"].get(key(interaction.guild_id, interaction.user.id), start))
+        await interaction.response.send_message(f"You have {balance} Mallow Coins.", ephemeral=True)
 
     @bot.tree.command(name="daily", description="Claim 100 virtual Mallow Coins once every 24 hours.")
     async def daily_slash(interaction: discord.Interaction):
         if interaction.guild_id is None:
             await interaction.response.send_message("Use this in a server.", ephemeral=True); return
+        cfg = await get_guild_config(interaction.guild_id)
+        eco = cfg.get("economy_config", {})
+        start = int(eco.get("starting_money", 100))
+        reward = int(eco.get("daily_reward", 100))
         k = key(interaction.guild_id, interaction.user.id)
         now = time.time()
         last_claim = float(data["daily_claims"].get(k, 0))
@@ -587,18 +594,20 @@ def setup(bot):
                 ephemeral=True,
             )
             return
-        data["currency"][k] = int(data["currency"].get(k, 100)) + 100
+        data["currency"][k] = int(data["currency"].get(k, start)) + reward
         data["daily_claims"][k] = now
         save()
-        await interaction.response.send_message("Claimed 100 Mallow Coins.", ephemeral=True)
+        await interaction.response.send_message("Claimed " + str(reward) + " Mallow Coins.", ephemeral=True)
 
     @bot.tree.command(name="gamble", description="Bet virtual Mallow Coins on a coin flip.")
     @app_commands.describe(bet="Amount of virtual currency to wager")
     async def gamble_slash(interaction: discord.Interaction, bet: app_commands.Range[int,1,1000000]):
         if interaction.guild_id is None:
             await interaction.response.send_message("Use this in a server.", ephemeral=True); return
+        cfg = await get_guild_config(interaction.guild_id)
+        start = int(cfg.get("economy_config", {}).get("starting_money", 100))
         k=key(interaction.guild_id,interaction.user.id)
-        balance=int(data["currency"].get(k,100))
+        balance=int(data["currency"].get(k,start))
         if bet>balance:
             await interaction.response.send_message(f"You only have {balance} Mallow Coins.",ephemeral=True); return
         if random.choice([True,False]):
