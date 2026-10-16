@@ -50,7 +50,9 @@ async function authorizedGuild(s, env, guildId) {
   for(const sql of [
    "ALTER TABLE guild_settings ADD COLUMN features TEXT NOT NULL DEFAULT '{}'",
    "ALTER TABLE guild_settings ADD COLUMN economy_config TEXT NOT NULL DEFAULT '{}'",
-   "ALTER TABLE guild_settings ADD COLUMN xp_config TEXT NOT NULL DEFAULT '{}'"
+   "ALTER TABLE guild_settings ADD COLUMN xp_config TEXT NOT NULL DEFAULT '{}'",
+   "ALTER TABLE guild_settings ADD COLUMN messages_config TEXT NOT NULL DEFAULT '{}'",
+   "ALTER TABLE guild_settings ADD COLUMN tickets_config TEXT NOT NULL DEFAULT '{}'"
   ]){try{await env.MALLOW_DB.prepare(sql).run()}catch{}}
 
  }
@@ -76,13 +78,64 @@ async function route(request, env) {
   const guildId=url.searchParams.get("guild_id")||"";
   if(!/^\d{17,20}$/.test(guildId))return json({error:"Invalid server ID."},400);
   await ensureGuildSettings(env);
-  const row=await env.MALLOW_DB.prepare("SELECT prefix,greeting,greetings,mention_only,disabled_commands,features,economy_config,xp_config FROM guild_settings WHERE guild_id=?").bind(guildId).first();
+  const row=await env.MALLOW_DB.prepare("SELECT prefix,greeting,greetings,mention_only,disabled_commands,features,economy_config,xp_config,messages_config,tickets_config FROM guild_settings WHERE guild_id=?").bind(guildId).first();
   let disabled=[];try{disabled=JSON.parse(row?.disabled_commands||"[]");if(!Array.isArray(disabled))disabled=[]}catch{}
   const parse=(v,fallback)=>{try{return {...fallback,...JSON.parse(v||"{}")}}catch{return fallback}};
   const features=parse(row?.features,{economy:true,xp:true,moderation:true,music:true,fun:true,movies:true,utility:true,social:true});
   const economy=parse(row?.economy_config,{starting_money:100,daily_reward:100,work_min:20,work_max:80});
   const xp=parse(row?.xp_config,{min_xp:10,max_xp:20,cooldown_seconds:60,announce_level_up:true});
-  return json({guild_id:guildId,settings:{prefix:row?.prefix||defaults.prefix,greeting:row?.greeting||defaults.greeting,greetings:row?!!row.greetings:true,mention_only:row?!!row.mention_only:true,disabled_commands:disabled,features,economy_config:economy,xp_config:xp}});
+  const messages=parse(row?.messages_config,{welcome_enabled:false,welcome_channel_id:"",welcome_message:"Welcome {user} to {server}!",goodbye_enabled:false,goodbye_channel_id:"",goodbye_message:"{user} left {server}.",auto_reply_enabled:false,auto_replies:[]});
+  const tickets=parse(row?.tickets_config,{enabled:false,category_id:"",support_role_ids:[],transcript_channel_id:"",welcome_message:"Thanks for opening a ticket. A staff member will be with you soon."});
+  return json({guild_id:guildId,settings:{prefix:row?.prefix||defaults.prefix,greeting:row?.greeting||defaults.greeting,greetings:row?!!row.greetings:true,mention_only:row?!!row.mention_only:true,disabled_commands:disabled,features,economy_config:economy,xp_config:xp,messages_config:messages,tickets_config:tickets}});
+ }
+
+ if(path==="guild-resources"&&request.method==="GET"){
+  const s=await session(request,env);if(!s)return json({error:"Sign in required."},401);
+  const guildId=url.searchParams.get("guild_id")||"";
+  const access=await authorizedGuild(s,env,guildId);if(access.error)return json({error:access.error},access.status);
+  if(!env.BOT_TOKEN)return json({error:"Bot token is not configured."},503);
+  const headers={authorization:"Bot "+env.BOT_TOKEN};
+  const [rr,cr]=await Promise.all([
+   fetch("https://discord.com/api/guilds/"+guildId+"/roles",{headers}),
+   fetch("https://discord.com/api/guilds/"+guildId+"/channels",{headers})
+  ]);
+  if(!rr.ok||!cr.ok)return json({error:"Could not load server roles and channels. Make sure Mallow is in this server and has permission to view it."},502);
+  const [roles,channels]=await Promise.all([rr.json(),cr.json()]);
+  return json({roles:roles.filter(r=>r.id!==guildId).map(r=>({id:r.id,name:r.name,position:r.position})).sort((a,b)=>b.position-a.position),channels:channels.filter(ch=>[0,5,15].includes(ch.type)).map(ch=>({id:ch.id,name:ch.name,type:ch.type,parent_id:ch.parent_id||null}))});
+ }
+ if(path==="messages-settings"&&(request.method==="GET"||request.method==="PUT")){
+  const s=await session(request,env);if(!s)return json({error:"Sign in required."},401);
+  const guildId=url.searchParams.get("guild_id")||"";
+  const access=await authorizedGuild(s,env,guildId);if(access.error)return json({error:access.error},access.status);
+  await ensureGuildSettings(env);
+  const row=await env.MALLOW_DB.prepare("SELECT messages_config FROM guild_settings WHERE guild_id=?").bind(guildId).first();
+  const fallback={welcome_enabled:false,welcome_channel_id:"",welcome_message:"Welcome {user} to {server}!",goodbye_enabled:false,goodbye_channel_id:"",goodbye_message:"{user} left {server}.",auto_reply_enabled:false,auto_replies:[]};
+  const parse=(v)=>{try{return {...fallback,...JSON.parse(v||"{}")}}catch{return fallback}};
+  if(request.method==="GET")return json({messages_config:parse(row?.messages_config)});
+  let body;try{body=await request.json()}catch{return json({error:"Invalid JSON."},400)}
+  const input=body.messages_config&&typeof body.messages_config==="object"?body.messages_config:{};
+  const validId=v=>/^\d{17,20}$/.test(String(v||""))?String(v):"";
+  const autoReplies=Array.isArray(input.auto_replies)?input.auto_replies.slice(0,30).map(x=>({trigger:String(x?.trigger||"").trim().slice(0,80),response:String(x?.response||"").trim().slice(0,1000),match_type:x?.match_type==="contains"?"contains":"exact"})).filter(x=>x.trigger&&x.response):[];
+  const config={welcome_enabled:!!input.welcome_enabled,welcome_channel_id:validId(input.welcome_channel_id),welcome_message:String(input.welcome_message??fallback.welcome_message).slice(0,1500),goodbye_enabled:!!input.goodbye_enabled,goodbye_channel_id:validId(input.goodbye_channel_id),goodbye_message:String(input.goodbye_message??fallback.goodbye_message).slice(0,1500),auto_reply_enabled:!!input.auto_reply_enabled,auto_replies:autoReplies};
+  await env.MALLOW_DB.prepare("INSERT INTO guild_settings (guild_id,messages_config,updated_at) VALUES (?,?,?) ON CONFLICT(guild_id) DO UPDATE SET messages_config=excluded.messages_config,updated_at=excluded.updated_at").bind(guildId,JSON.stringify(config),new Date().toISOString()).run();
+  return json({ok:true,messages_config:config});
+ }
+ if(path==="tickets-settings"&&(request.method==="GET"||request.method==="PUT")){
+  const s=await session(request,env);if(!s)return json({error:"Sign in required."},401);
+  const guildId=url.searchParams.get("guild_id")||"";
+  const access=await authorizedGuild(s,env,guildId);if(access.error)return json({error:access.error},access.status);
+  await ensureGuildSettings(env);
+  const row=await env.MALLOW_DB.prepare("SELECT tickets_config FROM guild_settings WHERE guild_id=?").bind(guildId).first();
+  const fallback={enabled:false,category_id:"",support_role_ids:[],transcript_channel_id:"",welcome_message:"Thanks for opening a ticket. A staff member will be with you soon."};
+  const parse=(v)=>{try{return {...fallback,...JSON.parse(v||"{}")}}catch{return fallback}};
+  if(request.method==="GET")return json({tickets_config:parse(row?.tickets_config)});
+  let body;try{body=await request.json()}catch{return json({error:"Invalid JSON."},400)}
+  const input=body.tickets_config&&typeof body.tickets_config==="object"?body.tickets_config:{};
+  const validId=v=>/^\d{17,20}$/.test(String(v||""))?String(v):"";
+  const roleIds=Array.isArray(input.support_role_ids)?[...new Set(input.support_role_ids.map(validId).filter(Boolean))].slice(0,25):[];
+  const config={enabled:!!input.enabled,category_id:validId(input.category_id),support_role_ids:roleIds,transcript_channel_id:validId(input.transcript_channel_id),welcome_message:String(input.welcome_message??fallback.welcome_message).slice(0,1500)};
+  await env.MALLOW_DB.prepare("INSERT INTO guild_settings (guild_id,tickets_config,updated_at) VALUES (?,?,?) ON CONFLICT(guild_id) DO UPDATE SET tickets_config=excluded.tickets_config,updated_at=excluded.updated_at").bind(guildId,JSON.stringify(config),new Date().toISOString()).run();
+  return json({ok:true,tickets_config:config});
  }
 
  if(path==="guild-settings"&&(request.method==="GET"||request.method==="PUT")){
