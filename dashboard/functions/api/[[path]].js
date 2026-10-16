@@ -13,11 +13,23 @@ function cookieHeader(value, maxAge) { return cookieName+"="+encodeURIComponent(
 async function session(request, env) { const s=await untoken(cookie(request,cookieName),env.SESSION_SECRET||""); if(!s?.user?.id)return null; return s; }
 async function settings(env) { await env.MALLOW_DB.prepare("CREATE TABLE IF NOT EXISTS settings (id INTEGER PRIMARY KEY CHECK (id=1), prefix TEXT NOT NULL, greeting TEXT NOT NULL, greetings INTEGER NOT NULL, mention_only INTEGER NOT NULL, updated_at TEXT NOT NULL)").run(); const row=await env.MALLOW_DB.prepare("SELECT prefix,greeting,greetings,mention_only FROM settings WHERE id=1").first(); return row?{prefix:row.prefix,greeting:row.greeting,greetings:!!row.greetings,mention_only:!!row.mention_only}:defaults; }
 
- async function authorizedGuild(s, env, guildId) {
+ async function refreshDiscordSession(env, s) {
+  const expires=Number(s?.user?.token_expires_at||0);
+  if(!s?.user?.refresh_token) return {session:s,refreshed:false};
+  if(expires>Date.now()+60_000) return {session:s,refreshed:false};
+  const form=new URLSearchParams({client_id:env.CLIENT_ID,client_secret:env.CLIENT_SECRET,grant_type:"refresh_token",refresh_token:s.user.refresh_token});
+  const r=await fetch("https://discord.com/api/oauth2/token",{method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},body:form});
+  if(!r.ok) return {session:s,refreshed:false,refreshFailed:true};
+  const d=await r.json();
+  return {session:{...s,user:{...s.user,access_token:d.access_token,refresh_token:d.refresh_token||s.user.refresh_token,token_expires_at:Date.now()+Number(d.expires_in||604800)*1000}},refreshed:true};
+}
+async function authorizedGuild(s, env, guildId) {
   if(!/^\d{17,20}$/.test(guildId||"")) return {error:"Select a valid Discord server.",status:400};
   if(!s?.user?.access_token) return {error:"Sign in again to manage server settings.",status:401};
-  const r=await fetch("https://discord.com/api/users/@me/guilds",{headers:{authorization:"Bearer "+s.user.access_token}});
-  if(!r.ok) return {error:"Discord sign-in expired. Sign out and sign in again.",status:401};
+  let active=s;let r=await fetch("https://discord.com/api/users/@me/guilds",{headers:{authorization:"Bearer "+active.user.access_token}});
+  if(r.status===401){const refreshed=await refreshDiscordSession(env,active);if(refreshed.refreshed){active=refreshed.session;r=await fetch("https://discord.com/api/users/@me/guilds",{headers:{authorization:"Bearer "+active.user.access_token}})}}
+  if(!r.ok) return {error:r.status===401?"Discord rejected this session. Sign out, then sign in again and approve the requested permissions.":"Could not verify your Discord server permissions.",status:r.status===401?401:502};
+  s=active;
   const guilds=await r.json();
   const guild=guilds.find(g=>g.id===guildId);
   if(!guild) return {error:"That server is not available to your Discord account.",status:403};
@@ -108,10 +120,11 @@ async function route(request, env) {
  await env.MALLOW_DB.prepare("INSERT INTO settings (id,prefix,greeting,greetings,mention_only,updated_at) VALUES (1,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET prefix=excluded.prefix,greeting=excluded.greeting,greetings=excluded.greetings,mention_only=excluded.mention_only,updated_at=excluded.updated_at").bind(prefix,greeting,body.greetings?1:0,body.mention_only?1:0,new Date().toISOString()).run();return json({ok:true,settings:await settings(env)});}
 
  if(path==="guilds"&&request.method==="GET"){
-  const s=await session(request,env);if(!s)return json({error:"Sign in required."},401);
-  if(!s.user.access_token)return json({error:"Discord permissions are outdated. Sign out and sign in again to grant server-list access."},401);
-  const ur=await fetch("https://discord.com/api/users/@me/guilds?with_counts=true",{headers:{authorization:"Bearer "+s.user.access_token}});
-  if(!ur.ok)return json({error:ur.status===401?"Discord sign-in expired. Sign out and sign in again.":"Could not load your Discord servers."},ur.status===401?401:502);
+  let s=await session(request,env);if(!s)return json({error:"Sign in required."},401);
+  if(!s.user.access_token)return json({error:"Discord permissions are missing. Sign out and sign in again to grant server-list access."},401);
+  let ur=await fetch("https://discord.com/api/users/@me/guilds?with_counts=true",{headers:{authorization:"Bearer "+s.user.access_token}});
+  if(ur.status===401){const refreshed=await refreshDiscordSession(env,s);if(refreshed.refreshed){s=refreshed.session;ur=await fetch("https://discord.com/api/users/@me/guilds?with_counts=true",{headers:{authorization:"Bearer "+s.user.access_token}})}}
+  if(!ur.ok)return json({error:ur.status===401?"Discord rejected the access token and it could not be refreshed. Sign out and sign in again; if it repeats, check the Discord OAuth client settings.":"Could not load your Discord servers."},ur.status===401?401:502);
   const all=await ur.json();const manageable=all.filter(g=>{try{const p=BigInt(g.permissions||"0");return (p&8n)!==0n||(p&32n)!==0n}catch{return false}});
   if(!env.BOT_TOKEN)return json({error:"Bot presence checking is not configured. Add the Mallow Bot token as the BOT_TOKEN secret in Cloudflare Pages → Settings → Variables and Secrets, then redeploy."},503);
   const botHeaders={authorization:"Bot "+env.BOT_TOKEN};
@@ -135,7 +148,7 @@ async function route(request, env) {
   if(!checks)return json({error:"Discord could not verify whether Mallow is in your servers. Check the Cloudflare Pages Function logs and try again."},502);
   const botGuildIds=new Set(checks.filter(([,present])=>present).map(([id])=>id));
   const guilds=manageable.map(g=>({id:g.id,name:g.name,icon_url:g.icon?"https://cdn.discordapp.com/icons/"+g.id+"/"+g.icon+".png?size=128":null,member_count:g.approximate_member_count??null,bot_present:botGuildIds.has(g.id)}));
-  return json({guilds,bot_status_available:true});
+  const response=json({guilds,bot_status_available:true});if(s.user.token_expires_at){const signed=await token(s,env.SESSION_SECRET);response.headers.append("set-cookie",cookieHeader(signed,7*24*60*60))}return response;
  }
  if(path==="invite"&&request.method==="GET"){
   const s=await session(request,env);if(!s)return Response.redirect("/api/login",302);
