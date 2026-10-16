@@ -356,6 +356,27 @@ async function route(request, env) {
   const guilds=manageable.map(g=>({id:g.id,name:g.name,icon_url:g.icon?"https://cdn.discordapp.com/icons/"+g.id+"/"+g.icon+".png?size=128":null,member_count:g.approximate_member_count??null,bot_present:botGuildIds.has(g.id)}));
   const response=json({guilds,bot_status_available:true});if(s.user.token_expires_at){const signed=await token(s,env.SESSION_SECRET);response.headers.append("set-cookie",cookieHeader(signed,7*24*60*60))}return response;
  }
+ if(path==="leave"&&request.method==="POST"){
+  const s=await session(request,env);if(!s)return json({error:"Sign in required."},401);
+  if(s.user.id!==env.BOT_OWNER_ID)return json({error:"Only the bot owner can make Mallow leave a server."},403);
+  if(!env.BOT_TOKEN)return json({error:"Bot token is not configured."},503);
+  let body;try{body=await request.json()}catch{return json({error:"Invalid JSON."},400)}
+  const guildId=String(body.guild_id||"");if(!/^\\d{17,20}$/.test(guildId))return json({error:"Invalid Discord server ID."},400);
+  if(!s.user.access_token)return json({error:"Sign out and sign back in to refresh your Discord server permissions."},401);
+  const cached=await cachedUserGuilds(env,s);if(cached.error)return json({error:cached.error},cached.status);
+  const guild=cached.guilds.find(g=>g.id===guildId);
+  if(!guild)return json({error:"You must have access to this Discord server to manage it here."},403);
+  let permissions=0n;try{permissions=BigInt(guild.permissions||"0")}catch{}
+  if((permissions&8n)===0n&&(permissions&32n)===0n)return json({error:"You need Manage Server or Administrator permission for this server."},403);
+  const botHeaders={authorization:"Bot "+env.BOT_TOKEN};
+  const check=await fetch("https://discord.com/api/guilds/"+guildId,{headers:botHeaders});
+  if(check.status===404)return json({error:"Mallow is not in this server anymore."},409);
+  if(!check.ok)return json({error:"Discord could not verify Mallow's membership. Try again."},502);
+  const response=await fetch("https://discord.com/api/users/@me/guilds/"+guildId,{method:"DELETE",headers:botHeaders});
+  if(response.status===204||response.ok)return json({ok:true});
+  console.error("Mallow leave-server request failed",guildId,response.status);
+  return json({error:response.status===401?"The configured BOT_TOKEN is invalid.":"Discord refused the leave request ("+response.status+"). You may need to remove Mallow through Discord's server settings."},502);
+ }
  if(path==="invite"&&request.method==="GET"){
   const s=await session(request,env);if(!s)return Response.redirect("/api/login",302);
   const guildId=url.searchParams.get("guild_id")||"";if(!/^\d{17,20}$/.test(guildId))return json({error:"Invalid Discord server ID."},400);
