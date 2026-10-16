@@ -721,8 +721,40 @@ def setup(bot):
         except (aiohttp.ClientError, asyncio.TimeoutError, ValueError, discord.HTTPException):
             await interaction.response.send_message("I couldn't look up that video right now.", ephemeral=True)
 
+    async def member_join_listener(member: discord.Member):
+        try:
+            cfg = await get_guild_config(member.guild.id)
+            mc = cfg.get("messages_config", {})
+            if not mc.get("welcome_enabled") or not mc.get("welcome_channel_id"):
+                return
+            channel = member.guild.get_channel(int(mc["welcome_channel_id"]))
+            if not isinstance(channel, discord.TextChannel):
+                return
+            content = str(mc.get("welcome_message") or "Welcome {user} to {server}!")
+            content = content.replace("{user}", member.mention).replace("{server}", member.guild.name)
+            await channel.send(content[:1900], allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False))
+        except (ValueError, TypeError, discord.Forbidden, discord.HTTPException):
+            pass
+
+    async def member_remove_listener(member: discord.Member):
+        try:
+            cfg = await get_guild_config(member.guild.id)
+            mc = cfg.get("messages_config", {})
+            if not mc.get("goodbye_enabled") or not mc.get("goodbye_channel_id"):
+                return
+            channel = member.guild.get_channel(int(mc["goodbye_channel_id"]))
+            if not isinstance(channel, discord.TextChannel):
+                return
+            content = str(mc.get("goodbye_message") or "{user} left {server}.")
+            content = content.replace("{user}", discord.utils.escape_markdown(member.display_name)).replace("{server}", member.guild.name)
+            await channel.send(content[:1900], allowed_mentions=discord.AllowedMentions.none())
+        except (ValueError, TypeError, discord.Forbidden, discord.HTTPException):
+            pass
+
     bot.add_listener(message_listener, "on_message")
     bot.add_listener(prefix_listener, "on_message")
+    bot.add_listener(member_join_listener, "on_member_join")
+    bot.add_listener(member_remove_listener, "on_member_remove")
 
     class TicketPanelView(discord.ui.View):
         def __init__(self):
