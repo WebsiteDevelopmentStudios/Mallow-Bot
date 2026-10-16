@@ -434,3 +434,56 @@ body.mallow-dashboard .signin .panel{background:#2b3243;border:0;border-radius:1
 body.mallow-dashboard .signin button{background:#0969e8}
 @media(max-width:1150px){body.mallow-dashboard .wrap{margin-left:81px;padding:16px 22px 48px}body.mallow-dashboard .dashboard-layout{grid-template-columns:240px minmax(0,1fr)}body.mallow-dashboard .feature-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){body.mallow-dashboard .wrap{margin-left:68px;padding:10px 12px 40px}body.mallow-dashboard .server-rail{width:68px;padding:7px}body.mallow-dashboard .rail-home,body.mallow-dashboard .server-rail-link,body.mallow-dashboard .rail-add{width:48px;height:48px;min-height:48px}body.mallow-dashboard .dashboard-layout{grid-template-columns:1fr;gap:16px}body.mallow-dashboard .config-sidebar{position:relative;top:auto;height:auto;max-height:none;border-radius:12px;padding:18px!important}body.mallow-dashboard .server-identity{display:flex;align-items:center;text-align:left;gap:12px;margin-bottom:14px}body.mallow-dashboard .server-identity-icon{width:48px;height:48px;margin:0;flex:0 0 48px}body.mallow-dashboard .feature-grid{grid-template-columns:1fr;gap:12px}body.mallow-dashboard .config-main{padding-top:0}body.mallow-dashboard .section-heading h2{font-size:25px}}
+
+
+/* Dashboard interaction polish */
+body.mallow-dashboard{--ease-out:cubic-bezier(.2,.8,.2,1);--surface:#1b202c;--surface-raised:#242b39;--line:#394354;--blue:#0969e8}
+body.mallow-dashboard .site-header{display:flex!important;position:fixed;z-index:50;top:12px;right:4.2vw;width:auto;min-height:48px;padding:0;background:transparent;border:0;box-shadow:none;gap:20px;justify-content:flex-end;align-items:center}
+body.mallow-dashboard .site-header .brand-lockup,body.mallow-dashboard .site-header .main-nav{display:none}
+body.mallow-dashboard .nav-user{position:relative;display:flex;align-items:center;gap:10px}
+body.mallow-dashboard .profile-trigger{display:flex;align-items:center;gap:9px;padding:5px 9px 5px 5px!important;border:1px solid #ffffff12!important;border-radius:999px!important;background:#171c27!important;color:#f4f6fb!important;transition:background .2s,border-color .2s,transform .2s}
+body.mallow-dashboard .profile-trigger:hover{background:#2a3140!important;border-color:#ffffff25!important;transform:translateY(-1px)}
+body.mallow-dashboard .profile-avatar{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:#30394b;color:#fff;font-weight:800}
+body.mallow-dashboard .profile-chevron{color:#aeb8c9;transition:transform .2s}
+body.mallow-dashboard .profile-trigger[aria-expanded=true] .profile-chevron{transform:rotate(180deg)}
+body.mallow-dashboard .profile-menu{position:absolute;right:0;top:calc(100% + 10px);width:210px;padding:7px;background:#141923;border:1px solid #3a4353;border-radius:10px;box-shadow:0 18px 50px #0008;animation:menu-in .16s var(--ease-out);transform-origin:top right}
+body.mallow-dashboard .profile-menu a,body.mallow-dashboard .profile-menu button{display:flex;width:100%;align-items:center;gap:8px;padding:10px 12px;border:0;border-radius:6px;background:transparent!important;color:#f1f4fa!important;text-decoration:none;font-size:13px;text-align:left}
+body.mallow-dashboard .profile-menu a:hover,body.mallow-dashboard .profile-menu button:hover{background:#283143!important}
+body.mallow-dashboard .profile-menu .profile-menu-divider{height:1px;background:#ffffff16;margin:6px 0}
+body.mallow-dashboard .config-main{padding-top:74px}
+body.mallow-dashboard .switch,body.mallow-dashboard .feature-switch{position:relative;display:inline-flex;align-items:center;flex:0 0 auto;width:48px!important;min-width:48px!important;height:28px!important;min-height:28px!important;padding:3px!important;border-radius:999px!important;background:#3b4352!important;border:1px solid #ffffff10!important;box-shadow:inset 0 1px 2px #0002!important;transition:background .22s var(--ease-out),box-shadow .22s,transform .18s!important}
+body.mallow-dashboard .switch span,body.mallow-dashboard .feature-switch span{position:absolute;left:3px;top:3px;width:20px!important;height:20px!important;border-radius:50%!important;background:#e1e6ef!important;box-shadow:0 1px 4px #0005;transform:translateX(0)!important;transition:transform .22s var(--ease-out),background .2s!important}
+body.mallow-dashboard .switch.on,body.mallow-dashboard .feature-switch.on{background:#0969e8!important;box-shadow:0 0 0 3px #0969e81c!important}
+body.mallow-dashboard .switch.on span,body.mallow-dashboard .feature-switch.on span{transform:translateX(20px)!important;background:#fff!important}
+body.mallow-dashboard .switch:active,body.mallow-dashboard .feature-switch:active{transform:scale(.96)!important}
+body.mallow-dashboard .role-picker{position:relative;width:min(100%,540px);z-index:8}
+body.mallow-dashboard .role-picker-trigger{width:100%;display:flex;justify-content:space-between;align-items:center;gap:14px;min-height:44px;padding:10px 13px!important;text-align:left;background:#171c27!important;border:1px solid #3b4558!important;color:#f5f7fb!important;border-radius:9px!important;font-weight:500;transition:border-color .2s,box-shadow .2s,background .2s}
+body.mallow-dashboard .role-picker-trigger:hover,body.mallow-dashboard .role-picker-trigger:focus-visible{background:#1d2432!important;border-color:#4d8fff!important;box-shadow:0 0 0 3px #0969e822!important}
+body.mallow-dashboard .role-picker-trigger.has-selection{border-color:#356fcb!important}
+body.mallow-dashboard #supportRoleSummary{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+body.mallow-dashboard .role-picker-chevron{color:#aeb8c9;transition:transform .2s}
+body.mallow-dashboard .role-picker-trigger[aria-expanded=true] .role-picker-chevron{transform:rotate(180deg)}
+body.mallow-dashboard .role-picker-menu{position:absolute;top:calc(100% + 7px);left:0;right:0;padding:8px;background:#141923;border:1px solid #3a4558;border-radius:11px;box-shadow:0 18px 45px #0008;animation:menu-in .16s var(--ease-out);transform-origin:top}
+body.mallow-dashboard .role-picker-search{width:100%;height:40px;padding:9px 11px!important;background:#0f141e!important;border:1px solid #343e50!important;border-radius:7px!important;outline:none}
+body.mallow-dashboard .role-picker-search:focus{border-color:#448bff!important;box-shadow:0 0 0 3px #0969e822}
+body.mallow-dashboard .role-picker-options{max-height:240px;overflow:auto;padding:5px 0;scrollbar-width:thin}
+body.mallow-dashboard .role-option{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;color:#e8edf6;cursor:pointer;transition:background .15s,color .15s}
+body.mallow-dashboard .role-option:hover{background:#242c3a}
+body.mallow-dashboard .role-option.selected{background:#1d3150;color:#fff}
+body.mallow-dashboard .role-option input{appearance:none;width:16px;height:16px;flex:0 0 16px;margin:0;border:1px solid #58657a;border-radius:5px;background:#171c27;display:grid;place-content:center}
+body.mallow-dashboard .role-option input:checked{background:#0969e8;border-color:#3182ff}
+body.mallow-dashboard .role-option input:checked:after{content:'✓';font-size:12px;font-weight:800;color:white;line-height:1}
+body.mallow-dashboard .role-picker-footer{display:flex;align-items:center;justify-content:space-between;border-top:1px solid #ffffff14;padding:8px 2px 0;color:#aeb8c9;font-size:12px}
+body.mallow-dashboard .role-picker-footer button{padding:6px 10px!important;background:#2b3342!important;color:#e7ebf4!important}
+body.mallow-dashboard .role-picker-empty{padding:16px 10px;text-align:center;color:#9aa6b9;font-size:13px}
+body.mallow-dashboard .settings-panel,body.mallow-dashboard .feature-card{animation:section-in .38s var(--ease-out) both}
+body.mallow-dashboard .side-link{transition:background .18s,color .18s,transform .18s}
+body.mallow-dashboard .side-link:hover{transform:translateX(2px)}
+body.mallow-dashboard .feature-card{transition:background .2s,transform .2s var(--ease-out)!important}
+body.mallow-dashboard .feature-card:hover{transform:translateY(-2px)!important}
+body.mallow-dashboard .save-row button{transition:filter .2s,transform .2s var(--ease-out)}
+body.mallow-dashboard .save-row button:active{transform:scale(.98)}
+@keyframes menu-in{from{opacity:0;transform:translateY(-5px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes section-in{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+@media(prefers-reduced-motion:reduce){body.mallow-dashboard *,body.mallow-dashboard *:before,body.mallow-dashboard *:after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
+@media(max-width:760px){body.mallow-dashboard .site-header{top:8px;right:12px}body.mallow-dashboard .nav-user-name{display:none}body.mallow-dashboard .config-main{padding-top:62px}}
