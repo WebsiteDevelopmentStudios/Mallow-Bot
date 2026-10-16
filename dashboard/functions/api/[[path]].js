@@ -35,7 +35,7 @@ async function cachedUserGuilds(env, s) {
   return {guilds,session:active};
 }
 async function authorizedGuild(s, env, guildId) {
-  if(!/^\\d{17,20}$/.test(guildId||"")) return {error:"Select a valid Discord server.",status:400};
+  if(!/^\d{17,20}$/.test(guildId||"")) return {error:"Select a valid Discord server.",status:400};
   if(!s?.user?.access_token) return {error:"Sign in again to manage server settings.",status:401};
   const result=await cachedUserGuilds(env,s);if(result.error)return result;s=result.session;
   const guild=result.guilds.find(g=>g.id===guildId);
