@@ -377,6 +377,31 @@ async function route(request, env) {
   console.error("Mallow leave-server request failed",guildId,response.status);
   return json({error:response.status===401?"The configured BOT_TOKEN is invalid.":"Discord refused the leave request ("+response.status+"). You may need to remove Mallow through Discord's server settings."},502);
  }
+ if(path==="server-invite"&&request.method==="GET"){
+  const s=await session(request,env);if(!s)return Response.redirect("/api/login",302);
+  if(s.user.id!==env.BOT_OWNER_ID)return json({error:"Only the bot owner can generate server invite links."},403);
+  if(!env.BOT_TOKEN)return json({error:"Bot token is not configured."},503);
+  const guildId=url.searchParams.get("guild_id")||"";if(!/^\\d{17,20}$/.test(guildId))return json({error:"Invalid Discord server ID."},400);
+  if(!s.user.access_token)return json({error:"Sign out and sign back in to refresh your Discord server permissions."},401);
+  const cached=await cachedUserGuilds(env,s);if(cached.error)return json({error:cached.error},cached.status);
+  const guild=cached.guilds.find(g=>g.id===guildId);if(!guild)return json({error:"You must have access to this Discord server to request an invite."},403);
+  let permissions=0n;try{permissions=BigInt(guild.permissions||"0")}catch{}
+  if((permissions&8n)===0n&&(permissions&32n)===0n)return json({error:"You need Manage Server or Administrator permission for this server."},403);
+  const headers={authorization:"Bot "+env.BOT_TOKEN};
+  const membership=await fetch("https://discord.com/api/guilds/"+guildId,{headers});
+  if(membership.status===404)return json({error:"Mallow is not in this server, so it cannot create an invite for you."},409);
+  if(!membership.ok)return json({error:"Discord could not verify Mallow's membership in this server."},502);
+  const channelsResponse=await fetch("https://discord.com/api/guilds/"+guildId+"/channels",{headers});
+  if(!channelsResponse.ok)return json({error:"Could not list server channels to create an invite."},502);
+  const channels=await channelsResponse.json();
+  const candidates=channels.filter(ch=>ch.type===0||ch.type===5).sort((a,b)=>(a.position||0)-(b.position||0));
+  for(const channel of candidates){
+   const created=await fetch("https://discord.com/api/channels/"+channel.id+"/invites",{method:"POST",headers:{...headers,"content-type":"application/json"},body:JSON.stringify({max_age:0,max_uses:0,temporary:false,unique:true})});
+   if(created.ok){const invite=await created.json();return Response.redirect("https://discord.gg/"+invite.code,302)}
+   if(created.status!==403&&created.status!==404){console.error("Discord invite creation failed",guildId,channel.id,created.status)}
+  }
+  return json({error:"Mallow could not create an invite in this server. Give the bot permission to Create Invite in a text channel, then try again."},502);
+ }
  if(path==="invite"&&request.method==="GET"){
   const s=await session(request,env);if(!s)return Response.redirect("/api/login",302);
   const guildId=url.searchParams.get("guild_id")||"";if(!/^\d{17,20}$/.test(guildId))return json({error:"Invalid Discord server ID."},400);
