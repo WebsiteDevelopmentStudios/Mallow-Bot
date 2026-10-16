@@ -5,7 +5,7 @@ from urllib.parse import urlparse
 
 import aiohttp
 
-logger = logging.getLogger("mochi-bot.lavalink")
+logger = logging.getLogger("mallow-bot.lavalink")
 
 # External Lavalink configuration.
 # The Python bot does NOT download Java or start a JVM.
@@ -58,7 +58,7 @@ async def wait_until_ready(timeout: float = 120.0) -> None:
 
     headers = {
         "Authorization": LAVALINK_PASSWORD,
-        "User-Agent": "Mochi-Bot/1.0",
+        "User-Agent": "Mallow-Bot/1.0",
     }
 
     last_error: Exception | None = None
@@ -99,7 +99,7 @@ async def keep_lavalink_awake(interval: float = 300.0) -> None:
 
     headers = {
         "Authorization": LAVALINK_PASSWORD,
-        "User-Agent": "Mochi-Bot/1.0",
+        "User-Agent": "Mallow-Bot/1.0",
     }
     timeout = aiohttp.ClientTimeout(total=10)
     version_url = f"{LAVALINK_URI}/version"

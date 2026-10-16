@@ -1,4 +1,4 @@
-name: Validate Mochi Bot
+name: Validate Mallow Bot
 
 on:
   push:

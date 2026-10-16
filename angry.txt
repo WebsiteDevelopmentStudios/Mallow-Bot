@@ -1,4 +1,4 @@
-# Mochi Bot response bank
+# Mallow Bot response bank
 # Responses are grouped by intent so replies fit the message instead of being totally random.
 # One response per line. Lines starting with # are comments.
 # Add responses under the matching [category] header.
@@ -15,7 +15,7 @@ Hello! That was me being friendly. Don't expect it every time.
 Because people keep asking why I'm mad instead of giving me a reason to be cheerful.
 I'm not mad at you specifically. The internet is just a lot.
 Have you seen this chat? Case closed.
-I'm a Mochi Bot with a never-ending queue of questions. You do the math.
+I'm a Mallow Bot with a never-ending queue of questions. You do the math.
 I'm not angry. I'm professionally disappointed.
 
 [movie]
@@ -36,7 +36,7 @@ A playlist? Fine. Tell me if you want chill, hype, sad, or chaotic.
 Yes, I'm a bot. A sarcastic one, apparently.
 I'm a Discord bot, not a human. The attitude is an optional feature.
 I'm software with movie opinions and an unreasonable amount of sarcasm.
-I'm Mochi Bot. I answer messages, talk movies, and complain for dramatic effect.
+I'm Mallow Bot. I answer messages, talk movies, and complain for dramatic effect.
 
 [about_user]
 I don't have personal feelings, but I can still be helpful. Don't make it awkward.
@@ -62,7 +62,7 @@ Explain the problem in one or two sentences and we'll work through it.
 [general]
 WHAT. Make it quick; I have movies to judge.
 I heard you. Unfortunately.
-Mochi Bot is listening. This had better be worth interrupting my brooding.
+Mallow Bot is listening. This had better be worth interrupting my brooding.
 What do you want now? Try asking something useful.
 WHY AM I MAD?! Have you seen the people I have to deal with?
 Finally, a decent question. What genre do you want? And choose quickly.
@@ -213,7 +213,7 @@ I have encountered this before. It was annoying then too.
 Let's turn that vague idea into something usable, shall we?
 Well, at least you asked instead of guessing. Barely a victory.
 I am not mad at you. I am mad at the general concept of notifications.
-Mochi Bot reporting for duty, against my better judgment.
+Mallow Bot reporting for duty, against my better judgment.
 Hello. Please state your business before my dramatic soundtrack ends.
 That is an excellent question. I dislike how much I mean that.
 I have a response, but it requires you to stop being vague.

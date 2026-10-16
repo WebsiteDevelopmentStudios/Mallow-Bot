@@ -1,6 +1,6 @@
-# Mochi-Bot wake-on-command architecture
+# Mallow-Bot wake-on-command architecture
 
-Mochi-Bot is being split into an always-online Discord edge endpoint and a
+Mallow-Bot is being split into an always-online Discord edge endpoint and a
 sleeping Python backend.
 
 ## Flow
@@ -12,7 +12,7 @@ acknowledges the interaction. It then forwards the original interaction to
 Render.
 
 Render's public HTTP request wakes a sleeping free web service. The service
-runs the existing Mochi-Bot code and dispatches the forwarded interaction into
+runs the existing Mallow-Bot code and dispatches the forwarded interaction into
 the existing discord.py command tree.
 
 The existing movie web server remains on an internal port. The Render bridge

@@ -82,7 +82,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
 )
-logger = logging.getLogger("mochi-bot")
+logger = logging.getLogger("mallow-bot")
 
 async def acknowledge_command(interaction: discord.Interaction) -> None:
     """Acknowledge a slash command immediately so long-running work cannot expire it."""
@@ -949,7 +949,7 @@ async def hosted_movie_handler(request: web.Request) -> web.StreamResponse:
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{title} - Mochi Bot</title>
+<title>{title} - Mallow Bot</title>
 <meta property="og:title" content="Watch {title}">
 <meta property="og:description" content="Watch {title} directly in your browser.">
 <meta property="og:type" content="video.other">
@@ -1454,7 +1454,7 @@ async def search_movies(query: str) -> list[dict]:
         raise RuntimeError("TMDB_API_KEY is not configured.")
 
     timeout = aiohttp.ClientTimeout(total=15)
-    headers = {"User-Agent": "Mochi-Bot/1.0 (+https://vidnest.fun)"}
+    headers = {"User-Agent": "Mallow-Bot/1.0 (+https://vidnest.fun)"}
     async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
         async with session.get(
             TMDB_SEARCH_URL,
@@ -2118,7 +2118,7 @@ intents = discord.Intents.default()
 intents.message_content = True
 
 
-class MochiBot(commands.Bot):
+class MallowBot(commands.Bot):
     async def setup_hook(self) -> None:
         # Connect to the configured external Lavalink node and publish slash commands.
         await initialize_lavalink()
@@ -2129,7 +2129,7 @@ class MochiBot(commands.Bot):
             logger.warning("Could not sync global slash commands on startup: %s", exc)
 
 
-bot = MochiBot(command_prefix=commands.when_mentioned, intents=intents)
+bot = MallowBot(command_prefix=commands.when_mentioned, intents=intents)
 
 # Register optional community features before the global slash-command sync.
 from community_features import setup as setup_community_features
@@ -2544,7 +2544,7 @@ async def music_stop(interaction: discord.Interaction) -> None:
 
 
 BOT_START_TIME = time.monotonic()
-GITHUB_UPDATES_RAW_URL = "https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mochi-Bot/main/updates.txt"
+GITHUB_UPDATES_RAW_URL = "https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/updates.txt"
 
 
 def format_uptime() -> str:
@@ -2668,7 +2668,7 @@ async def on_message(message: discord.Message) -> None:
                 "**XP & level commands**\n"
                 "`-mb xp` / `-mb level` — view your XP, level, and progress\n"
                 "`-mb leaderboard` — server top 10 XP leaderboard\n\n"
-                "**Mochi Coins & gambling**\n"
+                "**Mallow Coins & gambling**\n"
                 "`-mb balance` · `-mb daily` · `-mb gamble <bet>`\n"
                 "`-mb coinflip <bet>` · `-mb slots <bet>` · `-mb roulette <bet>`\n"
                 "`-mb dice <bet>` · `-mb blackjack <bet>` · `-mb work`\n"
@@ -2681,7 +2681,7 @@ async def on_message(message: discord.Message) -> None:
                 "`-mb countdown` · `-mb movie list` · `-mb movie search <title>` · `-mb movie play <URL>`\n"
                 "`-mb channel link <#channel or ID>` (Administrator)\n"
                 "`-mb youtube <URL>` · `-mb set-log [#channel]` · `-mb timeout-minutes <1-10080>`\n"
-                "XP is awarded for eligible chat messages. Mochi Coins are fictional. `/say` has no `-mb say` equivalent.",
+                "XP is awarded for eligible chat messages. Mallow Coins are fictional. `/say` has no `-mb say` equivalent.",
                 mention_author=False,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
@@ -3058,7 +3058,7 @@ async def bot_commands(interaction: discord.Interaction) -> None:
         "**Community & XP commands**\n"
         "`/xp` · `/leaderboard` — view your level/XP and the server top 10 XP earners\n"
         "XP is earned from eligible messages, with a 60-second cooldown.\n\n"
-        "**Mochi Coins & gambling (fictional currency)**\n"
+        "**Mallow Coins & gambling (fictional currency)**\n"
         "`/balance` · `/daily` · `/gamble <bet>` · `/coinflip <bet>` · `/slots <bet>`\n"
         "`/roulette <bet>` · `/dice <bet>` · `/blackjack <bet>` · `/work` · `/pay <member> <amount>` · `/rob <member>`\n\n"
         "**Other slash commands**\n"
@@ -3073,7 +3073,7 @@ async def bot_commands(interaction: discord.Interaction) -> None:
         "`-mb lyrics [on|off]` · `-mb stop` · `-mb join` · `-mb leave` · `-mb uptime` · `-mb update` · `-mb commands` · `-mb sync`\n"
         "`-mb movie list` · `-mb movie search <title>` · `-mb movie play <URL>` · `-mb channel link <#channel or ID>`\n"
         "`-mb youtube <URL>` · `-mb set-log [#channel]` · `-mb timeout-minutes <1-10080>` · `-mb countdown`\n"
-        "XP is awarded automatically for eligible chat messages. Mochi Coins are fictional. `/say` has no `-mb say` equivalent and requires Manage Messages. `/sync` and `-mb sync` require Administrator permission."
+        "XP is awarded automatically for eligible chat messages. Mallow Coins are fictional. `/say` has no `-mb say` equivalent and requires Manage Messages. `/sync` and `-mb sync` require Administrator permission."
     )
     await send_interaction_response(interaction, listing, ephemeral=True)
 

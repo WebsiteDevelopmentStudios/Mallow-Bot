@@ -54,7 +54,7 @@ async def process_message(bot, message):
             try:
                 channel = bot.get_channel(int(channel_id)) or await bot.fetch_channel(int(channel_id))
                 if isinstance(channel, discord.TextChannel):
-                    embed = discord.Embed(title="Mochi-Bot DM received", color=discord.Color.orange())
+                    embed = discord.Embed(title="Mallow-Bot DM received", color=discord.Color.orange())
                     embed.add_field(name="From", value=f"{message.author} (ID {message.author.id})", inline=False)
                     embed.add_field(name="Message", value=(message.content or "[No text content]")[:4000], inline=False)
                     embed.timestamp = message.created_at
@@ -121,18 +121,18 @@ async def process_message(bot, message):
                 if item.strip()
             ]
         except OSError as exc:
-            print(f"[MochiBot] Could not read description.txt: {exc}", flush=True)
+            print(f"[MallowBot] Could not read description.txt: {exc}", flush=True)
 
         if not descriptions:
             descriptions = [
-                "hello im Mochi Bot... I can help with movie and YouTube links, XP and leaderboards, Mochi Coins, games, music features, and server utilities. Try -mb help or /commands to see what is available."
+                "hello im Mallow Bot... I can help with movie and YouTube links, XP and leaderboards, Mallow Coins, games, music features, and server utilities. Try -mb help or /commands to see what is available."
             ]
         global _last_description
         choices = [item for item in descriptions if item != _last_description] or descriptions
         reply = random.choice(choices)
         _last_description = reply
-        if not reply.lower().startswith("hello im Mochi Bot..."):
-            reply = "hello im Mochi Bot... " + reply
+        if not reply.lower().startswith("hello im Mallow Bot..."):
+            reply = "hello im Mallow Bot... " + reply
         await message.reply(
             reply[:1900],
             mention_author=False,
@@ -230,13 +230,13 @@ async def prefix(bot, message, command, argument):
         won = random.choice([True, False])
         if won:
             balance += bet
-            result = f"You won {bet} Mochi Coins."
+            result = f"You won {bet} Mallow Coins."
         else:
             balance -= bet
-            result = f"You lost {bet} Mochi Coins."
+            result = f"You lost {bet} Mallow Coins."
         data["currency"][k] = balance
         save()
-        await message.reply(f"{result} Balance: {balance} Mochi Coins.", mention_author=False)
+        await message.reply(f"{result} Balance: {balance} Mallow Coins.", mention_author=False)
         return True
     if command in ("coinflip", "slots", "roulette", "dice", "blackjack"):
         k = key(gid, uid)
@@ -276,15 +276,15 @@ async def prefix(bot, message, command, argument):
         balance = balance - bet + payout
         data["currency"][k] = balance
         save()
-        outcome = f"Won {payout} Mochi Coins." if payout else f"Lost {bet} Mochi Coins."
-        await message.reply(f"{detail} {outcome} Balance: {balance} Mochi Coins.", mention_author=False)
+        outcome = f"Won {payout} Mallow Coins." if payout else f"Lost {bet} Mallow Coins."
+        await message.reply(f"{detail} {outcome} Balance: {balance} Mallow Coins.", mention_author=False)
         return True
     if command == "work":
         k = key(gid, uid)
         earned = random.randint(20, 80)
         data["currency"][k] = int(data["currency"].get(k, 100)) + earned
         save()
-        await message.reply(f"You worked a shift and earned {earned} Mochi Coins.", mention_author=False)
+        await message.reply(f"You worked a shift and earned {earned} Mallow Coins.", mention_author=False)
         return True
     if command == "rob":
         target = message.mentions[0] if message.mentions else None
@@ -294,13 +294,13 @@ async def prefix(bot, message, command, argument):
         target_key = key(gid, target.id)
         target_balance = int(data["currency"].get(target_key, 100))
         if target_balance < 1:
-            await message.reply("That member has no Mochi Coins to steal.", mention_author=False)
+            await message.reply("That member has no Mallow Coins to steal.", mention_author=False)
             return True
         if random.random() < 0.35:
             stolen = min(target_balance, random.randint(1, max(1, target_balance // 4)))
             data["currency"][target_key] = target_balance - stolen
             data["currency"][key(gid, uid)] = int(data["currency"].get(key(gid, uid), 100)) + stolen
-            result = f"You stole {stolen} Mochi Coins from {target.display_name}."
+            result = f"You stole {stolen} Mallow Coins from {target.display_name}."
         else:
             fine = min(int(data["currency"].get(key(gid, uid), 100)), 25)
             data["currency"][key(gid, uid)] = int(data["currency"].get(key(gid, uid), 100)) - fine
@@ -321,13 +321,13 @@ async def prefix(bot, message, command, argument):
             return True
         balance = int(data["currency"].get(k, 100))
         if amount > balance:
-            await message.reply(f"You only have {balance} Mochi Coins.", mention_author=False)
+            await message.reply(f"You only have {balance} Mallow Coins.", mention_author=False)
             return True
         tk = key(gid, target.id)
         data["currency"][k] = balance - amount
         data["currency"][tk] = int(data["currency"].get(tk, 100)) + amount
         save()
-        await message.reply(f"Paid {amount} Mochi Coins to {target.display_name}.", mention_author=False)
+        await message.reply(f"Paid {amount} Mallow Coins to {target.display_name}.", mention_author=False)
         return True
     if command == "vibecheck":
         target = message.mentions[0] if message.mentions else message.author
@@ -356,14 +356,14 @@ async def prefix(bot, message, command, argument):
         return True
     if command == "fortune":
         fortunes = ["A plot twist is closer than you think.", "Today, your side quest becomes the main story.", "The next message you send will be oddly important. Probably.", "A small win is loading. Please do not refresh.", "Your future contains snacks and questionable decisions.", "The universe says yes—but asks you to read the patch notes first.", "Someone in this server owes you a high five.", "Avoid suspiciously confident people bearing spoilers."]
-        await message.reply(f"🔮 **Your Mochi Bot fortune:** {random.choice(fortunes)}", mention_author=False)
+        await message.reply(f"🔮 **Your Mallow Bot fortune:** {random.choice(fortunes)}", mention_author=False)
         return True
     if command == "wyr":
-        questions = ["Would you rather live inside your favorite movie or have your life directed by your least favorite director?", "Would you rather know every movie spoiler in advance or never be able to watch a trailer again?", "Would you rather have unlimited Mochi Coins or pick the movie every movie night forever?", "Would you rather be the hero with terrible luck or the villain with a perfect plan?", "Would you rather only watch sequels or only watch movies with cliffhanger endings?", "Would you rather have a personal theme song or dramatic slow motion whenever you enter a room?", "Would you rather swap lives with a fictional character for a week or meet the actor who plays them?", "Would you rather erase one bad movie from existence or make one cancelled show get a perfect finale?"]
+        questions = ["Would you rather live inside your favorite movie or have your life directed by your least favorite director?", "Would you rather know every movie spoiler in advance or never be able to watch a trailer again?", "Would you rather have unlimited Mallow Coins or pick the movie every movie night forever?", "Would you rather be the hero with terrible luck or the villain with a perfect plan?", "Would you rather only watch sequels or only watch movies with cliffhanger endings?", "Would you rather have a personal theme song or dramatic slow motion whenever you enter a room?", "Would you rather swap lives with a fictional character for a week or meet the actor who plays them?", "Would you rather erase one bad movie from existence or make one cancelled show get a perfect finale?"]
         await message.reply(f"🎬 **Would You Rather?**\n{random.choice(questions)}\n\nReact with your choice or explain your answer!", mention_author=False)
         return True
     if command == "balance":
-        await message.reply(f"You have {int(data['currency'].get(key(gid,uid),100))} Mochi Coins.", mention_author=False)
+        await message.reply(f"You have {int(data['currency'].get(key(gid,uid),100))} Mallow Coins.", mention_author=False)
         return True
     if command == "daily":
         k = key(gid, uid)
@@ -373,12 +373,12 @@ async def prefix(bot, message, command, argument):
         if remaining > 0:
             hours, remainder = divmod(int(remaining), 3600)
             minutes = (remainder + 59) // 60
-            await message.reply(f"You've already claimed your daily Mochi Coins. Try again in {hours}h {minutes}m.", mention_author=False)
+            await message.reply(f"You've already claimed your daily Mallow Coins. Try again in {hours}h {minutes}m.", mention_author=False)
             return True
         data["currency"][k] = int(data["currency"].get(k, 100)) + 100
         data["daily_claims"][k] = now
         save()
-        await message.reply("Claimed 100 Mochi Coins. Try not to lose them immediately.", mention_author=False)
+        await message.reply("Claimed 100 Mallow Coins. Try not to lose them immediately.", mention_author=False)
         return True
     if command in ("coinflip", "slots"):
         k = key(gid,uid)
@@ -393,13 +393,13 @@ async def prefix(bot, message, command, argument):
         won = random.choice([True,False]) if command == "coinflip" else random.random() < 0.38
         if won:
             balance += bet if command == "coinflip" else bet * 2
-            result = f"You won {bet if command == 'coinflip' else bet*2} Mochi Coins."
+            result = f"You won {bet if command == 'coinflip' else bet*2} Mallow Coins."
         else:
             balance -= bet
-            result = f"You lost {bet} Mochi Coins. Excellent financial strategy."
+            result = f"You lost {bet} Mallow Coins. Excellent financial strategy."
         data["currency"][k] = balance
         save()
-        await message.reply(f"{result} Balance: {balance} Mochi Coins.", mention_author=False)
+        await message.reply(f"{result} Balance: {balance} Mallow Coins.", mention_author=False)
         return True
     return False
 
@@ -409,7 +409,7 @@ async def play_game(interaction: discord.Interaction, game: str, bet: int):
     k=key(interaction.guild_id,interaction.user.id)
     balance=int(data["currency"].get(k,100))
     if bet>balance:
-        await interaction.response.send_message(f"You only have {balance} Mochi Coins.",ephemeral=True); return
+        await interaction.response.send_message(f"You only have {balance} Mallow Coins.",ephemeral=True); return
     if game == "coinflip":
         won=random.choice([True,False]); payout=bet if won else 0; detail="You won the coin flip!" if won else "You lost the coin flip."
     elif game == "slots":
@@ -424,8 +424,8 @@ async def play_game(interaction: discord.Interaction, game: str, bet: int):
         player=random.randint(12,21); dealer=random.randint(15,21); won=player>dealer; payout=bet if won else (bet*2 if player==21 else 0); detail=f"Your hand: {player} · Dealer: {dealer}."
     balance=balance-bet+payout
     data["currency"][k]=balance; save()
-    outcome=f"Won {payout} Mochi Coins." if payout else f"Lost {bet} Mochi Coins."
-    await interaction.response.send_message(f"{detail} {outcome} Balance: {balance} Mochi Coins.",ephemeral=True)
+    outcome=f"Won {payout} Mallow Coins." if payout else f"Lost {bet} Mallow Coins."
+    await interaction.response.send_message(f"{detail} {outcome} Balance: {balance} Mallow Coins.",ephemeral=True)
 
 
 def setup(bot):
@@ -470,7 +470,7 @@ def setup(bot):
             allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False),
         )
 
-    @bot.tree.command(name="coinflip", description="Bet virtual Mochi Coins on a coin flip.")
+    @bot.tree.command(name="coinflip", description="Bet virtual Mallow Coins on a coin flip.")
     @app_commands.describe(bet="Amount of virtual coins to wager")
     async def coinflip_slash(interaction: discord.Interaction, bet: app_commands.Range[int,1,1000000]):
         await play_game(interaction, "coinflip", bet)
@@ -495,7 +495,7 @@ def setup(bot):
     async def blackjack_slash(interaction: discord.Interaction, bet: app_commands.Range[int,1,1000000]):
         await play_game(interaction, "blackjack", bet)
 
-    @bot.tree.command(name="work", description="Work to earn virtual Mochi Coins.")
+    @bot.tree.command(name="work", description="Work to earn virtual Mallow Coins.")
     async def work_slash(interaction: discord.Interaction):
         if interaction.guild_id is None:
             await interaction.response.send_message("Use this in a server.", ephemeral=True); return
@@ -503,9 +503,9 @@ def setup(bot):
         earned=random.randint(20,80)
         data["currency"][k]=int(data["currency"].get(k,100))+earned
         save()
-        await interaction.response.send_message(f"You earned {earned} Mochi Coins. Balance: {data['currency'][k]}.",ephemeral=True)
+        await interaction.response.send_message(f"You earned {earned} Mallow Coins. Balance: {data['currency'][k]}.",ephemeral=True)
 
-    @bot.tree.command(name="pay", description="Give virtual Mochi Coins to a member.")
+    @bot.tree.command(name="pay", description="Give virtual Mallow Coins to a member.")
     @app_commands.describe(member="Member to pay", amount="Amount of virtual coins")
     async def pay_slash(interaction: discord.Interaction, member: discord.Member, amount: app_commands.Range[int,1,1000000]):
         if interaction.guild_id is None or member.bot or member.id == interaction.user.id:
@@ -513,13 +513,13 @@ def setup(bot):
         k=key(interaction.guild_id,interaction.user.id); tk=key(interaction.guild_id,member.id)
         balance=int(data["currency"].get(k,100))
         if amount>balance:
-            await interaction.response.send_message(f"You only have {balance} Mochi Coins.",ephemeral=True); return
+            await interaction.response.send_message(f"You only have {balance} Mallow Coins.",ephemeral=True); return
         data["currency"][k]=balance-amount
         data["currency"][tk]=int(data["currency"].get(tk,100))+amount
         save()
-        await interaction.response.send_message(f"Paid {amount} Mochi Coins to {member.display_name}.",ephemeral=True)
+        await interaction.response.send_message(f"Paid {amount} Mallow Coins to {member.display_name}.",ephemeral=True)
 
-    @bot.tree.command(name="rob", description="Try to steal virtual Mochi Coins from a member.")
+    @bot.tree.command(name="rob", description="Try to steal virtual Mallow Coins from a member.")
     @app_commands.describe(member="Member to rob")
     async def rob_slash(interaction: discord.Interaction, member: discord.Member):
         if interaction.guild_id is None or member.bot or member.id == interaction.user.id:
@@ -527,12 +527,12 @@ def setup(bot):
         tk=key(interaction.guild_id,member.id); k=key(interaction.guild_id,interaction.user.id)
         target_balance=int(data["currency"].get(tk,100))
         if target_balance<1:
-            await interaction.response.send_message("That member has no Mochi Coins.",ephemeral=True); return
+            await interaction.response.send_message("That member has no Mallow Coins.",ephemeral=True); return
         if random.random()<0.35:
             stolen=min(target_balance,random.randint(1,max(1,target_balance//4)))
             data["currency"][tk]=target_balance-stolen
             data["currency"][k]=int(data["currency"].get(k,100))+stolen
-            result=f"You stole {stolen} Mochi Coins from {member.display_name}."
+            result=f"You stole {stolen} Mallow Coins from {member.display_name}."
         else:
             fine=min(int(data["currency"].get(k,100)),25)
             data["currency"][k]=int(data["currency"].get(k,100))-fine
@@ -540,13 +540,13 @@ def setup(bot):
         save()
         await interaction.response.send_message(result,ephemeral=True)
 
-    @bot.tree.command(name="balance", description="Show your virtual Mochi Coins.")
+    @bot.tree.command(name="balance", description="Show your virtual Mallow Coins.")
     async def balance_slash(interaction: discord.Interaction):
         if interaction.guild_id is None:
             await interaction.response.send_message("Use this in a server.", ephemeral=True); return
-        await interaction.response.send_message(f"You have {int(data['currency'].get(key(interaction.guild_id,interaction.user.id),100))} Mochi Coins.", ephemeral=True)
+        await interaction.response.send_message(f"You have {int(data['currency'].get(key(interaction.guild_id,interaction.user.id),100))} Mallow Coins.", ephemeral=True)
 
-    @bot.tree.command(name="daily", description="Claim 100 virtual Mochi Coins once every 24 hours.")
+    @bot.tree.command(name="daily", description="Claim 100 virtual Mallow Coins once every 24 hours.")
     async def daily_slash(interaction: discord.Interaction):
         if interaction.guild_id is None:
             await interaction.response.send_message("Use this in a server.", ephemeral=True); return
@@ -558,16 +558,16 @@ def setup(bot):
             hours, remainder = divmod(int(remaining), 3600)
             minutes = (remainder + 59) // 60
             await interaction.response.send_message(
-                f"You've already claimed your daily Mochi Coins. Try again in {hours}h {minutes}m.",
+                f"You've already claimed your daily Mallow Coins. Try again in {hours}h {minutes}m.",
                 ephemeral=True,
             )
             return
         data["currency"][k] = int(data["currency"].get(k, 100)) + 100
         data["daily_claims"][k] = now
         save()
-        await interaction.response.send_message("Claimed 100 Mochi Coins.", ephemeral=True)
+        await interaction.response.send_message("Claimed 100 Mallow Coins.", ephemeral=True)
 
-    @bot.tree.command(name="gamble", description="Bet virtual Mochi Coins on a coin flip.")
+    @bot.tree.command(name="gamble", description="Bet virtual Mallow Coins on a coin flip.")
     @app_commands.describe(bet="Amount of virtual currency to wager")
     async def gamble_slash(interaction: discord.Interaction, bet: app_commands.Range[int,1,1000000]):
         if interaction.guild_id is None:
@@ -575,13 +575,13 @@ def setup(bot):
         k=key(interaction.guild_id,interaction.user.id)
         balance=int(data["currency"].get(k,100))
         if bet>balance:
-            await interaction.response.send_message(f"You only have {balance} Mochi Coins.",ephemeral=True); return
+            await interaction.response.send_message(f"You only have {balance} Mallow Coins.",ephemeral=True); return
         if random.choice([True,False]):
-            balance += bet; result=f"You won {bet} Mochi Coins."
+            balance += bet; result=f"You won {bet} Mallow Coins."
         else:
-            balance -= bet; result=f"You lost {bet} Mochi Coins."
+            balance -= bet; result=f"You lost {bet} Mallow Coins."
         data["currency"][k]=balance; save()
-        await interaction.response.send_message(f"{result} New balance: {balance} Mochi Coins.",ephemeral=True)
+        await interaction.response.send_message(f"{result} New balance: {balance} Mallow Coins.",ephemeral=True)
 
     @bot.tree.command(name="vibecheck", description="Run a completely unscientific vibe scan.")
     @app_commands.describe(member="Who should get their vibe checked? Leave empty for yourself.")
@@ -602,14 +602,14 @@ def setup(bot):
         verdict = "cinematic soulmates 💞" if score >= 90 else "power couple material ✨" if score >= 70 else "chaotic duo 🤝" if score >= 40 else "better as movie buddies 🍿"
         await interaction.response.send_message(f"💘 **{interaction.user.display_name} + {member.display_name}** = **{score}%** — {verdict}. (For fun only!)", allowed_mentions=discord.AllowedMentions.none())
 
-    @bot.tree.command(name="fortune", description="Draw a random Mochi Bot fortune.")
+    @bot.tree.command(name="fortune", description="Draw a random Mallow Bot fortune.")
     async def fortune_slash(interaction: discord.Interaction):
         fortunes = ["A plot twist is closer than you think.", "Today, your side quest becomes the main story.", "The next message you send will be oddly important. Probably.", "A small win is loading. Please do not refresh.", "Your future contains snacks and questionable decisions.", "The universe says yes—but asks you to read the patch notes first.", "Someone in this server owes you a high five.", "Avoid suspiciously confident people bearing spoilers."]
-        await interaction.response.send_message(f"🔮 **Your Mochi Bot fortune:** {random.choice(fortunes)}")
+        await interaction.response.send_message(f"🔮 **Your Mallow Bot fortune:** {random.choice(fortunes)}")
 
     @bot.tree.command(name="wyr", description="Get a movie-themed Would You Rather question.")
     async def wyr_slash(interaction: discord.Interaction):
-        questions = ["Would you rather live inside your favorite movie or have your life directed by your least favorite director?", "Would you rather know every movie spoiler in advance or never be able to watch a trailer again?", "Would you rather have unlimited Mochi Coins or pick the movie every movie night forever?", "Would you rather be the hero with terrible luck or the villain with a perfect plan?", "Would you rather only watch sequels or only watch movies with cliffhanger endings?", "Would you rather have a personal theme song or dramatic slow motion whenever you enter a room?", "Would you rather swap lives with a fictional character for a week or meet the actor who plays them?", "Would you rather erase one bad movie from existence or make one cancelled show get a perfect finale?"]
+        questions = ["Would you rather live inside your favorite movie or have your life directed by your least favorite director?", "Would you rather know every movie spoiler in advance or never be able to watch a trailer again?", "Would you rather have unlimited Mallow Coins or pick the movie every movie night forever?", "Would you rather be the hero with terrible luck or the villain with a perfect plan?", "Would you rather only watch sequels or only watch movies with cliffhanger endings?", "Would you rather have a personal theme song or dramatic slow motion whenever you enter a room?", "Would you rather swap lives with a fictional character for a week or meet the actor who plays them?", "Would you rather erase one bad movie from existence or make one cancelled show get a perfect finale?"]
         await interaction.response.send_message(f"🎬 **Would You Rather?**\n{random.choice(questions)}\n\nReact with your choice or explain your answer!")
 
     async def message_listener(message):
