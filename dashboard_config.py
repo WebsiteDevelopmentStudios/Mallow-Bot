@@ -30,6 +30,8 @@ def default_config() -> dict[str, Any]:
         "features": {"economy": True, "xp": True, "moderation": True, "music": True, "fun": True, "movies": True, "utility": True, "social": True},
         "economy_config": {"starting_money": 100, "daily_reward": 100, "work_min": 20, "work_max": 80},
         "xp_config": {"min_xp": 10, "max_xp": 20, "cooldown_seconds": 60, "announce_level_up": True},
+        "messages_config": {"welcome_enabled": False, "welcome_channel_id": "", "welcome_message": "Welcome {user} to {server}!", "goodbye_enabled": False, "goodbye_channel_id": "", "goodbye_message": "{user} left {server}.", "auto_reply_enabled": False, "auto_replies": []},
+        "tickets_config": {"enabled": False, "category_id": "", "support_role_ids": [], "transcript_channel_id": "", "welcome_message": "Thanks for opening a ticket. A staff member will be with you soon."},
     }
 
 
@@ -83,6 +85,10 @@ async def get_guild_config(guild_id: int | str) -> dict[str, Any]:
                             pass
             if isinstance(settings.get("xp_config"), dict):
                 config["xp_config"]["announce_level_up"] = settings["xp_config"].get("announce_level_up", True) is not False
+            for field in ("messages_config", "tickets_config"):
+                values = settings.get(field, {})
+                if isinstance(values, dict):
+                    config[field].update(values)
             _CACHE[key] = (time.monotonic(), config)
             return config
         except (aiohttp.ClientError, asyncio.TimeoutError, ValueError, TypeError):
