@@ -2660,6 +2660,9 @@ async def on_message(message: discord.Message) -> None:
                 await message.reply("I couldn't fetch the update log. Please try again later.", mention_author=False)
             return
 
+        if command_name in {"vibecheck", "ship", "fortune", "wyr"}:
+            return
+
         if command_name in {"help", "commands"}:
             await message.reply(
                 "**XP & level commands**\n"
@@ -3044,6 +3047,9 @@ async def bot_update(interaction: discord.Interaction) -> None:
 @bot.tree.command(name="commands", description="List the bot's slash and -mb text commands.")
 async def bot_commands(interaction: discord.Interaction) -> None:
     listing = (
+        "**Fun & social**\\n"
+        "`/vibecheck [member]` · `/ship <member>` · `/fortune` · `/wyr`\\n"
+        "Text equivalents: `-mb vibecheck [@member]` · `-mb ship @member` · `-mb fortune` · `-mb wyr`\\n\\n"
         "**Music commands**\n"
         "`/play <song>` · `/pause` · `/resume` · `/skip` · `/queue`\n"
         "`/volume <0-100>` · `/lyrics [enabled]` · `/stop` · `/join` · `/leave`\n\n"
