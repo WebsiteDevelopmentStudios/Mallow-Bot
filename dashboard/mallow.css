@@ -10,3 +10,25 @@ a{color:var(--purple);text-decoration:none;transition:color .18s}a:hover{color:#
 #empty{border-style:dashed;background:#11111699}.status:not(:empty){line-height:1.6}code{color:#d8b4fe;background:#211a2d;padding:3px 6px;border-radius:6px;font-size:12px}
 @media(max-width:700px){.wrap{padding:18px 14px 42px}.top{align-items:flex-start;flex-wrap:wrap}.top nav{display:flex;flex-wrap:wrap}.panel{padding:18px}.hero{grid-template-columns:1fr;padding:24px!important}.mascot{display:none}.layout{grid-template-columns:1fr}.nav{position:static;display:flex;gap:6px;overflow:auto}.nav button{width:auto;white-space:nowrap;margin:0}.profile{align-items:flex-start}.avatar{width:62px;height:62px;border-radius:20px}.grid{grid-template-columns:1fr}.server{padding:15px}.panel[style*="margin-top"]{margin-top:16px!important}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+
+/* Shared site navigation and branded Mallow identity */
+.site-header,.landing-nav{display:flex;align-items:center;justify-content:space-between;gap:20px}
+.site-header{padding:0 0 18px;border-bottom:1px solid var(--line);margin-bottom:24px}
+.brand-lockup{display:inline-flex;align-items:center;gap:11px;white-space:nowrap;color:var(--text);font:700 18px 'Space Grotesk',sans-serif;letter-spacing:-.05em}
+.brand-lockup:hover{color:var(--text)}
+.brand-icon{display:block;width:40px;height:40px;object-fit:contain;border-radius:13px;flex:0 0 auto}
+.brand-accent{color:var(--purple);margin-left:4px}
+.main-nav{display:flex;align-items:center;gap:6px;margin-left:auto}
+.main-nav a{display:inline-flex;align-items:center;justify-content:center;min-height:38px;padding:8px 14px;border:1px solid transparent;border-radius:10px;color:#a6a1b2;font-weight:600;font-size:13px}
+.main-nav a:hover,.main-nav a.active{color:#f6f4fb;background:#1b1823;border-color:#373044}
+.main-nav a.active{box-shadow:inset 0 -2px 0 #a78bfa}
+.nav-user{display:flex;align-items:center;gap:10px}
+.nav-user-name{max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+button.button-quiet{background:#17151f!important;color:#c8c3d3!important;border:1px solid #302c3c!important;box-shadow:none!important;min-height:38px;padding:8px 12px}
+button.button-quiet:hover{border-color:#65518b!important;color:#fff!important}
+.landing-nav{padding:20px clamp(18px,5vw,72px)}
+.landing-nav .main-nav{margin-left:auto}
+.landing-nav .landing-login{white-space:nowrap}
+.hero-logo{width:126px;height:126px;object-fit:contain;filter:drop-shadow(0 10px 28px #8b5cf633);border-radius:28px}
+.settings-panel{margin-top:0!important}
+@media(max-width:700px){.site-header{gap:10px;flex-wrap:wrap;padding-bottom:14px}.brand-lockup{font-size:16px}.brand-icon{width:34px;height:34px}.main-nav{order:3;width:100%;margin:0;justify-content:flex-start}.nav-user{margin-left:auto}.nav-user-name{display:none}.landing-nav{gap:10px;flex-wrap:wrap}.landing-nav .main-nav{order:3;width:100%;justify-content:center}.landing-nav .landing-login{margin-left:auto}.hero-logo{width:84px;height:84px}}
