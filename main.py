@@ -2152,6 +2152,8 @@ async def _dashboard_tree_interaction_check(interaction: discord.Interaction) ->
             "moderation": {"dm","set-log","timeout-minutes"},
             "movies": {"movie","channel"},
             "fun": {"vibecheck","ship","fortune","wyr"},
+            "utility": {"uptime","update","commands","help","sync","countdown","youtube"},
+            "social": {"youtube"},
         }
         disabled_feature = next((feature for feature, names in feature_groups.items() if name_lower in names and not cfg.get("features", {}).get(feature, True)), None)
         if disabled_feature or (command_name and name_lower in set(cfg.get("disabled_commands", []))):
