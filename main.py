@@ -2668,7 +2668,7 @@ async def on_message(message: discord.Message) -> None:
                 "**XP & level commands**\n"
                 "`-mb xp` / `-mb level` — view your XP, level, and progress\n"
                 "`-mb leaderboard` — server top 10 XP leaderboard\n\n"
-                "**Movie Coins & gambling**\n"
+                "**Mochi Coins & gambling**\n"
                 "`-mb balance` · `-mb daily` · `-mb gamble <bet>`\n"
                 "`-mb coinflip <bet>` · `-mb slots <bet>` · `-mb roulette <bet>`\n"
                 "`-mb dice <bet>` · `-mb blackjack <bet>` · `-mb work`\n"
@@ -2681,7 +2681,7 @@ async def on_message(message: discord.Message) -> None:
                 "`-mb countdown` · `-mb movie list` · `-mb movie search <title>` · `-mb movie play <URL>`\n"
                 "`-mb channel link <#channel or ID>` (Administrator)\n"
                 "`-mb youtube <URL>` · `-mb set-log [#channel]` · `-mb timeout-minutes <1-10080>`\n"
-                "XP is awarded for eligible chat messages. Movie Coins are fictional. `/say` has no `-mb say` equivalent.",
+                "XP is awarded for eligible chat messages. Mochi Coins are fictional. `/say` has no `-mb say` equivalent.",
                 mention_author=False,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
@@ -3058,7 +3058,7 @@ async def bot_commands(interaction: discord.Interaction) -> None:
         "**Community & XP commands**\n"
         "`/xp` · `/leaderboard` — view your level/XP and the server top 10 XP earners\n"
         "XP is earned from eligible messages, with a 60-second cooldown.\n\n"
-        "**Movie Coins & gambling (fictional currency)**\n"
+        "**Mochi Coins & gambling (fictional currency)**\n"
         "`/balance` · `/daily` · `/gamble <bet>` · `/coinflip <bet>` · `/slots <bet>`\n"
         "`/roulette <bet>` · `/dice <bet>` · `/blackjack <bet>` · `/work` · `/pay <member> <amount>` · `/rob <member>`\n\n"
         "**Other slash commands**\n"
@@ -3073,7 +3073,7 @@ async def bot_commands(interaction: discord.Interaction) -> None:
         "`-mb lyrics [on|off]` · `-mb stop` · `-mb join` · `-mb leave` · `-mb uptime` · `-mb update` · `-mb commands` · `-mb sync`\n"
         "`-mb movie list` · `-mb movie search <title>` · `-mb movie play <URL>` · `-mb channel link <#channel or ID>`\n"
         "`-mb youtube <URL>` · `-mb set-log [#channel]` · `-mb timeout-minutes <1-10080>` · `-mb countdown`\n"
-        "XP is awarded automatically for eligible chat messages. Movie Coins are fictional. `/say` has no `-mb say` equivalent and requires Manage Messages. `/sync` and `-mb sync` require Administrator permission."
+        "XP is awarded automatically for eligible chat messages. Mochi Coins are fictional. `/say` has no `-mb say` equivalent and requires Manage Messages. `/sync` and `-mb sync` require Administrator permission."
     )
     await send_interaction_response(interaction, listing, ephemeral=True)
 
