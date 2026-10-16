@@ -12,6 +12,27 @@ async function untoken(value, secret) { try { const [body,sig]=value.split(".");
 function cookieHeader(value, maxAge) { return cookieName+"="+encodeURIComponent(value)+"; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age="+maxAge; }
 async function session(request, env) { const s=await untoken(cookie(request,cookieName),env.SESSION_SECRET||""); if(!s?.user?.id)return null; return s; }
 async function settings(env) { await env.MALLOW_DB.prepare("CREATE TABLE IF NOT EXISTS settings (id INTEGER PRIMARY KEY CHECK (id=1), prefix TEXT NOT NULL, greeting TEXT NOT NULL, greetings INTEGER NOT NULL, mention_only INTEGER NOT NULL, updated_at TEXT NOT NULL)").run(); const row=await env.MALLOW_DB.prepare("SELECT prefix,greeting,greetings,mention_only FROM settings WHERE id=1").first(); return row?{prefix:row.prefix,greeting:row.greeting,greetings:!!row.greetings,mention_only:!!row.mention_only}:defaults; }
+
+ async function authorizedGuild(s, env, guildId) {
+  if(!/^\d{17,20}$/.test(guildId||"")) return {error:"Select a valid Discord server.",status:400};
+  if(!s?.user?.access_token) return {error:"Sign in again to manage server settings.",status:401};
+  const r=await fetch("https://discord.com/api/users/@me/guilds",{headers:{authorization:"Bearer "+s.user.access_token}});
+  if(!r.ok) return {error:"Discord sign-in expired. Sign out and sign in again.",status:401};
+  const guilds=await r.json();
+  const guild=guilds.find(g=>g.id===guildId);
+  if(!guild) return {error:"That server is not available to your Discord account.",status:403};
+  let permissions=0n;try{permissions=BigInt(guild.permissions||"0")}catch{}
+  if((permissions&8n)===0n&&(permissions&32n)===0n) return {error:"You need Administrator or Manage Server permission to configure Mallow here.",status:403};
+  if(env.BOT_TOKEN){
+   const br=await fetch("https://discord.com/api/guilds/"+guildId,{headers:{authorization:"Bot "+env.BOT_TOKEN}});
+   if(!br.ok) return {error:"Mallow Bot must be in this server before you can configure it.",status:409};
+  }
+  return {guild};
+ }
+ async function ensureGuildSettings(env){
+  await env.MALLOW_DB.prepare("CREATE TABLE IF NOT EXISTS guild_settings (guild_id TEXT PRIMARY KEY, prefix TEXT NOT NULL DEFAULT '-mb', greeting TEXT NOT NULL DEFAULT 'hey! i\\'m Mallow Bot ☁️', greetings INTEGER NOT NULL DEFAULT 1, mention_only INTEGER NOT NULL DEFAULT 1, disabled_commands TEXT NOT NULL DEFAULT '[]', updated_at TEXT NOT NULL)").run();
+ }
+
 async function route(request, env) {
  const missing=["CLIENT_ID","CLIENT_SECRET","REDIRECT_URI","SESSION_SECRET","BOT_OWNER_ID","MALLOW_DB"].filter(k=>!env[k]); if(missing.length) return json({error:"Dashboard server configuration is incomplete.",missing},503);
  const url=new URL(request.url); const path=url.pathname.replace(/^\/api\/?/,"");
@@ -24,6 +45,27 @@ async function route(request, env) {
  const ur=await fetch("https://discord.com/api/users/@me",{headers:{authorization:"Bearer "+td.access_token}});if(!ur.ok)return Response.redirect("/?auth=user",302);const u=await ur.json();const payload={user:{id:u.id,username:u.username,global_name:u.global_name||u.username,access_token:td.access_token,refresh_token:td.refresh_token,token_expires_at:Date.now()+Number(td.expires_in||604800)*1000,avatar_url:u.avatar?"https://cdn.discordapp.com/avatars/"+u.id+"/"+u.avatar+".png":"https://cdn.discordapp.com/embed/avatars/0.png"},exp:Date.now()+7*24*60*60*1000};
  const signed=await token(payload,env.SESSION_SECRET);const h=new Headers({"location":"/","cache-control":"no-store"});h.append("set-cookie",cookieHeader(signed,7*24*60*60));h.append("set-cookie","mallow_oauth_state=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0");return new Response(null,{status:302,headers:h});
  }
+
+ if(path==="guild-settings"&&(request.method==="GET"||request.method==="PUT")){
+  const s=await session(request,env);if(!s)return json({error:"Sign in required."},401);
+  const guildId=url.searchParams.get("guild_id")||"";
+  const access=await authorizedGuild(s,env,guildId);if(access.error)return json({error:access.error},access.status);
+  await ensureGuildSettings(env);
+  if(request.method==="GET"){
+   let row=await env.MALLOW_DB.prepare("SELECT prefix,greeting,greetings,mention_only,disabled_commands,updated_at FROM guild_settings WHERE guild_id=?").bind(guildId).first();
+   if(!row)row={prefix:defaults.prefix,greeting:defaults.greeting,greetings:1,mention_only:1,disabled_commands:"[]",updated_at:null};
+   let disabled=[];try{disabled=JSON.parse(row.disabled_commands||"[]");if(!Array.isArray(disabled))disabled=[]}catch{}
+   return json({guild:{id:guildId,name:access.guild.name},settings:{prefix:row.prefix,greeting:row.greeting,greetings:!!row.greetings,mention_only:!!row.mention_only,disabled_commands:disabled,updated_at:row.updated_at}});
+  }
+  let body;try{body=await request.json()}catch{return json({error:"Invalid JSON."},400)}
+  const prefix=String(body.prefix??"-mb").trim(),greeting=String(body.greeting??defaults.greeting);
+  const disabled=Array.isArray(body.disabled_commands)?[...new Set(body.disabled_commands.map(x=>String(x).trim()).filter(x=>/^[a-z0-9_-]{1,32}$/i.test(x)))].slice(0,200):[];
+  if(!prefix||prefix.length>8||/[\\r\\n\\s]/.test(prefix))return json({error:"Prefix must be 1–8 characters with no spaces or line breaks."},400);
+  if(greeting.length>500)return json({error:"Greeting must be 500 characters or fewer."},400);
+  await env.MALLOW_DB.prepare("INSERT INTO guild_settings (guild_id,prefix,greeting,greetings,mention_only,disabled_commands,updated_at) VALUES (?,?,?,?,?,?,?) ON CONFLICT(guild_id) DO UPDATE SET prefix=excluded.prefix,greeting=excluded.greeting,greetings=excluded.greetings,mention_only=excluded.mention_only,disabled_commands=excluded.disabled_commands,updated_at=excluded.updated_at").bind(guildId,prefix,greeting,body.greetings?1:0,body.mention_only?1:0,JSON.stringify(disabled),new Date().toISOString()).run();
+  return json({ok:true,settings:{prefix,greeting,greetings:!!body.greetings,mention_only:!!body.mention_only,disabled_commands:disabled}});
+ }
+
  if(path==="me"&&request.method==="GET"){const s=await session(request,env);if(!s)return json({user:null,settings:defaults,is_owner:false});return json({user:s.user,settings:await settings(env),is_owner:s.user.id===env.BOT_OWNER_ID});}
  if(path==="logout"&&request.method==="POST")return json({ok:true},200,{"set-cookie":cookieHeader("",0)});
  if(path==="settings"&&request.method==="GET"){const s=await session(request,env);if(!s)return json({error:"Sign in required."},401);return json({settings:await settings(env),is_owner:s.user.id===env.BOT_OWNER_ID});}
