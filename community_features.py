@@ -710,3 +710,118 @@ def setup(bot):
 
     bot.add_listener(message_listener, "on_message")
     bot.add_listener(prefix_listener, "on_message")
+
+    class TicketPanelView(discord.ui.View):
+        def __init__(self):
+            super().__init__(timeout=None)
+
+        @discord.ui.button(label="Open a ticket", style=discord.ButtonStyle.primary, emoji="🎫", custom_id="mallow:ticket:open")
+        async def open_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
+            await create_ticket(interaction)
+
+    class TicketControlsView(discord.ui.View):
+        def __init__(self):
+            super().__init__(timeout=None)
+
+        @discord.ui.button(label="Close ticket", style=discord.ButtonStyle.danger, emoji="🔒", custom_id="mallow:ticket:close")
+        async def close_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
+            channel = interaction.channel
+            if not isinstance(channel, discord.TextChannel) or not channel.topic or not channel.topic.startswith("mallow-ticket:"):
+                await interaction.response.send_message("This is not a Mallow ticket channel.", ephemeral=True)
+                return
+            cfg = await get_guild_config(interaction.guild_id) if interaction.guild_id else {}
+            allowed = {int(x) for x in cfg.get("tickets_config", {}).get("support_role_ids", []) if str(x).isdigit()}
+            is_support = isinstance(interaction.user, discord.Member) and (interaction.user.guild_permissions.manage_channels or any(r.id in allowed for r in interaction.user.roles))
+            owner_text = channel.topic.split(":", 2)[1] if len(channel.topic.split(":")) > 1 else ""
+            if not is_support and str(interaction.user.id) != owner_text:
+                await interaction.response.send_message("Only the ticket creator or support staff can close this ticket.", ephemeral=True)
+                return
+            await interaction.response.send_message("Closing this ticket in 5 seconds…", ephemeral=True)
+            await asyncio.sleep(5)
+            try:
+                await channel.delete(reason=f"Ticket closed by {interaction.user}")
+            except (discord.Forbidden, discord.HTTPException):
+                pass
+
+    async def create_ticket(interaction: discord.Interaction):
+        if interaction.guild is None:
+            await interaction.response.send_message("Tickets can only be opened in a server.", ephemeral=True)
+            return
+        cfg = await get_guild_config(interaction.guild.id)
+        ticket_cfg = cfg.get("tickets_config", {})
+        if not ticket_cfg.get("enabled", False):
+            await interaction.response.send_message("Tickets are disabled in this server. Ask a server manager to enable them in the Mallow dashboard.", ephemeral=True)
+            return
+        existing = discord.utils.find(
+            lambda ch: isinstance(ch, discord.TextChannel) and ch.topic == f"mallow-ticket:{interaction.user.id}:{interaction.guild.id}",
+            interaction.guild.text_channels,
+        )
+        if existing:
+            await interaction.response.send_message(f"You already have a ticket open: {existing.mention}", ephemeral=True)
+            return
+        category = interaction.guild.get_channel(int(ticket_cfg.get("category_id") or 0))
+        if not isinstance(category, discord.CategoryChannel):
+            category = None
+        role_ids = {int(x) for x in ticket_cfg.get("support_role_ids", []) if str(x).isdigit()}
+        overwrites = {
+            interaction.guild.default_role: discord.PermissionOverwrite(view_channel=False),
+            interaction.user: discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True, attach_files=True, embed_links=True),
+        }
+        for role_id in role_ids:
+            role = interaction.guild.get_role(role_id)
+            if role:
+                overwrites[role] = discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True)
+        try:
+            channel = await interaction.guild.create_text_channel(
+                f"ticket-{interaction.user.name}".lower().replace(" ", "-")[:90],
+                category=category,
+                overwrites=overwrites,
+                topic=f"mallow-ticket:{interaction.user.id}:{interaction.guild.id}",
+                reason=f"Support ticket opened by {interaction.user}",
+            )
+            message = str(ticket_cfg.get("welcome_message") or "Thanks for opening a ticket. A staff member will be with you soon.")[:1800]
+            mentions = " ".join(f"<@&{rid}>" for rid in role_ids if interaction.guild.get_role(rid))
+            await channel.send(
+                content=(mentions + "\\n" if mentions else "") + f"{interaction.user.mention}\\n{message}",
+                view=TicketControlsView(),
+                allowed_mentions=discord.AllowedMentions(users=True, roles=True, everyone=False),
+            )
+            await interaction.response.send_message(f"Your ticket is ready: {channel.mention}", ephemeral=True)
+        except (discord.Forbidden, discord.HTTPException):
+            if not interaction.response.is_done():
+                await interaction.response.send_message("I couldn't create the ticket. Check that Mallow has Manage Channels and View Channel permissions.", ephemeral=True)
+
+    @bot.tree.command(name="ticket", description="Open a private support ticket.")
+    async def ticket_slash(interaction: discord.Interaction):
+        await create_ticket(interaction)
+
+    @bot.tree.command(name="ticket-panel", description="Post a button members can use to open support tickets.")
+    @app_commands.checks.has_permissions(manage_guild=True)
+    async def ticket_panel_slash(interaction: discord.Interaction):
+        if interaction.guild_id is None:
+            await interaction.response.send_message("Use this in a server.", ephemeral=True)
+            return
+        cfg = await get_guild_config(interaction.guild_id)
+        if not cfg.get("tickets_config", {}).get("enabled", False):
+            await interaction.response.send_message("Enable tickets in the Mallow dashboard first.", ephemeral=True)
+            return
+        embed = discord.Embed(title="Support tickets", description="Need help? Click the button below to open a private ticket.", color=discord.Color.blurple())
+        await interaction.channel.send(embed=embed, view=TicketPanelView())
+        await interaction.response.send_message("Ticket panel posted.", ephemeral=True)
+
+    @bot.tree.command(name="ticket-close", description="Close the ticket channel you are in.")
+    async def ticket_close_slash(interaction: discord.Interaction):
+        channel = interaction.channel
+        if not isinstance(channel, discord.TextChannel) or not channel.topic or not channel.topic.startswith("mallow-ticket:"):
+            await interaction.response.send_message("This command only works inside a Mallow ticket channel.", ephemeral=True)
+            return
+        await interaction.response.defer(ephemeral=True)
+        await channel.delete(reason=f"Ticket closed by {interaction.user}")
+        try:
+            await interaction.followup.send("Ticket closed.", ephemeral=True)
+        except discord.HTTPException:
+            pass
+
+    bot.add_view(TicketPanelView())
+    bot.add_view(TicketControlsView())
+
