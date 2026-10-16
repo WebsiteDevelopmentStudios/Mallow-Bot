@@ -20,12 +20,12 @@ def load():
     try:
         value = json.loads(DATA_FILE.read_text(encoding="utf-8"))
         if isinstance(value, dict):
-            for key in ("xp", "currency", "log_channels", "timeout_minutes", "last_xp"):
+            for key in ("xp", "currency", "log_channels", "timeout_minutes", "last_xp", "daily_claims"):
                 value.setdefault(key, {})
             return value
     except (OSError, json.JSONDecodeError):
         pass
-    return {key: {} for key in ("xp", "currency", "log_channels", "timeout_minutes", "last_xp")}
+    return {key: {} for key in ("xp", "currency", "log_channels", "timeout_minutes", "last_xp", "daily_claims")}
 
 data = load()
 _last_description = None
@@ -333,8 +333,17 @@ async def prefix(bot, message, command, argument):
         await message.reply(f"You have {int(data['currency'].get(key(gid,uid),100))} Movie Coins.", mention_author=False)
         return True
     if command == "daily":
-        k = key(gid,uid)
-        data["currency"][k] = int(data["currency"].get(k,100)) + 100
+        k = key(gid, uid)
+        now = time.time()
+        last_claim = float(data["daily_claims"].get(k, 0))
+        remaining = 86400 - (now - last_claim)
+        if remaining > 0:
+            hours, remainder = divmod(int(remaining), 3600)
+            minutes = (remainder + 59) // 60
+            await message.reply(f"You've already claimed your daily Movie Coins. Try again in {hours}h {minutes}m.", mention_author=False)
+            return True
+        data["currency"][k] = int(data["currency"].get(k, 100)) + 100
+        data["daily_claims"][k] = now
         save()
         await message.reply("Claimed 100 Movie Coins. Try not to lose them immediately.", mention_author=False)
         return True
@@ -504,12 +513,24 @@ def setup(bot):
             await interaction.response.send_message("Use this in a server.", ephemeral=True); return
         await interaction.response.send_message(f"You have {int(data['currency'].get(key(interaction.guild_id,interaction.user.id),100))} Movie Coins.", ephemeral=True)
 
-    @bot.tree.command(name="daily", description="Claim 100 virtual Movie Coins.")
+    @bot.tree.command(name="daily", description="Claim 100 virtual Movie Coins once every 24 hours.")
     async def daily_slash(interaction: discord.Interaction):
         if interaction.guild_id is None:
             await interaction.response.send_message("Use this in a server.", ephemeral=True); return
-        k=key(interaction.guild_id,interaction.user.id)
-        data["currency"][k]=int(data["currency"].get(k,100))+100
+        k = key(interaction.guild_id, interaction.user.id)
+        now = time.time()
+        last_claim = float(data["daily_claims"].get(k, 0))
+        remaining = 86400 - (now - last_claim)
+        if remaining > 0:
+            hours, remainder = divmod(int(remaining), 3600)
+            minutes = (remainder + 59) // 60
+            await interaction.response.send_message(
+                f"You've already claimed your daily Movie Coins. Try again in {hours}h {minutes}m.",
+                ephemeral=True,
+            )
+            return
+        data["currency"][k] = int(data["currency"].get(k, 100)) + 100
+        data["daily_claims"][k] = now
         save()
         await interaction.response.send_message("Claimed 100 Movie Coins.", ephemeral=True)
 
