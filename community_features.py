@@ -431,8 +431,10 @@ async def prefix(bot, message, command, argument):
 async def play_game(interaction: discord.Interaction, game: str, bet: int):
     if interaction.guild_id is None:
         await interaction.response.send_message("Use this in a server.", ephemeral=True); return
+    cfg = await get_guild_config(interaction.guild_id)
+    start = int(cfg.get("economy_config", {}).get("starting_money", 100))
     k=key(interaction.guild_id,interaction.user.id)
-    balance=int(data["currency"].get(k,100))
+    balance=int(data["currency"].get(k,start))
     if bet>balance:
         await interaction.response.send_message(f"You only have {balance} Mallow Coins.",ephemeral=True); return
     if game == "coinflip":
@@ -524,9 +526,12 @@ def setup(bot):
     async def work_slash(interaction: discord.Interaction):
         if interaction.guild_id is None:
             await interaction.response.send_message("Use this in a server.", ephemeral=True); return
+        cfg = await get_guild_config(interaction.guild_id)
+        eco = cfg.get("economy_config", {})
+        start = int(eco.get("starting_money", 100))
+        earned = random.randint(int(eco.get("work_min", 20)), int(eco.get("work_max", 80)))
         k=key(interaction.guild_id, interaction.user.id)
-        earned=random.randint(20,80)
-        data["currency"][k]=int(data["currency"].get(k,100))+earned
+        data["currency"][k]=int(data["currency"].get(k,start))+earned
         save()
         await interaction.response.send_message(f"You earned {earned} Mallow Coins. Balance: {data['currency'][k]}.",ephemeral=True)
 
@@ -535,8 +540,10 @@ def setup(bot):
     async def pay_slash(interaction: discord.Interaction, member: discord.Member, amount: app_commands.Range[int,1,1000000]):
         if interaction.guild_id is None or member.bot or member.id == interaction.user.id:
             await interaction.response.send_message("Choose another server member.", ephemeral=True); return
+        cfg = await get_guild_config(interaction.guild_id)
+        start = int(cfg.get("economy_config", {}).get("starting_money", 100))
         k=key(interaction.guild_id,interaction.user.id); tk=key(interaction.guild_id,member.id)
-        balance=int(data["currency"].get(k,100))
+        balance=int(data["currency"].get(k,start))
         if amount>balance:
             await interaction.response.send_message(f"You only have {balance} Mallow Coins.",ephemeral=True); return
         data["currency"][k]=balance-amount
@@ -549,14 +556,16 @@ def setup(bot):
     async def rob_slash(interaction: discord.Interaction, member: discord.Member):
         if interaction.guild_id is None or member.bot or member.id == interaction.user.id:
             await interaction.response.send_message("Choose another server member.", ephemeral=True); return
+        cfg = await get_guild_config(interaction.guild_id)
+        start = int(cfg.get("economy_config", {}).get("starting_money", 100))
         tk=key(interaction.guild_id,member.id); k=key(interaction.guild_id,interaction.user.id)
-        target_balance=int(data["currency"].get(tk,100))
+        target_balance=int(data["currency"].get(tk,start))
         if target_balance<1:
             await interaction.response.send_message("That member has no Mallow Coins.",ephemeral=True); return
         if random.random()<0.35:
             stolen=min(target_balance,random.randint(1,max(1,target_balance//4)))
             data["currency"][tk]=target_balance-stolen
-            data["currency"][k]=int(data["currency"].get(k,100))+stolen
+            data["currency"][k]=int(data["currency"].get(k,start))+stolen
             result=f"You stole {stolen} Mallow Coins from {member.display_name}."
         else:
             fine=min(int(data["currency"].get(k,100)),25)
