@@ -271,6 +271,7 @@ async function route(request, env) {
  if(path==="redeem-premium"&&request.method==="POST"){
   const s=await session(request,env);if(!s)return json({error:"Sign in with Discord first."},401);
   let body;try{body=await request.json()}catch{return json({error:"Invalid JSON."},400)}
+  const premiumState=await premiumFor(env,s.user.id);if(premiumState.banned)return json({error:"This Discord ID is banned from Premium."},403);
   const code=String(body.code||"").trim().toUpperCase();
   if(!/^MALLOW-[A-F0-9]{24}$/.test(code))return json({error:"Enter a valid premium code."},400);
   await ensurePremiumTables(env);
