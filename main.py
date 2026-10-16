@@ -2673,6 +2673,8 @@ async def on_message(message: discord.Message) -> None:
                 "`-mb coinflip <bet>` · `-mb slots <bet>` · `-mb roulette <bet>`\n"
                 "`-mb dice <bet>` · `-mb blackjack <bet>` · `-mb work`\n"
                 "`-mb pay @member <amount>` · `-mb rob @member`\n\n"
+                "**Fun & social**\\n"
+                "`-mb vibecheck [@member]` · `-mb ship @member` · `-mb fortune` · `-mb wyr`\\n\\n"
                 "**Music commands disabled** — temporarily unavailable.\n\n"
                 "**Utility & movie commands**\n"
                 "`-mb uptime` · `-mb update` · `-mb help` / `-mb commands` · `-mb sync` (Administrator)\n"
