@@ -16,7 +16,7 @@ DASHBOARD_CONFIG_URL = os.getenv(
 ).strip()
 DASHBOARD_CONFIG_SECRET = os.getenv("MALLOW_DASHBOARD_CONFIG_SECRET", "").strip()
 _CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
-_CACHE_TTL = 20.0
+_CACHE_TTL = 3.0
 _LOCKS: dict[str, asyncio.Lock] = {}
 
 
@@ -43,6 +43,11 @@ async def get_guild_config(guild_id: int | str) -> dict[str, Any]:
     if cached and now - cached[0] < _CACHE_TTL:
         return cached[1]
     if not DASHBOARD_CONFIG_SECRET or not DASHBOARD_CONFIG_URL:
+        import logging
+        logging.getLogger("mallow-config").error(
+            "Dashboard config bridge is not configured (URL set=%s, secret set=%s).",
+            bool(DASHBOARD_CONFIG_URL), bool(DASHBOARD_CONFIG_SECRET),
+        )
         return default_config()
     lock = _LOCKS.setdefault(key, asyncio.Lock())
     async with lock:
@@ -59,6 +64,11 @@ async def get_guild_config(guild_id: int | str) -> dict[str, Any]:
                     headers={"Authorization": f"Bearer {DASHBOARD_CONFIG_SECRET}"},
                 ) as response:
                     if response.status != 200:
+                        import logging
+                        logging.getLogger("mallow-config").error(
+                            "Dashboard config request failed for guild %s with HTTP %s.",
+                            key, response.status,
+                        )
                         return cached[1] if cached else default_config()
                     payload = await response.json()
             settings = payload.get("settings", {})
@@ -91,7 +101,12 @@ async def get_guild_config(guild_id: int | str) -> dict[str, Any]:
                     config[field].update(values)
             _CACHE[key] = (time.monotonic(), config)
             return config
-        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError, TypeError):
+        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError, TypeError) as exc:
+            import logging
+            logging.getLogger("mallow-config").error(
+                "Dashboard config request failed for guild %s (%s).",
+                key, type(exc).__name__,
+            )
             return cached[1] if cached else default_config()
 
 
