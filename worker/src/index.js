@@ -49,7 +49,7 @@ function interactionResponse(payload) {
 export default {
   async fetch(request, env, ctx) {
     if (request.method !== "POST") {
-      return new Response("Movie-Bot Discord endpoint", { status: 200 });
+      return new Response("Mochi-Bot Discord endpoint", { status: 200 });
     }
 
     if (!(await verifyDiscordRequest(request, env.DISCORD_PUBLIC_KEY))) {
@@ -78,7 +78,7 @@ export default {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Movie-Bot-Secret": env.WAKE_SECRET,
+          "X-Mochi-Bot-Secret": env.WAKE_SECRET,
         },
         body: JSON.stringify(payload),
       }).catch(() => {
