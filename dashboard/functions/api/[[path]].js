@@ -28,7 +28,7 @@ async function authorizedGuild(s, env, guildId) {
   if(!s?.user?.access_token) return {error:"Sign in again to manage server settings.",status:401};
   let active=s;let r=await fetch("https://discord.com/api/users/@me/guilds",{headers:{authorization:"Bearer "+active.user.access_token}});
   if(r.status===401){const refreshed=await refreshDiscordSession(env,active,true);if(refreshed.refreshed){active=refreshed.session;r=await fetch("https://discord.com/api/users/@me/guilds",{headers:{authorization:"Bearer "+active.user.access_token}})}}
-  if(!r.ok){let detail="";try{const body=await r.clone().json();detail=body.message||body.error_description||body.error||""}catch{}return {error:r.status===401?"Discord rejected this session. Sign out, then sign in again and approve the requested permissions.":`Discord server-permission check failed (HTTP ${r.status})${detail?": "+detail:""}. Check the OAuth configuration and try again.`,status:r.status===401?401:502};}
+  if(!r.ok){let detail="";try{const body=await r.clone().json();detail=body.message||body.error_description||body.error||""}catch{}if(r.status===429){const retryAfter=Math.max(1,Number(r.headers.get("Retry-After")||60));return {error:`Discord is temporarily rate-limiting server permission checks. Wait about ${Math.ceil(retryAfter)} seconds, then retry once. Do not repeatedly refresh the dashboard.`,status:429,retryAfter};}return {error:r.status===401?"Discord rejected this session. Sign out, then sign in again and approve the requested permissions.":`Discord server-permission check failed (HTTP ${r.status})${detail?": "+detail:""}. Check the OAuth configuration and try again.`,status:r.status===401?401:502};}
   s=active;
   const guilds=await r.json();
   const guild=guilds.find(g=>g.id===guildId);
@@ -84,7 +84,7 @@ async function route(request, env) {
  if(path==="guild-settings"&&(request.method==="GET"||request.method==="PUT")){
   const s=await session(request,env);if(!s)return json({error:"Sign in required."},401);
   const guildId=url.searchParams.get("guild_id")||"";
-  const access=await authorizedGuild(s,env,guildId);if(access.error)return json({error:access.error},access.status);
+  const access=await authorizedGuild(s,env,guildId);if(access.error)return json({error:access.error},access.status,access.retryAfter?{"Retry-After":String(access.retryAfter),"cache-control":"no-store"}:{});
   await ensureGuildSettings(env);
   if(request.method==="GET"){
    let row=await env.MALLOW_DB.prepare("SELECT prefix,greeting,greetings,mention_only,disabled_commands,features,economy_config,xp_config,updated_at FROM guild_settings WHERE guild_id=?").bind(guildId).first();
@@ -124,7 +124,7 @@ async function route(request, env) {
   if(!s.user.access_token)return json({error:"Discord permissions are missing. Sign out and sign in again to grant server-list access."},401);
   let ur=await fetch("https://discord.com/api/users/@me/guilds?with_counts=true",{headers:{authorization:"Bearer "+s.user.access_token}});
   if(ur.status===401){const refreshed=await refreshDiscordSession(env,s,true);if(refreshed.refreshed){s=refreshed.session;ur=await fetch("https://discord.com/api/users/@me/guilds?with_counts=true",{headers:{authorization:"Bearer "+s.user.access_token}})}}
-  if(!ur.ok){let detail="";try{const body=await ur.clone().json();detail=body.message||body.error_description||body.error||""}catch{}return json({error:ur.status===401?"Discord rejected the access token and it could not be refreshed. Sign out and sign in again; if it repeats, check the Discord OAuth client settings.":`Discord server-list request failed (HTTP ${ur.status})${detail?": "+detail:""}. Check OAuth scopes and Discord API status.`},ur.status===401?401:502)}
+  if(!ur.ok){let detail="";try{const body=await ur.clone().json();detail=body.message||body.error_description||body.error||""}catch{}if(ur.status===429){const retryAfter=Math.max(1,Number(ur.headers.get("Retry-After")||60));return json({error:`Discord is temporarily rate-limiting the server list. Wait about ${Math.ceil(retryAfter)} seconds before trying again; repeated refreshes can extend the delay.`,retry_after:retryAfter},429,{"Retry-After":String(retryAfter),"cache-control":"no-store"})}return json({error:ur.status===401?"Discord rejected the access token and it could not be refreshed. Sign out and sign in again; if it repeats, check the Discord OAuth client settings.":`Discord server-list request failed (HTTP ${ur.status})${detail?": "+detail:""}. Check OAuth scopes and Discord API status.`},ur.status===401?401:502)}
   const all=await ur.json();const manageable=all.filter(g=>{try{const p=BigInt(g.permissions||"0");return (p&8n)!==0n||(p&32n)!==0n}catch{return false}});
   if(!env.BOT_TOKEN)return json({error:"Bot presence checking is not configured. Add the Mallow Bot token as the BOT_TOKEN secret in Cloudflare Pages → Settings → Variables and Secrets, then redeploy."},503);
   const botHeaders={authorization:"Bot "+env.BOT_TOKEN};
