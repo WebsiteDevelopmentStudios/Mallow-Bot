@@ -30,7 +30,13 @@ async function settings(env) { await env.MALLOW_DB.prepare("CREATE TABLE IF NOT 
   return {guild};
  }
  async function ensureGuildSettings(env){
-  await env.MALLOW_DB.prepare("CREATE TABLE IF NOT EXISTS guild_settings (guild_id TEXT PRIMARY KEY, prefix TEXT NOT NULL DEFAULT '-mb', greeting TEXT NOT NULL DEFAULT 'hey Mallow Bot', greetings INTEGER NOT NULL DEFAULT 1, mention_only INTEGER NOT NULL DEFAULT 1, disabled_commands TEXT NOT NULL DEFAULT '[]', updated_at TEXT NOT NULL)").run();
+  await env.MALLOW_DB.prepare("CREATE TABLE IF NOT EXISTS guild_settings (guild_id TEXT PRIMARY KEY, prefix TEXT NOT NULL DEFAULT '-mb', greeting TEXT NOT NULL DEFAULT 'hey Mallow Bot', greetings INTEGER NOT NULL DEFAULT 1, mention_only INTEGER NOT NULL DEFAULT 1, disabled_commands TEXT NOT NULL DEFAULT '[]', features TEXT NOT NULL DEFAULT '{}', economy_config TEXT NOT NULL DEFAULT '{}', xp_config TEXT NOT NULL DEFAULT '{}', updated_at TEXT NOT NULL)").run();
+  for(const sql of [
+   "ALTER TABLE guild_settings ADD COLUMN features TEXT NOT NULL DEFAULT '{}'",
+   "ALTER TABLE guild_settings ADD COLUMN economy_config TEXT NOT NULL DEFAULT '{}'",
+   "ALTER TABLE guild_settings ADD COLUMN xp_config TEXT NOT NULL DEFAULT '{}'"
+  ]){try{await env.MALLOW_DB.prepare(sql).run()}catch{}}
+
  }
 
 async function route(request, env) {
@@ -54,9 +60,13 @@ async function route(request, env) {
   const guildId=url.searchParams.get("guild_id")||"";
   if(!/^\d{17,20}$/.test(guildId))return json({error:"Invalid server ID."},400);
   await ensureGuildSettings(env);
-  const row=await env.MALLOW_DB.prepare("SELECT prefix,greeting,greetings,mention_only,disabled_commands FROM guild_settings WHERE guild_id=?").bind(guildId).first();
+  const row=await env.MALLOW_DB.prepare("SELECT prefix,greeting,greetings,mention_only,disabled_commands,features,economy_config,xp_config FROM guild_settings WHERE guild_id=?").bind(guildId).first();
   let disabled=[];try{disabled=JSON.parse(row?.disabled_commands||"[]");if(!Array.isArray(disabled))disabled=[]}catch{}
-  return json({guild_id:guildId,settings:{prefix:row?.prefix||defaults.prefix,greeting:row?.greeting||defaults.greeting,greetings:row?!!row.greetings:true,mention_only:row?!!row.mention_only:true,disabled_commands:disabled}});
+  const parse=(v,fallback)=>{try{return {...fallback,...JSON.parse(v||"{}")}}catch{return fallback}};
+  const features=parse(row?.features,{economy:true,xp:true,moderation:true,music:true,fun:true,movies:true,utility:true,social:true});
+  const economy=parse(row?.economy_config,{starting_money:100,daily_reward:100,work_min:20,work_max:80});
+  const xp=parse(row?.xp_config,{min_xp:10,max_xp:20,cooldown_seconds:60,announce_level_up:true});
+  return json({guild_id:guildId,settings:{prefix:row?.prefix||defaults.prefix,greeting:row?.greeting||defaults.greeting,greetings:row?!!row.greetings:true,mention_only:row?!!row.mention_only:true,disabled_commands:disabled,features,economy_config:economy,xp_config:xp}});
  }
 
  if(path==="guild-settings"&&(request.method==="GET"||request.method==="PUT")){
@@ -65,18 +75,28 @@ async function route(request, env) {
   const access=await authorizedGuild(s,env,guildId);if(access.error)return json({error:access.error},access.status);
   await ensureGuildSettings(env);
   if(request.method==="GET"){
-   let row=await env.MALLOW_DB.prepare("SELECT prefix,greeting,greetings,mention_only,disabled_commands,updated_at FROM guild_settings WHERE guild_id=?").bind(guildId).first();
-   if(!row)row={prefix:defaults.prefix,greeting:defaults.greeting,greetings:1,mention_only:1,disabled_commands:"[]",updated_at:null};
+   let row=await env.MALLOW_DB.prepare("SELECT prefix,greeting,greetings,mention_only,disabled_commands,features,economy_config,xp_config,updated_at FROM guild_settings WHERE guild_id=?").bind(guildId).first();
+   if(!row)row={prefix:defaults.prefix,greeting:defaults.greeting,greetings:1,mention_only:1,disabled_commands:"[]",features:"{}",economy_config:"{}",xp_config:"{}",updated_at:null};
    let disabled=[];try{disabled=JSON.parse(row.disabled_commands||"[]");if(!Array.isArray(disabled))disabled=[]}catch{}
-   return json({guild:{id:guildId,name:access.guild.name},settings:{prefix:row.prefix,greeting:row.greeting,greetings:!!row.greetings,mention_only:!!row.mention_only,disabled_commands:disabled,updated_at:row.updated_at}});
+   const parse=(v,fallback)=>{try{return {...fallback,...JSON.parse(v||"{}")}}catch{return fallback}};
+   return json({guild:{id:guildId,name:access.guild.name},settings:{prefix:row.prefix,greeting:row.greeting,greetings:!!row.greetings,mention_only:!!row.mention_only,disabled_commands:disabled,features:parse(row.features,{economy:true,xp:true,moderation:true,music:true,fun:true,movies:true,utility:true,social:true}),economy_config:parse(row.economy_config,{starting_money:100,daily_reward:100,work_min:20,work_max:80}),xp_config:parse(row.xp_config,{min_xp:10,max_xp:20,cooldown_seconds:60,announce_level_up:true}),updated_at:row.updated_at}});
   }
   let body;try{body=await request.json()}catch{return json({error:"Invalid JSON."},400)}
   const prefix=String(body.prefix??"-mb").trim(),greeting=String(body.greeting??defaults.greeting);
   const disabled=Array.isArray(body.disabled_commands)?[...new Set(body.disabled_commands.map(x=>String(x).trim()).filter(x=>/^[a-z0-9_-]{1,32}$/i.test(x)))].slice(0,200):[];
   if(!prefix||prefix.length>8||/[\\r\\n\\s]/.test(prefix))return json({error:"Prefix must be 1–8 characters with no spaces or line breaks."},400);
   if(greeting.length>500)return json({error:"Greeting must be 500 characters or fewer."},400);
-  await env.MALLOW_DB.prepare("INSERT INTO guild_settings (guild_id,prefix,greeting,greetings,mention_only,disabled_commands,updated_at) VALUES (?,?,?,?,?,?,?) ON CONFLICT(guild_id) DO UPDATE SET prefix=excluded.prefix,greeting=excluded.greeting,greetings=excluded.greetings,mention_only=excluded.mention_only,disabled_commands=excluded.disabled_commands,updated_at=excluded.updated_at").bind(guildId,prefix,greeting,body.greetings?1:0,body.mention_only?1:0,JSON.stringify(disabled),new Date().toISOString()).run();
-  return json({ok:true,settings:{prefix,greeting,greetings:!!body.greetings,mention_only:!!body.mention_only,disabled_commands:disabled}});
+  const featureDefaults={economy:true,xp:true,moderation:true,music:true,fun:true,movies:true,utility:true,social:true};
+  const featureInput=body.features&&typeof body.features==="object"?body.features:{};
+  const features=Object.fromEntries(Object.keys(featureDefaults).map(k=>[k,featureInput[k]===undefined?true:!!featureInput[k]]));
+  const clamp=(v,min,max,fallback)=>Number.isFinite(Number(v))?Math.max(min,Math.min(max,Math.round(Number(v)))):fallback;
+  const ec=body.economy_config||{},xc=body.xp_config||{};
+  const economy={starting_money:clamp(ec.starting_money,0,100000000,100),daily_reward:clamp(ec.daily_reward,0,1000000,100),work_min:clamp(ec.work_min,0,1000000,20),work_max:clamp(ec.work_max,0,1000000,80)};
+  if(economy.work_max<economy.work_min)return json({error:"Maximum work reward must be at least the minimum."},400);
+  const xp={min_xp:clamp(xc.min_xp,0,10000,10),max_xp:clamp(xc.max_xp,0,10000,20),cooldown_seconds:clamp(xc.cooldown_seconds,0,86400,60),announce_level_up:xc.announce_level_up!==false};
+  if(xp.max_xp<xp.min_xp)return json({error:"Maximum XP must be at least the minimum."},400);
+  await env.MALLOW_DB.prepare("INSERT INTO guild_settings (guild_id,prefix,greeting,greetings,mention_only,disabled_commands,features,economy_config,xp_config,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(guild_id) DO UPDATE SET prefix=excluded.prefix,greeting=excluded.greeting,greetings=excluded.greetings,mention_only=excluded.mention_only,disabled_commands=excluded.disabled_commands,features=excluded.features,economy_config=excluded.economy_config,xp_config=excluded.xp_config,updated_at=excluded.updated_at").bind(guildId,prefix,greeting,body.greetings?1:0,body.mention_only?1:0,JSON.stringify(disabled),JSON.stringify(features),JSON.stringify(economy),JSON.stringify(xp),new Date().toISOString()).run();
+  return json({ok:true,settings:{prefix,greeting,greetings:!!body.greetings,mention_only:!!body.mention_only,disabled_commands:disabled,features,economy_config:economy,xp_config:xp}});
  }
 
  if(path==="me"&&request.method==="GET"){const s=await session(request,env);if(!s)return json({user:null,settings:defaults,is_owner:false});return json({user:s.user,settings:await settings(env),is_owner:s.user.id===env.BOT_OWNER_ID});}
