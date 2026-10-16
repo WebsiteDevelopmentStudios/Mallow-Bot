@@ -32,3 +32,100 @@ button.button-quiet:hover{border-color:#65518b!important;color:#fff!important}
 .hero-logo{width:126px;height:126px;object-fit:contain;filter:drop-shadow(0 10px 28px #8b5cf633);border-radius:28px}
 .settings-panel{margin-top:0!important}
 @media(max-width:700px){.site-header{gap:10px;flex-wrap:wrap;padding-bottom:14px}.brand-lockup{font-size:16px}.brand-icon{width:34px;height:34px}.main-nav{order:3;width:100%;margin:0;justify-content:flex-start}.nav-user{margin-left:auto}.nav-user-name{display:none}.landing-nav{gap:10px;flex-wrap:wrap}.landing-nav .main-nav{order:3;width:100%;justify-content:center}.landing-nav .landing-login{margin-left:auto}.hero-logo{width:84px;height:84px}}
+
+/* Final cohesive Mallow dashboard polish */
+:root{--bg:#0b0a10;--surface:#12111a;--surface-2:#191722;--line:#2c2938;--text:#f7f4ff;--muted:#a09bad;--purple:#b49aff;--purple-2:#936cff}
+body{background:radial-gradient(ellipse at 50% -20%,#6c43b329,transparent 46%),linear-gradient(180deg,#0b0a10,#0d0b13 55%,#0a0910);line-height:1.65}
+body:before{z-index:0;opacity:.10}
+body>*{position:relative;z-index:1}
+.wrap{width:min(1120px,100%);padding:26px 28px 70px}
+.site-header{position:sticky;top:12px;z-index:4;display:grid;grid-template-columns:minmax(180px,1fr) auto minmax(180px,1fr);gap:18px;align-items:center;padding:12px 14px;margin:0 0 28px;border:1px solid #ffffff12;border-radius:18px;background:#111019eF;backdrop-filter:blur(22px);box-shadow:0 14px 44px #0004}
+.brand-lockup{gap:10px;font-size:17px}
+.brand-icon{width:42px;height:42px;object-fit:contain;border-radius:12px;background:#211a2e;padding:4px;box-shadow:0 0 0 1px #b49aff25}
+.brand-accent{color:#c5afff}
+.main-nav{justify-content:center;margin:0;padding:5px;border:1px solid #ffffff0a;border-radius:13px;background:#0b0a10}
+.main-nav a{min-height:37px;padding:8px 17px;border-radius:9px;color:#a9a3b7}
+.main-nav a:hover,.main-nav a.active{background:linear-gradient(135deg,#302543,#21192f);border-color:#514069;color:#fff}
+.main-nav a.active{box-shadow:inset 0 0 0 1px #a78bfa22}
+.nav-user{justify-content:flex-end;min-width:0}
+.nav-user-name{color:#d1cbdc!important}
+button.button-quiet{border-radius:10px!important;background:#1a1722!important}
+.panel,.server{border-color:#ffffff12;background:linear-gradient(145deg,#171520f5,#111019f5);box-shadow:0 20px 55px #00000025}
+.panel{padding:28px;border-radius:20px}
+.panel h1{letter-spacing:-.055em}
+.panel p{max-width:780px}
+.eyebrow{display:flex;align-items:center;gap:9px;font-size:10px;color:#c0a8ff!important;letter-spacing:.19em}
+.eyebrow:before{content:"";width:18px;height:1px;background:#a78bfa;display:inline-block}
+.hero{min-height:235px;grid-template-columns:1fr 150px;padding:36px!important;margin-bottom:18px;position:relative;isolation:isolate}
+.hero:before{content:"";position:absolute;inset:0;z-index:-1;background:radial-gradient(ellipse at 95% 20%,#a78bfa19,transparent 45%),linear-gradient(120deg,#1b1727,#121019)}
+.hero h1{font-size:clamp(35px,4.5vw,53px);max-width:650px;margin:15px 0 10px}
+.hero h1 span{background:linear-gradient(90deg,#f5edff,#bda5ff 75%);-webkit-background-clip:text;background-clip:text;color:transparent!important}
+.hero p{margin-bottom:0}
+.hero-logo{width:124px;height:124px;padding:8px;object-fit:contain;background:linear-gradient(145deg,#29203b,#181421);border:1px solid #b49aff33;border-radius:30px;box-shadow:0 16px 50px #0004,0 0 45px #9b7be51a}
+.settings-panel{padding:30px!important}
+.settings-panel h2{font-size:25px;margin:7px 0}
+.settings-panel section>p.muted{font-size:13px;max-width:680px}
+.field{margin:22px 0}
+.field label{font-size:12px;letter-spacing:.025em;color:#ded7ed}
+.field input,.field textarea{border-radius:12px;background:#0b0a10;border-color:#363142;padding:13px 15px}
+.row{padding:19px 0;border-color:#ffffff10}
+.row b{font-size:13px}.row .muted{margin-top:3px}
+button,.action{border-radius:11px}
+button#save{padding:12px 19px}
+.grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:16px;margin-top:20px}
+.server{padding:18px;border-radius:17px;min-height:104px}
+.server:hover{border-color:#8b70c6;background:linear-gradient(145deg,#201a2d,#13111b);box-shadow:0 18px 45px #0004}
+.guild-icon{width:58px;height:58px;border-radius:17px}
+.details h3{font-size:15px;letter-spacing:-.02em}
+.details p{margin:4px 0 12px;color:#9993a8!important}
+.details .action{border-radius:9px}
+#empty{padding:28px;text-align:center;border:1px dashed #514660}
+#status{font-size:12px}
+.profile{margin-top:24px;padding:23px;border:1px solid #ffffff12;background:#0d0b13;border-radius:17px}
+.avatar{width:88px;height:88px;border-radius:27px;border:2px solid #b49aff;padding:3px;box-shadow:0 0 35px #9b7be520}
+#name{font-size:23px}
+#handle{margin:4px 0;color:#c2b5dc!important}
+#id{font-size:12px}
+.signin{background:#08070df2!important;backdrop-filter:blur(20px)}
+.signin .panel{border-radius:24px;padding:38px;background:radial-gradient(ellipse at 50% 0%,#8b5cf61c,transparent 60%),#14121c}
+.signin h1{font-size:34px;letter-spacing:-.06em}
+.signin .logo{background:transparent;width:90px;height:90px;box-shadow:none;font-size:0}
+.signin .logo:after{content:"";display:block;width:86px;height:86px;background:url("https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/MallowBot.png") center/contain no-repeat}
+.landing{min-height:100vh}
+.landing-nav{position:sticky;top:0;z-index:5;padding:16px clamp(16px,5vw,70px);border-bottom:1px solid #ffffff10;background:#0d0b13d9;backdrop-filter:blur(24px)}
+.landing-nav .brand-icon{width:43px;height:43px}
+.landing-nav .main-nav{margin:0 auto}
+.landing-login{background:#1a1722!important;color:#eee7fb!important;border-color:#393047!important;box-shadow:none!important}
+.landing-hero{position:relative;isolation:isolate;width:min(1050px,100%);padding:105px 24px 120px}
+.landing-hero:before{content:"";position:absolute;z-index:-1;width:360px;height:360px;left:50%;top:60px;transform:translateX(-50%);border-radius:50%;background:#8b5cf612;filter:blur(35px)}
+.landing-hero h1{max-width:900px;font-size:clamp(48px,8vw,86px);line-height:1.02;letter-spacing:-.075em;margin:24px auto}
+.landing-hero p{font-size:16px;line-height:1.85;color:#aaa4b8}
+.landing-hero .landing-cta{margin-top:4px;box-shadow:0 10px 34px #8b5cf62c}
+.landing-foot{background:#0b0a10;border-top-color:#ffffff10}
+@media(max-width:760px){
+ .wrap{padding:15px 13px 42px}
+ .site-header{position:relative;top:auto;grid-template-columns:1fr auto;gap:10px;padding:11px;margin-bottom:19px}
+ .site-header .main-nav{grid-column:1/-1;grid-row:2;width:100%;justify-content:stretch;order:initial}
+ .site-header .main-nav a{flex:1}
+ .site-header .nav-user{grid-column:2;grid-row:1}
+ .site-header .brand-lockup{grid-column:1;grid-row:1}
+ .nav-user-name{display:none}
+ .panel{padding:20px;border-radius:17px}
+ .hero{grid-template-columns:1fr 75px;padding:23px!important;gap:10px;min-height:0}
+ .hero h1{font-size:34px}
+ .hero-logo{width:72px;height:72px;padding:5px;border-radius:20px}
+ .settings-panel{padding:22px!important}
+ .landing-nav{display:grid;grid-template-columns:1fr auto;gap:12px;padding:12px 16px}
+ .landing-nav .brand-lockup{grid-column:1;grid-row:1}
+ .landing-nav .landing-login{grid-column:2;grid-row:1;padding:8px 10px;font-size:11px;min-height:36px}
+ .landing-nav .main-nav{grid-column:1/-1;grid-row:2;width:100%;margin:0;justify-content:stretch}
+ .landing-nav .main-nav a{flex:1}
+ .landing-hero{padding:76px 20px 90px}
+ .landing-hero h1{font-size:clamp(43px,12vw,64px)}
+ .landing-hero p{font-size:14px}
+ .server{padding:14px;gap:12px}
+ .guild-icon{width:49px;height:49px;border-radius:14px}
+ .profile{padding:16px;gap:14px}
+ .avatar{width:67px;height:67px;border-radius:20px}
+}
+@media(max-width:380px){.landing-nav .landing-login{font-size:10px;padding:7px}.brand-lockup{font-size:15px}.brand-icon{width:34px;height:34px}.hero{grid-template-columns:1fr}.hero-logo{display:none}}
