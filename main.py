@@ -26,6 +26,8 @@ try:
 except ImportError:
     wavelink = None
 
+from dashboard_config import get_guild_config
+
 from lavalink_manager import (
     LAVALINK_URI,
     LAVALINK_PASSWORD,
@@ -2135,6 +2137,23 @@ bot = MallowBot(command_prefix=commands.when_mentioned, intents=intents)
 from community_features import setup as setup_community_features
 setup_community_features(bot)
 
+# Enforce per-server command switches for slash commands as well as text commands.
+_original_tree_interaction_check = bot.tree.interaction_check
+async def _dashboard_tree_interaction_check(interaction: discord.Interaction) -> bool:
+    if interaction.guild_id:
+        cfg = await get_guild_config(interaction.guild_id)
+        command = interaction.command
+        command_name = getattr(command, "name", "") if command else ""
+        if command_name and command_name.lower() in set(cfg.get("disabled_commands", [])):
+            message = f"The /{command_name} command is disabled in this server."
+            if not interaction.response.is_done():
+                await interaction.response.send_message(message, ephemeral=True)
+            else:
+                await interaction.followup.send(message, ephemeral=True)
+            return False
+    return await _original_tree_interaction_check(interaction)
+bot.tree.interaction_check = _dashboard_tree_interaction_check
+
 
 HALLOWEEN_GIF_URL = "https://cdn.discordapp.com/attachments/1540581764752220260/1540858289875591208/IMG_9714.gif?ex=6acac39c&is=6ac9721c&hm=a502a514aaa8372aa0fc34c3ae0102527480b9dd75230dd6b9ea9d012a6aeec6"
 HALLOWEEN3_FACTS_FILE = BASE_DIR / "halloween3_facts.txt"
@@ -2602,21 +2621,25 @@ async def post_updates(channel) -> int:
 
 @bot.event
 async def on_message(message: discord.Message) -> None:
-    # Text command prefix is intentionally "-mb"; slash commands remain enabled.
     if message.author.bot or message.guild is None:
         return
-    if not message.content.lower().startswith("-mb"):
+    guild_id = message.guild.id
+    dashboard_config = await get_guild_config(guild_id)
+    prefix = dashboard_config.get("prefix", "-mb")
+    if not prefix or not message.content.casefold().startswith(prefix.casefold()):
         return
 
-    raw = message.content[3:].strip()
+    raw = message.content[len(prefix):].strip()
     if not raw:
-        await message.reply("Run `-mb commands` to see the available commands.", mention_author=False)
+        await message.reply(f"Run {prefix} help to see the available commands.", mention_author=False)
         return
 
     parts = raw.split(maxsplit=1)
     command_name = parts[0].lower()
     argument = parts[1].strip() if len(parts) > 1 else ""
-    guild_id = message.guild.id
+    if command_name in set(dashboard_config.get("disabled_commands", [])):
+        await message.reply(f"The {prefix}{command_name} command is disabled in this server.", mention_author=False)
+        return
     state = get_music_state(guild_id)
     player = state.get("player")
 
