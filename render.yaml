@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: movie-bot
+    name: mochi-bot
     runtime: python
     plan: free
     region: oregon
