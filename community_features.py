@@ -601,7 +601,7 @@ def setup(bot):
     @bot.tree.command(name="wyr", description="Get a movie-themed Would You Rather question.")
     async def wyr_slash(interaction: discord.Interaction):
         questions = ["Would you rather live inside your favorite movie or have your life directed by your least favorite director?", "Would you rather know every movie spoiler in advance or never be able to watch a trailer again?", "Would you rather have unlimited Movie Coins or pick the movie every movie night forever?", "Would you rather be the hero with terrible luck or the villain with a perfect plan?", "Would you rather only watch sequels or only watch movies with cliffhanger endings?", "Would you rather have a personal theme song or dramatic slow motion whenever you enter a room?", "Would you rather swap lives with a fictional character for a week or meet the actor who plays them?", "Would you rather erase one bad movie from existence or make one cancelled show get a perfect finale?"]
-        await interaction.response.send_message(f"🎬 **Would You Rather?**\\n{random.choice(questions)}\\n\\nReact with your choice or explain your answer!")
+        await interaction.response.send_message(f"🎬 **Would You Rather?**\n{random.choice(questions)}\n\nReact with your choice or explain your answer!")
 
     async def message_listener(message):
         await process_message(bot, message)
