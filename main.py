@@ -2723,26 +2723,26 @@ async def on_message(message: discord.Message) -> None:
 
         if command_name in {"help", "commands"}:
             await message.reply(
-                "**XP & level commands**\n"
-                "`-mb xp` / `-mb level` — view your XP, level, and progress\n"
-                "`-mb leaderboard` — server top 10 XP leaderboard\n\n"
-                "**Mallow Coins & gambling**\n"
-                "`-mb balance` · `-mb daily` · `-mb gamble <bet>`\n"
-                "`-mb coinflip <bet>` · `-mb slots <bet>` · `-mb roulette <bet>`\n"
-                "`-mb dice <bet>` · `-mb blackjack <bet>` · `-mb work`\n"
-                "`-mb pay @member <amount>` · `-mb rob @member`\n\n"
-                "**Fun & social**\n"
-                "`-mb vibecheck [@member]` · `-mb ship [optional @member] @member` · `-mb fortune` · `-mb wyr`\n\n"
-                "**Music commands disabled** — temporarily unavailable.\n\n"
-                "**Utility & movie commands**\n"
-                "`-mb uptime` · `-mb update` · `-mb help` / `-mb commands` · `-mb sync` (Administrator)\n"
-                "`-mb countdown` · `-mb movie list` · `-mb movie search <title>` · `-mb movie play <URL>`\n"
-                "`-mb channel link <#channel or ID>` (Administrator)\n"
-                "`-mb youtube <URL>` · `-mb set-log [#channel]` · `-mb timeout-minutes <1-10080>`\n"
-                "**Premium commands** (requires active Mallow Premium)\n"
-                "`/embed` · `/snipe` · `/sticky` · `/backup` · `/custom-command` · `/vanity` · `/premium-status`\n"
-                "Use `/premium-status` to check access. Get Premium: https://mallowbot.devs.surf/subscriptions.html\n"
-                "XP is awarded for eligible chat messages. Mallow Coins are fictional. `/say` has no `-mb say` equivalent.",
+                "**XP & level**\\n"
+                "`-mb xp` · `-mb level` · `-mb leaderboard`\\n\\n"
+                "**Mallow Coins (fictional currency)**\\n"
+                "`-mb balance` · `-mb daily` · `-mb gamble <bet>` · `-mb coinflip <bet>`\\n"
+                "`-mb slots <bet>` · `-mb roulette <bet>` · `-mb dice <bet>` · `-mb blackjack <bet>`\\n"
+                "`-mb work` · `-mb pay @member <amount>` · `-mb rob @member`\\n\\n"
+                "**Fun & social**\\n"
+                "`-mb vibecheck [@member]` · `-mb ship @member` · `-mb fortune` · `-mb wyr`\\n\\n"
+                "**Movies & utilities**\\n"
+                "`-mb movie list` · `-mb movie search <title>` · `-mb movie play <URL>`\\n"
+                "`-mb channel link <#channel or ID>` (Administrator) · `-mb youtube <URL>`\\n"
+                "`-mb uptime` · `-mb update` · `-mb countdown` · `-mb help` · `-mb commands`\\n"
+                "`-mb set-log [#channel]` · `-mb timeout-minutes <1-10080>` · `-mb sync` (Administrator)\\n\\n"
+                "**Premium** (active Mallow Premium required, except status check)\\n"
+                "`-mb embed <title> | <description> [| #hexcolor] [| #channel or ID]`\\n"
+                "`-mb snipe` · `-mb sticky <message>` (omit message to clear) · `-mb backup` (Administrator)\\n"
+                "`-mb custom-command create <name> <response>` · `-mb custom-command list` · `-mb custom-command delete <name>`\\n"
+                "`-mb vanity [tagline]` · `-mb premium-status`\\n"
+                "Premium info: https://mallowbot.devs.surf/subscriptions.html\\n\\n"
+                "Music commands are temporarily unavailable. XP is earned from eligible chat messages. Mallow Coins are fictional. `/say` is slash-only.",
                 mention_author=False,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
