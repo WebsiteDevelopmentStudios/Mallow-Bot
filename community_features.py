@@ -307,7 +307,7 @@ async def prefix(bot, message, command, argument):
     if command == "work":
         k = key(gid, uid)
         earned = random.randint(int(economy_cfg.get("work_min", 20)), int(economy_cfg.get("work_max", 80)))
-        data["currency"][k] = int(data["currency"].get(k, 100)) + earned
+        data["currency"][k] = int(data["currency"].get(k, starting_money)) + earned
         save()
         await message.reply(f"You worked a shift and earned {earned} Mallow Coins.", mention_author=False)
         return True
@@ -327,7 +327,7 @@ async def prefix(bot, message, command, argument):
             data["currency"][key(gid, uid)] = int(data["currency"].get(key(gid, uid), starting_money)) + stolen
             result = f"You stole {stolen} Mallow Coins from {target.display_name}."
         else:
-            fine = min(int(data["currency"].get(key(gid, uid), 100)), 25)
+            fine = min(int(data["currency"].get(key(gid, uid), starting_money)), 25)
             data["currency"][key(gid, uid)] = int(data["currency"].get(key(gid, uid), 100)) - fine
             result = f"You got caught and paid a {fine}-coin fine."
         save()
@@ -400,14 +400,14 @@ async def prefix(bot, message, command, argument):
             minutes = (remainder + 59) // 60
             await message.reply(f"You've already claimed your daily Mallow Coins. Try again in {hours}h {minutes}m.", mention_author=False)
             return True
-        data["currency"][k] = int(data["currency"].get(k, 100)) + 100
+        data["currency"][k] = int(data["currency"].get(k, starting_money)) + int(economy_cfg.get("daily_reward", 100))
         data["daily_claims"][k] = now
         save()
-        await message.reply("Claimed 100 Mallow Coins. Try not to lose them immediately.", mention_author=False)
+        await message.reply("Claimed " + str(int(economy_cfg.get("daily_reward", 100))) + " Mallow Coins. Try not to lose them immediately.", mention_author=False)
         return True
     if command in ("coinflip", "slots"):
         k = key(gid,uid)
-        balance = int(data["currency"].get(k,100))
+        balance = int(data["currency"].get(k,starting_money))
         try:
             bet = int(argument.split()[0]) if argument else 10
         except ValueError:
@@ -540,7 +540,7 @@ def setup(bot):
         if amount>balance:
             await interaction.response.send_message(f"You only have {balance} Mallow Coins.",ephemeral=True); return
         data["currency"][k]=balance-amount
-        data["currency"][tk]=int(data["currency"].get(tk,100))+amount
+        data["currency"][tk]=int(data["currency"].get(tk,starting_money))+amount
         save()
         await interaction.response.send_message(f"Paid {amount} Mallow Coins to {member.display_name}.",ephemeral=True)
 
