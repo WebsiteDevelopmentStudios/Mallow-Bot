@@ -540,3 +540,13 @@ body.mallow-dashboard .dashboard-hero{display:none}
 @media(min-width:1500px){body.mallow-dashboard .dashboard-layout{grid-template-columns:270px minmax(0,1fr);gap:34px}body.mallow-dashboard .settings-panel{padding:34px 40px}}
 @media(max-width:980px){body.mallow-dashboard .dashboard-layout{width:calc(100% - 32px);grid-template-columns:220px minmax(0,1fr);gap:18px}body.mallow-dashboard .settings-panel{padding:24px 22px}body.mallow-dashboard .module-card{padding:24px}}
 @media(max-width:720px){body.mallow-dashboard .dashboard-layout{display:flex;flex-direction:column;width:calc(100% - 24px);margin:16px auto 40px}body.mallow-dashboard .config-sidebar{position:relative;top:auto;width:100%;padding:16px}body.mallow-dashboard .config-main{width:100%;gap:18px}body.mallow-dashboard .settings-panel{padding:20px 16px}body.mallow-dashboard .two-fields{grid-template-columns:1fr;gap:0}body.mallow-dashboard .module-card{padding:20px 16px}body.mallow-dashboard .site-header{right:12px;top:8px}}
+
+/* Avatar images and viewport-safe account menu */
+body.mallow-dashboard .server-identity-icon{object-fit:cover;overflow:hidden}
+body.mallow-dashboard img.server-identity-icon[hidden],body.mallow-dashboard .profile-avatar[hidden],body.mallow-dashboard .profile-initial.hidden{display:none!important}
+body.mallow-dashboard .profile-trigger{max-width:min(320px,calc(100vw - 28px));min-width:0}
+body.mallow-dashboard .profile-avatar{object-fit:cover;flex:0 0 34px;overflow:hidden}
+body.mallow-dashboard .profile-initial{display:grid;place-items:center;width:34px;height:34px;flex:0 0 34px;border-radius:50%;background:#30394b;color:#fff;font-weight:800}
+body.mallow-dashboard .profile-menu{right:0;left:auto;max-width:calc(100vw - 24px);max-height:calc(100vh - 90px);overflow-y:auto}
+body.mallow-dashboard .nav-user{position:relative}
+@media(max-width:520px){body.mallow-dashboard .profile-menu{position:fixed;top:64px;right:12px;left:auto;width:220px}body.mallow-dashboard .profile-trigger{padding-right:7px!important}}
