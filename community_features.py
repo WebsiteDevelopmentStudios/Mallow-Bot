@@ -102,7 +102,7 @@ async def process_message(bot, message):
 
     # A -mb youtube command is handled by the prefix-command listener below.
     # Skip the automatic URL preview here to avoid posting a second embed.
-    yt = None if content.casefold().startswith((command_prefix + " youtube").casefold()) else YT_RE.search(content)
+    yt = None if (not dashboard_config.get("features", {}).get("social", True) or content.casefold().startswith((command_prefix + " youtube").casefold())) else YT_RE.search(content)
     if yt:
         url = "https://www.youtube.com/watch?v=" + yt.group(1)
         try:
