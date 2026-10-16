@@ -3043,22 +3043,25 @@ async def on_message(message: discord.Message) -> None:
 
 
 async def refresh_application_commands(guild: discord.Guild) -> list:
-    """Remove server-specific registrations, then replace the global list with this code's current commands."""
-    # Guild commands are a separate remote registry. Clear it remotely first so
-    # old guild-only copies cannot appear alongside the global command list.
-    bot.tree.clear_commands(guild=guild)
-    await bot.tree.sync(guild=guild)
+    """Publish all current commands globally and to this guild for immediate visibility."""
+    # Publish globally for all servers, including the Premium commands registered by
+    # community_features.setup(bot).
+    global_synced = await bot.tree.sync()
 
-    # Sync the current tree (including Premium commands) and count Premium separately.
-    synced = await bot.tree.sync()
+    # Guild registrations update immediately. Replace old guild-only commands with
+    # a copy of the complete current global tree, not an empty guild tree.
+    bot.tree.clear_commands(guild=guild)
+    bot.tree.copy_global_to(guild=guild)
+    guild_synced = await bot.tree.sync(guild=guild)
+
     premium_names = {"embed", "snipe", "sticky", "backup", "custom-command", "vanity", "premium-status"}
-    premium_synced = [command for command in synced if command.name in premium_names]
-    standard_synced = [command for command in synced if command.name not in premium_names]
+    premium_count = sum(1 for command in guild_synced if command.name in premium_names)
+    standard_count = len(guild_synced) - premium_count
     logger.info(
-        "Synced %d commands and %d Premium commands for %s (%s).",
-        len(standard_synced), len(premium_synced), guild.name, guild.id,
+        "Synced %d commands and %d Premium commands for %s (%s); global total: %d.",
+        standard_count, premium_count, guild.name, guild.id, len(global_synced),
     )
-    return synced
+    return guild_synced
 
 
 @bot.tree.command(name="sync", description="Delete stale command registrations and refresh slash commands.")
