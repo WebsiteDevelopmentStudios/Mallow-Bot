@@ -1,0 +1,15 @@
+Mallow Bot Updates
+
+Premium commands added:
+- /embed — create and send a custom embed (Manage Messages permission required).
+- /snipe — show the latest deleted message in the current channel.
+- /sticky — set or clear a sticky message (Manage Messages permission required).
+- /backup — export server role and channel layout to a JSON file (Administrator required).
+- /custom-command — create, list, or delete server custom text commands (Manage Server permission required).
+- /vanity — set or view the server tagline (Manage Server permission required).
+- /premium-status — check your Mallow Premium status and expiry.
+
+Premium access is checked when using Premium features. Without an active subscription, the bot should direct you to:
+https://mallowbot.devs.surf/subscriptions.html
+
+Prefix help: -mb help
