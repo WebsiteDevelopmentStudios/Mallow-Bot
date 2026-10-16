@@ -1,4 +1,4 @@
-name: Validate Movie Bot
+name: Validate Mochi Bot
 
 on:
   push:
