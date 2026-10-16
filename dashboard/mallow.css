@@ -300,3 +300,76 @@ a:hover{color:#e0d5f6}
 .text-link{color:#c0b0e7}
 @media(max-width:900px){.wrap{padding:16px}.site-header{position:relative;top:auto}}
 @media(max-width:620px){.feature-grid{grid-template-columns:1fr}.panel{padding:18px}}
+
+
+/* Dashboard layout closely follows the supplied reference */
+body.mallow-dashboard{background:#202431;color:#f2f3f8}
+body.mallow-dashboard:before{display:none}
+body.mallow-dashboard .wrap{width:auto;max-width:none;margin:0 0 0 342px;padding:0 42px 56px 24px}
+body.mallow-dashboard .site-header{position:sticky;top:0;z-index:10;margin:0 -42px 26px -24px;padding:12px 28px;background:#1b202c;border:0;border-bottom:1px solid #343a49;border-radius:0;box-shadow:none;backdrop-filter:none;grid-template-columns:1fr auto 1fr}
+body.mallow-dashboard .dashboard-hero{background:transparent!important;border:0;padding:0 0 8px!important;margin:0 0 22px;box-shadow:none;min-height:0}
+body.mallow-dashboard .dashboard-hero .hero-logo{display:none}
+body.mallow-dashboard .dashboard-hero h1{font-size:29px;margin:0 0 7px;letter-spacing:-.04em}
+body.mallow-dashboard .dashboard-hero h1 span{background:none;color:#d1c2f2!important;-webkit-text-fill-color:#d1c2f2}
+body.mallow-dashboard .dashboard-hero .eyebrow{display:none}
+body.mallow-dashboard .dashboard-layout{grid-template-columns:268px minmax(0,1fr);gap:22px;align-items:start}
+body.mallow-dashboard .config-sidebar{position:sticky;top:82px;min-height:calc(100vh - 105px);padding:20px 14px!important;background:#292f40;border:0;border-radius:14px;box-shadow:none}
+body.mallow-dashboard .config-sidebar h2{font-size:15px;letter-spacing:-.02em;margin:0;line-height:1.3}
+body.mallow-dashboard .server-identity{display:flex;align-items:center;gap:12px;padding:10px 8px 20px}
+body.mallow-dashboard .server-identity-icon{width:50px;height:50px;display:grid;place-items:center;flex-shrink:0;border-radius:50%;background:#3b354b;color:#e4d9fb;font-size:20px;font-weight:700}
+body.mallow-dashboard .config-sidebar .small{font-size:11px;padding:0 8px}
+body.mallow-dashboard .config-sidebar hr{border:0;border-top:1px solid #414758;margin:14px 0}
+body.mallow-dashboard .sidebar-label{font-size:10px;color:#a4aaba;font-weight:700;padding:15px 10px 5px}
+body.mallow-dashboard .side-link{display:block;margin:2px 0;padding:9px 10px;border-radius:7px;font-size:12px;color:#e0e3eb}
+body.mallow-dashboard .side-link:hover,body.mallow-dashboard .side-link.active{background:#8e7ab8;color:#fff}
+body.mallow-dashboard .side-count{border-color:#414758}
+body.mallow-dashboard .config-main{gap:18px}
+body.mallow-dashboard .settings-panel,body.mallow-dashboard .commands-panel{padding:0!important;background:transparent;border:0;box-shadow:none;margin:0}
+body.mallow-dashboard .section-heading{margin-bottom:18px}
+body.mallow-dashboard .section-heading h2{font-size:23px;letter-spacing:-.04em}
+body.mallow-dashboard .section-heading p{font-size:12px}
+body.mallow-dashboard .feature-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:18px}
+body.mallow-dashboard .feature-card{padding:18px;background:#1b202c;border:1px solid #252b39;border-radius:9px;min-height:190px}
+body.mallow-dashboard .feature-card:hover{background:#222837;border-color:#514763}
+body.mallow-dashboard .feature-card-top{margin-bottom:12px}
+body.mallow-dashboard .feature-icon{width:32px;height:32px;border-radius:7px;background:#343044;color:#c6b4ed;border:0}
+body.mallow-dashboard .feature-card h3{font-size:15px;letter-spacing:-.025em}
+body.mallow-dashboard .feature-card p{font-size:12px;line-height:1.5;color:#c0c5d0}
+body.mallow-dashboard .feature-card-bottom{margin-top:auto;padding-top:12px}
+body.mallow-dashboard .manage-feature{font-size:11px;padding:7px 10px;background:#3a4050;border:0;color:#f0f1f6}
+body.mallow-dashboard .feature-switch.on{background:#8e7ab8;border-color:#a997d3}
+body.mallow-dashboard .feature-manage{background:#292f40;border:1px solid #3b4050}
+body.mallow-dashboard .commands-panel .command-toolbar{grid-template-columns:minmax(0,1fr) 190px 190px}
+body.mallow-dashboard .command-row{background:#1b202c;border-color:#343a49}
+body.mallow-dashboard .command-title code{background:#343044;color:#e0d5f6}
+body.mallow-dashboard .server-rail{position:fixed;z-index:20;inset:0 auto 0 0;width:64px;background:#1b202c;border-right:1px solid #343a49;display:flex;align-items:center;flex-direction:column;gap:10px;padding:12px 8px;overflow-y:auto}
+body.mallow-dashboard .rail-home,body.mallow-dashboard .rail-add{width:44px;height:44px;display:grid;place-items:center;flex-shrink:0;border-radius:50%;background:#39334a;color:#f5efff;font-size:18px;font-weight:700}
+body.mallow-dashboard .rail-add{border:1px dashed #555064;background:transparent;color:#b9accf}
+body.mallow-dashboard .server-rail-items{display:flex;flex-direction:column;align-items:center;gap:9px;width:100%}
+body.mallow-dashboard .server-rail-link{width:44px;height:44px;display:block;border-radius:50%;overflow:hidden;border:2px solid transparent;background:#303647;transition:border-radius .15s,border-color .15s}
+body.mallow-dashboard .server-rail-link img{width:100%;height:100%;object-fit:cover}
+body.mallow-dashboard .server-rail-link:hover{border-radius:14px}
+body.mallow-dashboard .server-rail-link.active{border-color:#b7a2e8;border-radius:14px}
+body.mallow-dashboard .overview-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+body.mallow-dashboard .overview-card{display:block;min-height:120px;padding:18px;background:#1b202c;border:1px solid #252b39;border-radius:9px;color:#f2f3f8}
+body.mallow-dashboard .overview-card:hover{background:#242a39;border-color:#514763}
+body.mallow-dashboard .overview-card h3{margin:10px 0 7px;font-size:15px}
+body.mallow-dashboard .overview-card p{margin:0;color:#c0c5d0;font-size:12px;line-height:1.55}
+body.mallow-dashboard .overview-icon{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:7px;background:#343044;color:#c6b4ed}
+body.mallow-dashboard .group-title{font-size:23px;margin:28px 0 13px;letter-spacing:-.04em}
+body.mallow-dashboard .two-cards{grid-template-columns:repeat(2,minmax(0,1fr))}
+body.mallow-dashboard .card-action{display:block;margin-top:14px;font-size:11px;color:#c6b4ed}
+body.mallow-dashboard .user-chip{display:flex;align-items:center;gap:10px;font-size:12px;color:#c0c5d0}
+body.mallow-dashboard .user-chip .button-quiet{min-height:30px;padding:5px 9px}
+body.mallow-dashboard .page-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:20px}
+body.mallow-dashboard .page-heading h1{font-size:29px;margin:0 0 5px}
+body.mallow-dashboard .page-heading p{font-size:12px;margin:0}
+body.mallow-dashboard #messages{margin-top:22px}
+body.mallow-dashboard .field input,body.mallow-dashboard .field textarea,body.mallow-dashboard .feature-manage input[type=number],body.mallow-dashboard .command-toolbar input,body.mallow-dashboard .command-toolbar select{background:#1b202c;border-color:#414758;border-radius:8px}
+body.mallow-dashboard button{box-shadow:none;border-radius:7px}
+body.mallow-dashboard .button-quiet{background:#3a4050!important;border:0!important;color:#f0f1f6!important}
+body.mallow-dashboard .main-nav{background:transparent;border:0}
+body.mallow-dashboard .main-nav a{color:#c1c5d0}
+body.mallow-dashboard .main-nav a:hover,body.mallow-dashboard .main-nav a.active{background:#34394a;color:#fff}
+@media(max-width:1100px){body.mallow-dashboard .wrap{margin-left:320px;padding-right:20px}body.mallow-dashboard .feature-grid{grid-template-columns:repeat(2,minmax(0,1fr))}body.mallow-dashboard .overview-grid{grid-template-columns:repeat(2,minmax(0,1fr))}body.mallow-dashboard .dashboard-layout{grid-template-columns:230px minmax(0,1fr)}}
+@media(max-width:760px){body.mallow-dashboard .wrap{margin-left:64px;padding:0 14px 35px}body.mallow-dashboard .site-header{margin:0 -14px 20px;padding:12px 14px;grid-template-columns:1fr auto}body.mallow-dashboard .main-nav{display:none}body.mallow-dashboard .dashboard-layout{grid-template-columns:1fr}body.mallow-dashboard .config-sidebar{position:static;min-height:0}body.mallow-dashboard .feature-grid,body.mallow-dashboard .overview-grid,body.mallow-dashboard .two-cards{grid-template-columns:1fr}body.mallow-dashboard .commands-panel .command-toolbar{grid-template-columns:1fr}body.mallow-dashboard .page-heading{flex-direction:column}}
