@@ -245,6 +245,30 @@ async function route(request, env) {
   await env.MALLOW_DB.prepare("INSERT INTO premium_subscriptions(discord_id,starts_at,expires_at,source_code) VALUES(?,?,?,?) ON CONFLICT(discord_id) DO UPDATE SET expires_at=excluded.expires_at,source_code=excluded.source_code").bind(s.user.id,startsAt,expiresAt,code).run();
   return json({ok:true,premium:{active:true,starts_at:startsAt,expires_at:expiresAt}});
  }
+ if(path==="channel-messages"&&(request.method==="GET"||request.method==="POST")){
+  const s=await session(request,env);if(!s)return json({error:"Sign in required."},401);
+  const guildId=url.searchParams.get("guild_id")||"";
+  const channelId=url.searchParams.get("channel_id")||"";
+  const access=await authorizedGuild(s,env,guildId);if(access.error)return json({error:access.error},access.status);
+  const premium=await premiumFor(env,s.user.id);if(!premium.active&&s.user.id!==String(env.BOT_OWNER_ID))return json({error:"An active seven-day Premium subscription is required to manage channel messages."},402);
+  if(!env.BOT_TOKEN)return json({error:"Bot token is not configured."},503);
+  if(!/^\d{17,20}$/.test(channelId))return json({error:"Choose a valid channel."},400);
+  const headers={authorization:"Bot "+env.BOT_TOKEN,"content-type":"application/json"};
+  const channelRes=await fetch("https://discord.com/api/channels/"+channelId,{headers});
+  if(!channelRes.ok)return json({error:"Could not access that channel."},502);
+  const channel=await channelRes.json();if(channel.guild_id!==guildId||![0,5,15].includes(channel.type))return json({error:"Choose a text, announcement, or forum channel in this server."},400);
+  if(request.method==="GET"){
+   const mr=await fetch("https://discord.com/api/channels/"+channelId+"/messages?limit=50",{headers});
+   if(!mr.ok)return json({error:"Could not read messages. Check the bot's View Channel and Read Message History permissions."},502);
+   const messages=await mr.json();
+   return json({ok:true,channel:{id:channel.id,name:channel.name},messages:messages.map(m=>({id:m.id,content:m.content,created_at:m.timestamp,author:{id:m.author?.id,username:m.author?.global_name||m.author?.username,avatar:m.author?.avatar?("https://cdn.discordapp.com/avatars/"+m.author.id+"/"+m.author.avatar+".png?size=64"):null},attachments:(m.attachments||[]).map(a=>({url:a.url,filename:a.filename}))})).reverse()});
+  }
+  let body;try{body=await request.json()}catch{return json({error:"Invalid JSON."},400)}
+  const content=String(body.content||"").trim();if(!content||content.length>2000)return json({error:"Message must contain 1–2000 characters."},400);
+  const sent=await fetch("https://discord.com/api/channels/"+channelId+"/messages",{method:"POST",headers,body:JSON.stringify({content,allowed_mentions:{parse:[]}})});
+  if(!sent.ok)return json({error:"Could not send message. Check the bot's Send Messages permission."},502);
+  const m=await sent.json();return json({ok:true,message:{id:m.id,content:m.content,created_at:m.timestamp}});
+ }
  if(path==="subscriptions"&&request.method==="GET"){
   const s=await session(request,env);if(!s)return json({error:"Sign in with Discord first."},401);
   return json({ok:true,premium:await premiumFor(env,s.user.id)});
