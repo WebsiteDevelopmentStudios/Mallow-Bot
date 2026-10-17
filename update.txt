@@ -21,7 +21,7 @@ Premium text command equivalents
 - -mb premium-status (available even without Premium)
 
 Premium features require an active subscription, except the Premium status check. Premium details:
-https://mallowbot.devs.surf/subscriptions.html
+https://mallowbot.kz.ci/subscriptions.html
 
 Command syncing
 - /sync or -mb sync clears guild-only command registrations for the server where it is run, then syncs the global command list.
