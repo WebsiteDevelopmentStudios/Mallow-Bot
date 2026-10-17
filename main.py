@@ -2890,7 +2890,7 @@ async def on_message(message: discord.Message) -> None:
                 "`-mb snipe` · `-mb sticky <message>` (omit message to clear) · `-mb backup` (Administrator)\n"
                 "`-mb custom-command create <name> <response>` · `-mb custom-command list` · `-mb custom-command delete <name>`\n"
                 "`-mb vanity [tagline]` · `-mb premium-status`\n"
-                "Premium info: https://mallowbot.devs.surf/subscriptions.html\n\n"
+                "Premium info: https://mallowbot.kz.ci/subscriptions.html\n\n"
                 "Music commands are temporarily unavailable. XP is earned from eligible chat messages. Mallow Coins are fictional. `/say` is slash-only.",
                 mention_author=False,
                 allowed_mentions=discord.AllowedMentions.none(),
