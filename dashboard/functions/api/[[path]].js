@@ -327,6 +327,17 @@ async function route(request, env) {
  await env.MALLOW_DB.prepare("CREATE TABLE IF NOT EXISTS settings (id INTEGER PRIMARY KEY CHECK (id=1), prefix TEXT NOT NULL, greeting TEXT NOT NULL, greetings INTEGER NOT NULL, mention_only INTEGER NOT NULL, updated_at TEXT NOT NULL)").run();
  await env.MALLOW_DB.prepare("INSERT INTO settings (id,prefix,greeting,greetings,mention_only,updated_at) VALUES (1,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET prefix=excluded.prefix,greeting=excluded.greeting,greetings=excluded.greetings,mention_only=excluded.mention_only,updated_at=excluded.updated_at").bind(prefix,greeting,body.greetings?1:0,body.mention_only?1:0,new Date().toISOString()).run();return json({ok:true,settings:await settings(env)});}
 
+ if(path==="developer-guilds"&&request.method==="GET"){
+   const s=await session(request,env);if(!s)return json({error:"Sign in required."},401);
+   if(s.user.id!==String(env.BOT_OWNER_ID))return json({error:"Only the bot owner can view the bot's server list."},403);
+   if(!env.BOT_TOKEN)return json({error:"Bot token is not configured."},503);
+   const backendUrl=String(env.BOT_BACKEND_URL||"https://d7lyw2yvj2.apps.bot-hosting.cloud").replace(/\/$/,"");
+   const response=await fetch(backendUrl+"/owner/guilds",{headers:{authorization:"Bot "+env.BOT_TOKEN}});
+   const data=await response.json().catch(()=>({}));
+   if(!response.ok)return json({error:data.error||"Could not retrieve Mallow's live server list from the bot service."},response.status===401?503:502);
+   const guilds=Array.isArray(data.guilds)?data.guilds.map(g=>({id:g.id,name:g.name,icon_url:g.icon_url||null,member_count:g.member_count??null,bot_present:true})): [];
+   return json({guilds,source:"bot"});
+  }
  if(path==="guilds"&&request.method==="GET"){
    const s=await session(request,env);if(!s)return json({error:"Sign in required."},401);
    const userGuildsResult=await cachedUserGuilds(env,s);
