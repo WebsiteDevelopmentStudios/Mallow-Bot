@@ -338,7 +338,7 @@ async function route(request, env) {
     if(!botMeResponse.ok)return json({error:botMeResponse.status===401?"The configured BOT_TOKEN is invalid.":"Discord could not verify BOT_TOKEN."},503);
     const botMe=await botMeResponse.json();
     if(botMe.id!==env.CLIENT_ID)return json({error:"BOT_TOKEN belongs to a different Discord application than CLIENT_ID."},503);
-    const backendUrl=String(env.BOT_BACKEND_URL||"https://d7lyw2yvj2.apps.bot-hosting.cloud").replace(/\\/$/,"");
+    const backendUrl=String(env.BOT_BACKEND_URL||"https://d7lyw2yvj2.apps.bot-hosting.cloud").replace(/\/$/,"");
     const response=await fetch(backendUrl+"/owner/guilds",{headers:{authorization:"Bot "+env.BOT_TOKEN}});
     const data=await response.json().catch(()=>({}));
     if(!response.ok)return json({error:data.error||"Could not retrieve Mallow's live server list from the bot service."},response.status===401?503:502);
