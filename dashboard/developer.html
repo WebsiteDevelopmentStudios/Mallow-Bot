@@ -18,4 +18,4 @@ async function loadDevelopers(){try{const d=await api("/api/developers");isOwner
 (async()=>{try{const me=await api("/api/me");if(!me.user){location.href="/api/login";return}$("topUser").textContent=me.user.global_name||me.user.username;await loadDevelopers()}catch(e){$("identity").textContent=e.message}})();
 $("addForm").addEventListener("submit",async e=>{e.preventDefault();const id=$("discordId").value.trim();try{await api("/api/developers",{method:"POST",body:JSON.stringify({discord_id:id})});$("discordId").value="";status("Developer added successfully.");await loadDevelopers()}catch(e){status(e.message,true)}});
 $("logout").addEventListener("click",async()=>{try{await fetch("/api/logout",{method:"POST",credentials:"same-origin"})}finally{location.href="/"}});
-</script></body></html>
+</script><script src="/mobile-nav.js" defer></script></body></html>
