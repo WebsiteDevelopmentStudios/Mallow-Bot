@@ -550,3 +550,14 @@ body.mallow-dashboard .profile-initial{display:grid;place-items:center;width:34p
 body.mallow-dashboard .profile-menu{right:0;left:auto;max-width:calc(100vw - 24px);max-height:calc(100vh - 90px);overflow-y:auto}
 body.mallow-dashboard .nav-user{position:relative}
 @media(max-width:520px){body.mallow-dashboard .profile-menu{position:fixed;top:64px;right:12px;left:auto;width:220px}body.mallow-dashboard .profile-trigger{padding-right:7px!important}}
+
+/* Dashboard server rail: servers without Mallow sit at the bottom and reveal an invite control on hover. */
+body.mallow-dashboard .server-rail-items{display:flex;flex-direction:column;gap:8px}
+body.mallow-dashboard .server-rail-link{position:relative;isolation:isolate;overflow:visible;transition:filter .2s ease,opacity .2s ease,transform .2s ease}
+body.mallow-dashboard .server-rail-link.server-rail-missing{filter:grayscale(1);opacity:.48}
+body.mallow-dashboard .server-rail-link.server-rail-missing:hover,body.mallow-dashboard .server-rail-link.server-rail-missing:focus-visible{filter:grayscale(.65);opacity:.9;outline:none}
+body.mallow-dashboard .server-rail-add{position:absolute;z-index:2;inset:0;display:grid;place-items:center;border-radius:inherit;background:#171d29eF;color:#fff;font-size:31px;font-weight:500;line-height:1;opacity:0;transform:scale(.35);pointer-events:none;transition:opacity .18s ease,transform .28s cubic-bezier(.2,1.7,.4,1);box-shadow:0 4px 15px #0005}
+body.mallow-dashboard .server-rail-link.server-rail-missing:hover .server-rail-add,body.mallow-dashboard .server-rail-link.server-rail-missing:focus-visible .server-rail-add{opacity:1;transform:scale(1);}
+body.mallow-dashboard .server-rail-link.server-rail-missing img{transition:filter .2s ease}
+@media(hover:none){body.mallow-dashboard .server-rail-link.server-rail-missing .server-rail-add{opacity:.85;transform:scale(.82);inset:auto -3px -3px auto;width:23px;height:23px;border-radius:50%;font-size:20px;border:2px solid #202634}}
+@media(prefers-reduced-motion:reduce){body.mallow-dashboard .server-rail-link,body.mallow-dashboard .server-rail-add{transition:none}}
