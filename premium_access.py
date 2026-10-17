@@ -7,7 +7,7 @@ import time
 import aiohttp
 
 logger = logging.getLogger("mallow-bot.access")
-CHECK_URL = os.getenv("PREMIUM_CHECK_URL", "https://mallowbot.devs.surf/api/premium-check").strip()
+CHECK_URL = os.getenv("PREMIUM_CHECK_URL", "https://mallowbot.kz.ci/api/premium-check").strip()
 CACHE_SECONDS = 15
 _cache: dict[str, tuple[float, bool]] = {}
 _inflight: dict[str, asyncio.Task] = {}
