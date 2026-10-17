@@ -654,3 +654,25 @@ body.mallow-dashboard .server-rail-link.server-rail-missing img{transition:filte
   }
 }
 
+
+/* Accessible hamburger navigation on phones; desktop navigation remains unchanged. */
+.mobile-nav-toggle{display:none;align-items:center;justify-content:center;flex-direction:column;gap:5px;width:42px;height:42px;min-height:42px;padding:9px!important;border:1px solid #393347!important;border-radius:12px!important;background:#17141f!important;color:#f6f4fb!important;box-shadow:none!important;flex:0 0 auto;z-index:82}
+.mobile-nav-toggle span{display:block;width:19px;height:2px;border-radius:3px;background:currentColor;transition:transform .18s ease,opacity .18s ease}
+.mobile-nav-toggle.is-open span:nth-child(1){transform:translateY(7px) rotate(45deg)}
+.mobile-nav-toggle.is-open span:nth-child(2){opacity:0}
+.mobile-nav-toggle.is-open span:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
+@media(max-width:760px){
+  .site-header,.landing-nav{position:relative}
+  .site-header .mobile-nav-toggle,.landing-nav .mobile-nav-toggle{display:inline-flex;order:2}
+  .site-header .main-nav,.landing-nav .main-nav{display:none!important;position:absolute;z-index:80;top:calc(100% + 8px);left:12px;right:12px;width:auto;max-height:min(70vh,480px);overflow-y:auto;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:4px;margin:0;padding:9px;border:1px solid #343044;border-radius:16px;background:#111019f7;box-shadow:0 18px 45px #0009;backdrop-filter:blur(22px)}
+  .site-header .main-nav.mobile-nav-open,.landing-nav .main-nav.mobile-nav-open{display:flex!important}
+  .site-header .main-nav a,.landing-nav .main-nav a{display:flex;align-items:center;justify-content:flex-start;width:100%;min-height:43px;flex:none;padding:11px 13px;border-radius:10px}
+  .site-header .mobile-nav-toggle{grid-column:auto;grid-row:auto}
+  .landing-nav .mobile-nav-toggle{margin-left:0}
+  .landing-nav .landing-login{margin-left:auto;order:3}
+  body.mallow-dashboard .site-header{position:relative;display:flex!important;right:auto;top:auto;width:100%;justify-content:flex-end;gap:10px;padding:8px 0}
+  body.mallow-dashboard .site-header .mobile-nav-toggle{display:inline-flex}
+  body.mallow-dashboard .site-header .main-nav{display:none!important;top:calc(100% + 7px);left:auto;right:0;width:min(280px,calc(100vw - 24px))}
+  body.mallow-dashboard .site-header .main-nav.mobile-nav-open{display:flex!important}
+}
+@media(prefers-reduced-motion:reduce){.mobile-nav-toggle span{transition:none}}
