@@ -200,14 +200,14 @@ async def prefix(bot, message, command, argument):
         if uid != OWNER_USER_ID and command != "premium-status":
             try:
                 async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
-                    async with session.get("https://mallowbot.devs.surf/api/premium-check", params={"discord_id": str(uid)}) as response:
+                    async with session.get("https://mallowbot.kz.ci/api/premium-check", params={"discord_id": str(uid)}) as response:
                         premium_result = await response.json()
                 premium_active = response.status == 200 and bool(premium_result.get("active"))
             except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
                 await message.reply("I couldn't check Premium right now. Please try again shortly.", mention_author=False)
                 return True
             if not premium_active:
-                await message.reply("Mallow Premium is required. Get Premium at https://mallowbot.devs.surf/subscriptions.html", mention_author=False)
+                await message.reply("Mallow Premium is required. Get Premium at https://mallowbot.kz.ci/subscriptions.html", mention_author=False)
                 return True
         if command == "premium-status":
             if uid == OWNER_USER_ID:
@@ -215,12 +215,12 @@ async def prefix(bot, message, command, argument):
                 return True
             try:
                 async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
-                    async with session.get("https://mallowbot.devs.surf/api/premium-check", params={"discord_id": str(uid)}) as response:
+                    async with session.get("https://mallowbot.kz.ci/api/premium-check", params={"discord_id": str(uid)}) as response:
                         result = await response.json()
                 if response.status == 200 and result.get("active"):
                     await message.reply(f"Mallow Premium is active. Expires: {result.get('expires_at') or 'unknown'}", mention_author=False)
                 else:
-                    await message.reply("Mallow Premium is not active for your Discord account. Get Premium at https://mallowbot.devs.surf/subscriptions.html", mention_author=False)
+                    await message.reply("Mallow Premium is not active for your Discord account. Get Premium at https://mallowbot.kz.ci/subscriptions.html", mention_author=False)
             except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
                 await message.reply("I couldn't check Premium right now. Please try again shortly.", mention_author=False)
             return True
@@ -808,13 +808,13 @@ def setup(bot):
             return True
         try:
             async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
-                async with session.get("https://mallowbot.devs.surf/api/premium-check", params={"discord_id": str(interaction.user.id)}) as response:
+                async with session.get("https://mallowbot.kz.ci/api/premium-check", params={"discord_id": str(interaction.user.id)}) as response:
                     result = await response.json()
             if response.status == 200 and result.get("active"):
                 return True
         except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
             pass
-        await interaction.response.send_message("👑 **Mallow Premium required**\nYou can run this command, but need an active Premium subscription. Get Premium at https://mallowbot.devs.surf/subscriptions.html", ephemeral=True)
+        await interaction.response.send_message("👑 **Mallow Premium required**\nYou can run this command, but need an active Premium subscription. Get Premium at https://mallowbot.kz.ci/subscriptions.html", ephemeral=True)
         return False
 
     @bot.tree.command(name="embed", description="Create and send a custom embed (Premium).")
@@ -911,12 +911,12 @@ def setup(bot):
             await interaction.response.send_message("Mallow Premium: developer access is enabled.", ephemeral=True); return
         try:
             async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
-                async with session.get("https://mallowbot.devs.surf/api/premium-check", params={"discord_id": str(interaction.user.id)}) as response:
+                async with session.get("https://mallowbot.kz.ci/api/premium-check", params={"discord_id": str(interaction.user.id)}) as response:
                     result = await response.json()
             if response.status == 200 and result.get("active"):
                 await interaction.response.send_message(f"Mallow Premium is active. Expires: {result.get('expires_at') or 'unknown'}", ephemeral=True)
             else:
-                await interaction.response.send_message("Mallow Premium is not active for your Discord account. Get Premium at https://mallowbot.devs.surf/subscriptions.html", ephemeral=True)
+                await interaction.response.send_message("Mallow Premium is not active for your Discord account. Get Premium at https://mallowbot.kz.ci/subscriptions.html", ephemeral=True)
         except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
             await interaction.response.send_message("I couldn't check Premium right now. Please try again shortly.", ephemeral=True)
 
