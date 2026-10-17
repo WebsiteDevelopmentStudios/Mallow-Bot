@@ -12,6 +12,7 @@ import discord
 from discord import app_commands
 
 from dashboard_config import get_guild_config
+from premium_access import is_bot_access_banned
 
 OWNER_USER_ID = 1021068313071210498
 DATA_FILE = Path(__file__).resolve().parent / "community_data.json"
@@ -46,7 +47,7 @@ def xp_next(lvl):
     return (lvl + 1) ** 2 * 100
 
 async def process_message(bot, message):
-    if message.author.bot:
+    if message.author.bot or await is_bot_access_banned(message.author.id):
         return
     if message.guild is None:
         # Route replies to the single server whose /dm command most recently
@@ -939,7 +940,7 @@ def setup(bot):
     async def message_listener(message):
         await process_message(bot, message)
     async def prefix_listener(message):
-        if message.author.bot or message.guild is None:
+        if message.author.bot or message.guild is None or await is_bot_access_banned(message.author.id):
             return
         cfg = await get_guild_config(message.guild.id)
         command_prefix = cfg.get("prefix", "-mb")
@@ -1012,6 +1013,8 @@ def setup(bot):
             await interaction.response.send_message("I couldn't look up that video right now.", ephemeral=True)
 
     async def member_join_listener(member: discord.Member):
+        if await is_bot_access_banned(member.id):
+            return
         try:
             cfg = await get_guild_config(member.guild.id)
             mc = cfg.get("messages_config", {})
