@@ -12,7 +12,7 @@ import aiohttp
 
 DASHBOARD_CONFIG_URL = os.getenv(
     "MALLOW_DASHBOARD_CONFIG_URL",
-    "https://mallowbot.devs.surf/api/runtime-config",
+    "https://mallowbot.kz.ci/api/runtime-config",
 ).strip()
 DASHBOARD_CONFIG_SECRET = os.getenv("MALLOW_DASHBOARD_CONFIG_SECRET", "").strip()
 _CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
