@@ -27,6 +27,7 @@ except ImportError:
     wavelink = None
 
 from dashboard_config import get_guild_config
+from premium_access import is_bot_access_banned
 
 from lavalink_manager import (
     LAVALINK_URI,
@@ -2181,6 +2182,13 @@ setup_community_features(bot)
 # Enforce per-server command switches for slash commands as well as text commands.
 _original_tree_interaction_check = bot.tree.interaction_check
 async def _dashboard_tree_interaction_check(interaction: discord.Interaction) -> bool:
+    if await is_bot_access_banned(interaction.user.id):
+        message = "You are banned from using Mallow Bot. Contact the bot owner if you believe this is a mistake."
+        if not interaction.response.is_done():
+            await interaction.response.send_message(message, ephemeral=True)
+        else:
+            await interaction.followup.send(message, ephemeral=True)
+        return False
     if interaction.guild_id:
         cfg = await get_guild_config(interaction.guild_id)
         command = interaction.command
@@ -2761,6 +2769,16 @@ async def post_updates(channel) -> int:
 @bot.event
 async def on_message(message: discord.Message) -> None:
     if message.author.bot:
+        return
+    if await is_bot_access_banned(message.author.id):
+        cfg_prefix = "-mb"
+        if message.guild is not None:
+            try:
+                cfg_prefix = (await get_guild_config(message.guild.id)).get("prefix", "-mb") or "-mb"
+            except Exception:
+                pass
+        if message.guild is not None and message.content.casefold().startswith(str(cfg_prefix).casefold()):
+            await message.reply("You are banned from using Mallow Bot. Contact the bot owner if you believe this is a mistake.", mention_author=False)
         return
     if message.guild is None:
         # community_features registers its own listener for inbound DMs; do not
