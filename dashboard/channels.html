@@ -13,4 +13,4 @@ $("loadMessages").onclick=loadMessages;$("refreshMessages").onclick=loadMessages
 $("compose").addEventListener("submit",async e=>{e.preventDefault();const content=$("messageText").value.trim();if(!content)return; $("send").disabled=true;try{await api("/api/channel-messages?guild_id="+encodeURIComponent($("guild").value)+"&channel_id="+encodeURIComponent($("channel").value),{method:"POST",body:JSON.stringify({content})});$("messageText").value="";status("Message sent.");await loadMessages()}catch(err){status(err.message,true)}finally{$("send").disabled=!$("channel").value}});
 $("logout").onclick=async()=>{try{await fetch("/api/logout",{method:"POST",credentials:"same-origin"})}finally{location.href="/"}};
 init();
-</script></body></html>
+</script><script src="/mobile-nav.js" defer></script></body></html>
