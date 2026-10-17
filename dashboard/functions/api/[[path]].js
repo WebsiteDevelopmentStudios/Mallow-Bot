@@ -329,19 +329,23 @@ async function route(request, env) {
 
  if(path==="guilds"&&request.method==="GET"){
    const s=await session(request,env);if(!s)return json({error:"Sign in required."},401);
-   if(s.user.id!==env.BOT_OWNER_ID)return json({error:"Only the bot owner can view the bot's server list."},403);
-   if(!env.BOT_TOKEN)return json({error:"Bot token is not configured."},503);
-   const botHeaders={authorization:"Bot "+env.BOT_TOKEN};
-   const botMeResponse=await fetch("https://discord.com/api/users/@me",{headers:botHeaders});
-   if(!botMeResponse.ok)return json({error:botMeResponse.status===401?"The configured BOT_TOKEN is invalid.":"Discord could not verify BOT_TOKEN."},503);
-   const botMe=await botMeResponse.json();
-   if(botMe.id!==env.CLIENT_ID)return json({error:"BOT_TOKEN belongs to a different Discord application than CLIENT_ID."},503);
-   const backendUrl=String(env.BOT_BACKEND_URL||"https://d7lyw2yvj2.apps.bot-hosting.cloud").replace(/\/$/,"");
-   const response=await fetch(backendUrl+"/owner/guilds",{headers:botHeaders});
-   const data=await response.json().catch(()=>({}));
-   if(!response.ok)return json({error:data.error||"Could not retrieve Mallow's live server list from the bot service."},response.status===401?503:502);
-   const guilds=Array.isArray(data.guilds)?data.guilds.map(g=>({id:g.id,name:g.name,icon_url:g.icon_url||null,member_count:g.member_count??null,bot_present:true})): [];
-   return json({guilds,bot_status_available:true,source:"bot"});
+   const userGuildsResult=await cachedUserGuilds(env,s);
+   if(userGuildsResult.error)return json({error:userGuildsResult.error},userGuildsResult.status||502);
+   const userGuilds=userGuildsResult.guilds.filter(g=>{let p=0n;try{p=BigInt(g.permissions||"0")}catch{}return (p&8n)!==0n||(p&32n)!==0n;});
+   let botGuildIds=new Set();
+   if(env.BOT_TOKEN){
+    const botMeResponse=await fetch("https://discord.com/api/users/@me",{headers:{authorization:"Bot "+env.BOT_TOKEN}});
+    if(!botMeResponse.ok)return json({error:botMeResponse.status===401?"The configured BOT_TOKEN is invalid.":"Discord could not verify BOT_TOKEN."},503);
+    const botMe=await botMeResponse.json();
+    if(botMe.id!==env.CLIENT_ID)return json({error:"BOT_TOKEN belongs to a different Discord application than CLIENT_ID."},503);
+    const backendUrl=String(env.BOT_BACKEND_URL||"https://d7lyw2yvj2.apps.bot-hosting.cloud").replace(/\\/$/,"");
+    const response=await fetch(backendUrl+"/owner/guilds",{headers:{authorization:"Bot "+env.BOT_TOKEN}});
+    const data=await response.json().catch(()=>({}));
+    if(!response.ok)return json({error:data.error||"Could not retrieve Mallow's live server list from the bot service."},response.status===401?503:502);
+    botGuildIds=new Set((Array.isArray(data.guilds)?data.guilds:[]).map(g=>String(g.id)));
+   }
+   const guilds=userGuilds.map(g=>({id:g.id,name:g.name,icon_url:g.icon?("https://cdn.discordapp.com/icons/"+g.id+"/"+g.icon+".png?size=128"):null,member_count:null,bot_present:botGuildIds.has(String(g.id))})).sort((a,b)=>Number(b.bot_present)-Number(a.bot_present)||a.name.localeCompare(b.name));
+   return json({guilds,bot_status_available:!!env.BOT_TOKEN,source:"discord"});
   }
 if(path==="leave"&&request.method==="POST"){
    const s=await session(request,env);if(!s)return json({error:"Sign in required."},401);
