@@ -44,7 +44,7 @@
 <div class="help-layout">
 <section class="help-hero"><div class="help-kicker">Mallow Bot</div><h1>Premium</h1><p>Premium unlocks Zoi Unfiltered. Normal Zoi remains available for free when a server administrator enables AI in the Mallow Bot server dashboard. Keep your API keys private; each generated key is shown only once.</p><div id="premiumStatus" class="status-line" role="status">Checking Premium status…</div></section>
 <div class="help-grid">
-<article class="help-card"><h2>Zoi Unfiltered API keys</h2><p>Generate keys for your own applications that call Mallow Bot's hosted Zoi Unfiltered API. Keys are stored as hashes, and you can revoke them at any time. You can keep up to five active keys.</p><p class="help-status">An active Premium subscription is required. If Premium expires or is revoked, its API keys stop working.</p><button id="generateKey" class="action-button" type="button" disabled>Generate API key</button><div id="keyStatus" class="status-line" role="status"></div><div id="newKey" class="new-key" hidden><p><strong>Copy this key now.</strong> It will not be shown again after you leave or refresh this page.</p><code id="newKeyValue"></code><button id="copyKey" class="action-button secondary" type="button">Copy key</button></div><div id="keyList" class="key-list"></div></article>
+<article class="help-card"><h2>Zoi Unfiltered API keys</h2><p>Generate keys for your own applications that call Mallow Bot's hosted Zoi Unfiltered API. Keys are stored as hashes, and you can revoke them at any time. You can keep up to three active keys.</p><p class="help-status">An active Premium subscription is required. If Premium expires or is revoked, its API keys stop working.</p><button id="generateKey" class="action-button" type="button" disabled>Generate API key</button><div id="keyStatus" class="status-line" role="status"></div><div id="newKey" class="new-key" hidden><p><strong>Copy this key now.</strong> It will not be shown again after you leave or refresh this page.</p><code id="newKeyValue"></code><button id="copyKey" class="action-button secondary" type="button">Copy key</button></div><div id="keyList" class="key-list"></div></article>
 <article class="help-card"><h2>Using the API</h2><p>Send requests to the Mallow Bot website API endpoint with your generated key as a Bearer token. This endpoint requires the hosted Unfiltered model to be configured by the bot owner.</p><p><strong>Endpoint</strong></p><code>POST /api/zoi-unfiltered</code><p><strong>Example request</strong></p><pre class="api-example">curl -X POST "https://mallowbot.kz.ci/api/zoi-unfiltered" \
   -H "Authorization: Bearer YOUR_MALLOW_ZOIU_KEY" \
   -H "Content-Type: application/json" \
@@ -67,12 +67,14 @@ async function loadKeys(){
  try{
   const data=await api("unfiltered-keys");
   list.innerHTML="";
+  $("generateKey").disabled=data.keys.length>=3;
+  $("generateKey").textContent=data.keys.length>=3?"Maximum of 3 active keys reached":"Generate API key";
   if(!data.keys.length){list.innerHTML='<p class="help-status">No active API keys yet.</p>';return;}
   for(const key of data.keys){
    const row=document.createElement("div");row.className="key-row";
    const meta=document.createElement("div");meta.className="key-meta";
    const strong=document.createElement("strong");strong.textContent="Zoi Unfiltered key";
-   const span=document.createElement("span");span.textContent="Created "+new Date(key.created_at).toLocaleString()+(key.last_used_at?" · Last used "+new Date(key.last_used_at).toLocaleString():" · Not used yet");
+   const span=document.createElement("span");span.textContent="Created "+new Date(key.created_at).toLocaleString()+(key.last_used_at?" · Last used "+new Date(key.last_used_at).toLocaleString():" · Not used yet")+" · Successful responses detected: "+Number(key.response_count||0);
    meta.append(strong,span);
    const revoke=document.createElement("button");revoke.className="action-button danger";revoke.type="button";revoke.textContent="Revoke";
    revoke.onclick=async()=>{if(!confirm("Revoke this API key? Applications using it will stop working."))return;revoke.disabled=true;try{await api("unfiltered-keys",{method:"DELETE",body:JSON.stringify({id:key.id})});$("keyStatus").textContent="API key revoked.";await loadKeys()}catch(e){$("keyStatus").textContent=e.message;revoke.disabled=false}};
@@ -97,7 +99,7 @@ $("generateKey").onclick=async()=>{
   const data=await api("unfiltered-keys",{method:"POST",body:"{}"});
   generatedKey=data.key;$("newKeyValue").textContent=generatedKey;$("newKey").hidden=false;$("keyStatus").textContent="Key created. Copy it now; it cannot be retrieved later.";await loadKeys();
  }catch(e){$("keyStatus").textContent=e.message}
- finally{$("generateKey").disabled=false}
+ finally{const count=$("keyList").querySelectorAll(".key-row").length;$("generateKey").disabled=count>=3;$("generateKey").textContent=count>=3?"Maximum of 3 active keys reached":"Generate API key"}
 };
 $("copyKey").onclick=async()=>{
  try{await navigator.clipboard.writeText(generatedKey);$("keyStatus").textContent="Key copied to clipboard."}
@@ -105,6 +107,7 @@ $("copyKey").onclick=async()=>{
 };
 $("logout").onclick=async()=>{try{await api("logout",{method:"POST",body:"{}"})}finally{location.href="/"}};
 init();
+setInterval(()=>{if(document.visibilityState==="visible")loadKeys()},15000);
 </script>
 <script src="/mobile-nav.js" defer></script>
 </body>
