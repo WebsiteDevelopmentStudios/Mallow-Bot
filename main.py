@@ -63,7 +63,7 @@ BROWSER_USER_AGENT = (
 CINEBY_REFERER = "https://cineby.tech/"
 TMDB_API_KEY = os.getenv("TMDB_API_KEY", os.getenv("CINEBY_TMDB_API_KEY", "")).strip()
 TMDB_SEARCH_URL = "https://api.themoviedb.org/3/search/movie"
-# Runtime AI configuration. The key can also be supplied through the GROQ_API_KEY environment variable.
+# Runtime configuration for the normal and premium Zoi model endpoints.
 AI_API_KEY = os.getenv("ZOI_API_KEY", "").strip()
 AI_MODEL = os.getenv("ZOI_MODEL", "zoi").strip() or "zoi"
 AI_API_URL = os.getenv("ZOI_API_URL", "").strip()
@@ -2477,7 +2477,7 @@ def _tos_embed() -> discord.Embed:
     return embed
 
 @bot.tree.command(name="setkey", description="Set the AI API key for this running bot session.")
-@app_commands.describe(api_key="Your Groq API key. This is handled privately and is never shown in the reply.")
+@app_commands.describe(api_key="Your normal Zoi API key. It is handled privately and never shown in the reply.")
 async def set_ai_key(interaction: discord.Interaction, api_key: str) -> None:
     global AI_API_KEY
     if not await bot.is_owner(interaction.user):
@@ -2501,7 +2501,7 @@ async def set_ai_key(interaction: discord.Interaction, api_key: str) -> None:
     os.environ["ZOI_API_KEY"] = cleaned_key
     await send_interaction_response(
         interaction,
-        "The AI API key has been set for this running session. For persistence after a restart, set GROQ_API_KEY in the hosting environment variables.",
+        "The normal Zoi API key is set for this running session. To keep it after a restart, set ZOI_API_KEY in your hosting environment.",
         ephemeral=True,
     )
 
