@@ -18,3 +18,5 @@ Movies/*
 Thumbs.db
 
 community_data.json
+
+.zoi_api_key.json
