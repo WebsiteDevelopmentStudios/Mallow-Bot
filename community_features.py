@@ -93,7 +93,7 @@ async def process_message(bot, message):
     if dashboard_config.get("features", {}).get("ai", False):
         stripped = content.strip()
         if stripped.casefold().startswith("movie bot"):
-            prompt = stripped[len("movie bot"):].lstrip(" ,:;-\\n\\t")
+            prompt = stripped[len("movie bot"):].lstrip(" ,:;-\n\t")
             if not prompt:
                 await message.reply(
                     "Ask a question after `Movie Bot`, for example: Movie Bot explain black holes.",
@@ -101,7 +101,7 @@ async def process_message(bot, message):
                     allowed_mentions=discord.AllowedMentions.none(),
                 )
                 return
-            wants_unfiltered = bool(re.match(r"^(?:unfiltered|zoi-unfiltered)\\b[\\s,:;-]*", prompt, re.I))
+            wants_unfiltered = bool(re.match(r"^(?:unfiltered|zoi-unfiltered)\b[\s,:;-]*", prompt, re.I))
             if wants_unfiltered:
                 prompt = re.sub(r"^(?:unfiltered|zoi-unfiltered)\\b[\\s,:;-]*", "", prompt, count=1, flags=re.I).strip()
                 premium_active = message.author.id == OWNER_USER_ID
