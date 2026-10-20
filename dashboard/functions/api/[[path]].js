@@ -289,7 +289,7 @@ async function route(request, env) {
    return json({ok:true,revoked:true});
   }
   if(path==="zoi-unfiltered"&&request.method==="POST"){
-   const auth=(request.headers.get("Authorization")||"").replace(/^Bearer\\s+/i,"").trim();
+   const auth=(request.headers.get("Authorization")||"").replace(/^Bearer\s+/i,"").trim();
    if(!auth.startsWith("mallow_zoiu_"))return json({error:"A valid Mallow Zoi Unfiltered API key is required."},401);
    await ensureUnfilteredKeyTable(env);
    const hash=await sha256Hex(auth);
