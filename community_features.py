@@ -103,7 +103,7 @@ async def process_message(bot, message):
                 return
             wants_unfiltered = bool(re.match(r"^(?:unfiltered|zoi-unfiltered)\b[\s,:;-]*", prompt, re.I))
             if wants_unfiltered:
-                prompt = re.sub(r"^(?:unfiltered|zoi-unfiltered)\\b[\\s,:;-]*", "", prompt, count=1, flags=re.I).strip()
+                prompt = re.sub(r"^(?:unfiltered|zoi-unfiltered)\b[\s,:;-]*", "", prompt, count=1, flags=re.I).strip()
                 premium_active = message.author.id == OWNER_USER_ID
                 if not premium_active:
                     try:
