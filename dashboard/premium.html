@@ -49,6 +49,17 @@
   -H "Authorization: Bearer YOUR_MALLOW_ZOIU_KEY" \
   -H "Content-Type: application/json" \
   -d '{"messages":[{"role":"user","content":"Hello, Zoi."}]}'</pre><p class="help-status">Never share your key in a public channel, repository, or client-side website. Revoke a key immediately if it leaks.</p><a class="help-action" href="/server-select.html">Open server dashboard</a></article>
+<article class="help-card">
+ <h2>Test Zoi Unfiltered</h2>
+ <p>Send a quick test request using one of your API keys. The key stays in this page and is not saved to your account by the test box.</p>
+ <label for="testApiKey">Mallow Zoi Unfiltered API key</label>
+ <input id="testApiKey" type="password" autocomplete="off" placeholder="mallow_zoiu_…" style="display:block;width:100%;box-sizing:border-box;margin:7px 0 12px;padding:11px;border-radius:8px;border:1px solid #ffffff20;background:#121824;color:#eef4ff">
+ <label for="testPrompt">Test message</label>
+ <textarea id="testPrompt" rows="3" style="display:block;width:100%;box-sizing:border-box;margin:7px 0 10px;padding:11px;border-radius:8px;border:1px solid #ffffff20;background:#121824;color:#eef4ff;resize:vertical">Reply with a short greeting so I can confirm the API works.</textarea>
+ <button id="testApi" class="action-button" type="button">Test API</button>
+ <div id="testStatus" class="status-line" role="status" aria-live="polite">Enter a key and send a test message.</div>
+ <pre id="testOutput" class="api-example" hidden></pre>
+</article>
 </div>
 </div>
 </main>
@@ -97,9 +108,38 @@ $("generateKey").onclick=async()=>{
  $("generateKey").disabled=true;$("keyStatus").textContent="Generating key…";
  try{
   const data=await api("unfiltered-keys",{method:"POST",body:"{}"});
-  generatedKey=data.key;$("newKeyValue").textContent=generatedKey;$("newKey").hidden=false;$("keyStatus").textContent="Key created. Copy it now; it cannot be retrieved later.";await loadKeys();
+  generatedKey=data.key;$("newKeyValue").textContent=generatedKey;$("newKey").hidden=false;$("testApiKey").value=generatedKey;$("keyStatus").textContent="Key created. Copy it now; it cannot be retrieved later.";await loadKeys();
  }catch(e){$("keyStatus").textContent=e.message}
  finally{const count=$("keyList").querySelectorAll(".key-row").length;$("generateKey").disabled=count>=3;$("generateKey").textContent=count>=3?"Maximum of 3 active keys reached":"Generate API key"}
+};
+$("testApi").onclick=async()=>{
+ const key=$("testApiKey").value.trim();
+ const prompt=$("testPrompt").value.trim();
+ const status=$("testStatus"),output=$("testOutput"),button=$("testApi");
+ output.hidden=true;output.textContent="";
+ if(!key){status.textContent="Enter an API key first.";return;}
+ if(!prompt){status.textContent="Enter a test message first.";return;}
+ button.disabled=true;status.textContent="Sending test request…";
+ try{
+  const response=await fetch("/api/zoi-unfiltered",{
+   method:"POST",
+   headers:{"Authorization":"Bearer "+key,"Content-Type":"application/json"},
+   body:JSON.stringify({messages:[{role:"user",content:prompt}],max_tokens:250})
+  });
+  let data;const raw=await response.text();
+  try{data=JSON.parse(raw)}catch{data={response:raw}}
+  if(!response.ok){
+   status.textContent="Test failed (HTTP "+response.status+").";
+   output.textContent=JSON.stringify(data,null,2);output.hidden=false;
+   return;
+  }
+  const answer=data?.choices?.[0]?.message?.content??data?.output_text??data?.response??data?.message??JSON.stringify(data,null,2);
+  status.textContent="Success — the API returned HTTP "+response.status+". The response counter should update shortly.";
+  output.textContent=typeof answer==="string"?answer:JSON.stringify(answer,null,2);output.hidden=false;
+  await loadKeys();
+ }catch(e){
+  status.textContent="Could not reach the API: "+e.message;
+ }finally{button.disabled=false}
 };
 $("copyKey").onclick=async()=>{
  try{await navigator.clipboard.writeText(generatedKey);$("keyStatus").textContent="Key copied to clipboard."}
