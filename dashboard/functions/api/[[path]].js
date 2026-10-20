@@ -62,7 +62,8 @@ async function sha256Hex(value) {
  return Array.from(new Uint8Array(digest)).map(b=>b.toString(16).padStart(2,"0")).join("");
 }
 async function ensureUnfilteredKeyTable(env) {
- await env.MALLOW_DB.prepare("CREATE TABLE IF NOT EXISTS unfiltered_api_keys (id TEXT PRIMARY KEY, key_hash TEXT UNIQUE NOT NULL, discord_id TEXT NOT NULL, created_at TEXT NOT NULL, revoked_at TEXT, last_used_at TEXT)").run();
+ await env.MALLOW_DB.prepare("CREATE TABLE IF NOT EXISTS unfiltered_api_keys (id TEXT PRIMARY KEY, key_hash TEXT UNIQUE NOT NULL, discord_id TEXT NOT NULL, created_at TEXT NOT NULL, revoked_at TEXT, last_used_at TEXT, response_count INTEGER NOT NULL DEFAULT 0)").run();
+ try{await env.MALLOW_DB.prepare("ALTER TABLE unfiltered_api_keys ADD COLUMN response_count INTEGER NOT NULL DEFAULT 0").run()}catch{}
 }
 async function route(request, env) {
  const missing=["CLIENT_ID","CLIENT_SECRET","REDIRECT_URI","SESSION_SECRET","BOT_OWNER_ID","MALLOW_DB"].filter(k=>!env[k]); if(missing.length) return json({error:"Dashboard server configuration is incomplete.",missing},503);
@@ -269,12 +270,12 @@ async function route(request, env) {
    if(!owner&&(!premium.active||premium.banned))return json({error:"Active Premium is required to create or use Zoi Unfiltered API keys."},403);
    await ensureUnfilteredKeyTable(env);
    if(request.method==="GET"){
-    const rows=await env.MALLOW_DB.prepare("SELECT id,created_at,last_used_at FROM unfiltered_api_keys WHERE discord_id=? AND revoked_at IS NULL ORDER BY created_at DESC").bind(s.user.id).all();
+    const rows=await env.MALLOW_DB.prepare("SELECT id,created_at,last_used_at,response_count FROM unfiltered_api_keys WHERE discord_id=? AND revoked_at IS NULL ORDER BY created_at DESC").bind(s.user.id).all();
     return json({ok:true,keys:rows.results||[]});
    }
    if(request.method==="POST"){
     const count=await env.MALLOW_DB.prepare("SELECT COUNT(*) AS count FROM unfiltered_api_keys WHERE discord_id=? AND revoked_at IS NULL").bind(s.user.id).first();
-    if(Number(count?.count||0)>=5)return json({error:"You can have up to five active Unfiltered API keys. Revoke one before generating another."},409);
+    if(Number(count?.count||0)>=3)return json({error:"You can have up to three active Unfiltered API keys. Revoke one before generating another."},409);
     const raw="mallow_zoiu_"+Array.from(crypto.getRandomValues(new Uint8Array(32))).map(b=>b.toString(16).padStart(2,"0")).join("");
     const id=crypto.randomUUID();
     const createdAt=new Date().toISOString();
@@ -308,7 +309,13 @@ async function route(request, env) {
    await env.MALLOW_DB.prepare("UPDATE unfiltered_api_keys SET last_used_at=? WHERE id=?").bind(new Date().toISOString(),row.id).run();
    const headers={"content-type":"application/json"};
    if(env.ZOI_UNFILTERED_UPSTREAM_KEY)headers.authorization="Bearer "+env.ZOI_UNFILTERED_UPSTREAM_KEY;
-   const upstream=await fetch(env.ZOI_UNFILTERED_UPSTREAM_URL,{method:"POST",headers:headers,body:JSON.stringify({model:env.ZOI_UNFILTERED_MODEL||"zoi-unfiltered",messages:messages,temperature:Math.max(0,Math.min(2,Number(body.temperature??0.7)||0.7)),max_tokens:Math.max(1,Math.min(2000,Number.parseInt(body.max_tokens??"700",10)||700))})});
+   let upstream;
+   try {
+    upstream=await fetch(env.ZOI_UNFILTERED_UPSTREAM_URL,{method:"POST",headers:headers,body:JSON.stringify({model:env.ZOI_UNFILTERED_MODEL||"zoi-unfiltered",messages:messages,temperature:Math.max(0,Math.min(2,Number(body.temperature??0.7)||0.7)),max_tokens:Math.max(1,Math.min(2000,Number.parseInt(body.max_tokens??"700",10)||700))})});
+   } catch {
+    return json({error:"The Unfiltered model did not return a response. Please try again."},502);
+   }
+   if(upstream.ok) await env.MALLOW_DB.prepare("UPDATE unfiltered_api_keys SET response_count=response_count+1 WHERE id=?").bind(row.id).run();
    return new Response(upstream.body,{status:upstream.status,headers:{"content-type":upstream.headers.get("content-type")||"application/json","cache-control":"no-store"}});
   }
   if(path==="premium-codes"&&request.method==="GET"){
