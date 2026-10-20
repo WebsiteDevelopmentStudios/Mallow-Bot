@@ -64,9 +64,11 @@ CINEBY_REFERER = "https://cineby.tech/"
 TMDB_API_KEY = os.getenv("TMDB_API_KEY", os.getenv("CINEBY_TMDB_API_KEY", "")).strip()
 TMDB_SEARCH_URL = "https://api.themoviedb.org/3/search/movie"
 # Runtime AI configuration. The key can also be supplied through the GROQ_API_KEY environment variable.
-AI_API_KEY = os.getenv("GROQ_API_KEY", "").strip()
-AI_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b").strip() or "openai/gpt-oss-120b"
-AI_API_URL = "https://api.groq.com/openai/v1/chat/completions"
+AI_API_KEY = os.getenv("ZOI_API_KEY", "").strip()
+AI_MODEL = os.getenv("ZOI_MODEL", "zoi").strip() or "zoi"
+AI_API_URL = os.getenv("ZOI_API_URL", "").strip()
+AI_UNFILTERED_API_URL = os.getenv("ZOI_UNFILTERED_API_URL", "").strip()
+AI_UNFILTERED_API_KEY = os.getenv("ZOI_UNFILTERED_API_KEY", "").strip()
 CLOUDFLARED_BIN = os.getenv("CLOUDFLARED_BIN", "cloudflared").strip() or "cloudflared"
 
 active_host = None
@@ -2496,79 +2498,12 @@ async def set_ai_key(interaction: discord.Interaction, api_key: str) -> None:
         return
 
     AI_API_KEY = cleaned_key
+    os.environ["ZOI_API_KEY"] = cleaned_key
     await send_interaction_response(
         interaction,
         "The AI API key has been set for this running session. For persistence after a restart, set GROQ_API_KEY in the hosting environment variables.",
         ephemeral=True,
     )
-
-
-@bot.tree.command(name="ai", description="Ask Mallow Bot's AI a question.")
-@app_commands.describe(prompt="What you want the AI to answer.")
-async def bot_ai(interaction: discord.Interaction, prompt: str) -> None:
-    if not AI_API_KEY:
-        await send_interaction_response(
-            interaction,
-            "The AI API key is not configured yet. The bot owner can use /setkey or set GROQ_API_KEY in the hosting environment.",
-            ephemeral=True,
-        )
-        return
-
-    prompt = prompt.strip()
-    if not prompt:
-        await send_interaction_response(interaction, "Please enter a question for the AI.", ephemeral=True)
-        return
-
-    await interaction.response.defer(thinking=True)
-    request_body = {
-        "model": AI_MODEL,
-        "messages": [
-            {
-                "role": "system",
-                "content": "You are Mallow Bot's helpful, family-friendly Discord AI assistant. Be accurate, concise, and transparent when uncertain.",
-            },
-            {"role": "user", "content": prompt[:6000]},
-        ],
-        "temperature": 0.7,
-        "max_tokens": 700,
-    }
-    timeout = aiohttp.ClientTimeout(total=45)
-    try:
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.post(
-                AI_API_URL,
-                headers={
-                    "Authorization": f"Bearer {AI_API_KEY}",
-                    "Content-Type": "application/json",
-                },
-                json=request_body,
-            ) as response:
-                payload = await response.json(content_type=None)
-                if response.status >= 400:
-                    error = payload.get("error", {}) if isinstance(payload, dict) else {}
-                    detail = error.get("message", "The AI provider returned an error.") if isinstance(error, dict) else "The AI provider returned an error."
-                    logger.warning("AI provider request failed with HTTP %s: %s", response.status, detail[:300])
-                    await interaction.followup.send(
-                        "The AI provider rejected the request. Check that the API key and GROQ_MODEL are valid.",
-                        ephemeral=True,
-                    )
-                    return
-
-        choices = payload.get("choices", []) if isinstance(payload, dict) else []
-        answer = ""
-        if choices and isinstance(choices[0], dict):
-            message = choices[0].get("message", {})
-            if isinstance(message, dict):
-                answer = str(message.get("content", "")).strip()
-        if not answer:
-            await interaction.followup.send("The AI returned an empty response. Please try again.", ephemeral=True)
-            return
-
-        for start in range(0, len(answer), 1900):
-            await interaction.followup.send(answer[start:start + 1900], allowed_mentions=discord.AllowedMentions.none())
-    except (aiohttp.ClientError, asyncio.TimeoutError, ValueError) as exc:
-        logger.warning("AI request failed: %s", exc)
-        await interaction.followup.send("I couldn't reach the AI provider. Please try again in a moment.", ephemeral=True)
 
 
 @bot.tree.command(name="tos", description="Show Mallow Bot acceptable-use rules")
