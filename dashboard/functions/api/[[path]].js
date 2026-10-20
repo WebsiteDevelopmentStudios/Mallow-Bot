@@ -269,6 +269,12 @@ async function route(request, env) {
    const premium=await premiumFor(env,s.user.id);
    if(!owner&&(!premium.active||premium.banned))return json({error:"Active Premium is required to create or use Zoi Unfiltered API keys."},403);
    await ensureUnfilteredKeyTable(env);
+   // Keep older accounts within the three-key limit as well as blocking new excess keys.
+   const activeKeys=await env.MALLOW_DB.prepare("SELECT id FROM unfiltered_api_keys WHERE discord_id=? AND revoked_at IS NULL ORDER BY created_at DESC").bind(s.user.id).all();
+   const excessKeys=(activeKeys.results||[]).slice(3);
+   for(const oldKey of excessKeys){
+    await env.MALLOW_DB.prepare("UPDATE unfiltered_api_keys SET revoked_at=? WHERE id=? AND discord_id=? AND revoked_at IS NULL").bind(new Date().toISOString(),oldKey.id,s.user.id).run();
+   }
    if(request.method==="GET"){
     const rows=await env.MALLOW_DB.prepare("SELECT id,created_at,last_used_at,response_count FROM unfiltered_api_keys WHERE discord_id=? AND revoked_at IS NULL ORDER BY created_at DESC").bind(s.user.id).all();
     return json({ok:true,keys:rows.results||[]});
