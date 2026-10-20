@@ -296,7 +296,7 @@ async function route(request, env) {
    const row=await env.MALLOW_DB.prepare("SELECT id,discord_id FROM unfiltered_api_keys WHERE key_hash=? AND revoked_at IS NULL").bind(hash).first();
    if(!row)return json({error:"Invalid or revoked API key."},401);
    const premium=await premiumFor(env,row.discord_id);
-   if(!premium.active||premium.banned)return json({error:"An active Premium subscription is required to use Zoi Unfiltered."},403);
+   if(row.discord_id!==String(env.BOT_OWNER_ID)&&(!premium.active||premium.banned))return json({error:"An active Premium subscription is required to use Zoi Unfiltered."},403);
    if(!env.ZOI_UNFILTERED_UPSTREAM_URL)return json({error:"The Unfiltered model endpoint has not been configured yet."},503);
    let body;try{body=await request.json()}catch{return json({error:"Invalid JSON."},400)}
    if(!Array.isArray(body.messages)||body.messages.length<1||body.messages.length>20)return json({error:"Provide between one and twenty chat messages."},400);
