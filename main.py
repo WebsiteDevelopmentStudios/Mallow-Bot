@@ -65,14 +65,15 @@ TMDB_API_KEY = os.getenv("TMDB_API_KEY", os.getenv("CINEBY_TMDB_API_KEY", "")).s
 TMDB_SEARCH_URL = "https://api.themoviedb.org/3/search/movie"
 # Runtime configuration for the normal and premium Zoi model endpoints.
 AI_KEY_FILE = BASE_DIR / ".zoi_api_key.json"
-AI_API_KEY = os.getenv("ZOI_API_KEY", "").strip()
+AI_API_KEY = ""
+try:
+    saved_ai_key = json.loads(AI_KEY_FILE.read_text(encoding="utf-8")).get("api_key", "")
+    if isinstance(saved_ai_key, str):
+        AI_API_KEY = saved_ai_key.strip()
+except (OSError, ValueError, AttributeError, TypeError):
+    pass
 if not AI_API_KEY:
-    try:
-        saved_ai_key = json.loads(AI_KEY_FILE.read_text(encoding="utf-8")).get("api_key", "")
-        if isinstance(saved_ai_key, str):
-            AI_API_KEY = saved_ai_key.strip()
-    except (OSError, ValueError, AttributeError, TypeError):
-        pass
+    AI_API_KEY = os.getenv("ZOI_API_KEY", "").strip()
 AI_MODEL = os.getenv("ZOI_MODEL", "zoi").strip() or "zoi"
 AI_API_URL = os.getenv("ZOI_API_URL", "").strip()
 AI_UNFILTERED_API_URL = os.getenv("ZOI_UNFILTERED_API_URL", "").strip()
