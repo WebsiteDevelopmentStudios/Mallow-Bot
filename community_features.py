@@ -1013,6 +1013,27 @@ def setup(bot):
         except (aiohttp.ClientError, asyncio.TimeoutError, ValueError, discord.HTTPException):
             await interaction.response.send_message("I couldn't look up that video right now.", ephemeral=True)
 
+    def render_member_message(template: str, member: discord.Member, *, leaving: bool = False) -> str:
+        display_name = discord.utils.escape_markdown(member.display_name)
+        user_value = display_name if leaving else member.mention
+        member_count = max(0, (member.guild.member_count or 1) - (1 if leaving else 0))
+        return (
+            str(template)
+            .replace("{user}", user_value)
+            .replace("{server}", discord.utils.escape_markdown(member.guild.name))
+            .replace("{member_count}", str(member_count))
+        )[:1900]
+
+    def member_message_embed(title: str, image_url: str, color: discord.Color) -> discord.Embed | None:
+        title = str(title or "").strip()
+        image_url = str(image_url or "").strip()
+        if not title and not image_url:
+            return None
+        embed = discord.Embed(title=title[:256] or None, color=color)
+        if image_url.startswith(("https://", "http://")):
+            embed.set_image(url=image_url[:1000])
+        return embed
+
     async def member_join_listener(member: discord.Member):
         if await is_bot_access_banned(member.id):
             return
@@ -1024,9 +1045,9 @@ def setup(bot):
             channel = member.guild.get_channel(int(mc["welcome_channel_id"]))
             if not isinstance(channel, discord.TextChannel):
                 return
-            content = str(mc.get("welcome_message") or "Welcome {user} to {server}!")
-            content = content.replace("{user}", member.mention).replace("{server}", member.guild.name)
-            await channel.send(content[:1900], allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False))
+            content = render_member_message(mc.get("welcome_message") or "Welcome {user} to {server}!", member)
+            embed = member_message_embed(mc.get("welcome_title", ""), mc.get("welcome_image_url", ""), discord.Color.green())
+            await channel.send(content=content, embed=embed, allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False))
         except (ValueError, TypeError, discord.Forbidden, discord.HTTPException):
             pass
 
@@ -1039,9 +1060,9 @@ def setup(bot):
             channel = member.guild.get_channel(int(mc["goodbye_channel_id"]))
             if not isinstance(channel, discord.TextChannel):
                 return
-            content = str(mc.get("goodbye_message") or "{user} left {server}.")
-            content = content.replace("{user}", discord.utils.escape_markdown(member.display_name)).replace("{server}", member.guild.name)
-            await channel.send(content[:1900], allowed_mentions=discord.AllowedMentions.none())
+            content = render_member_message(mc.get("goodbye_message") or "{user} left {server}.", member, leaving=True)
+            embed = member_message_embed(mc.get("goodbye_title", ""), mc.get("goodbye_image_url", ""), discord.Color.orange())
+            await channel.send(content=content, embed=embed, allowed_mentions=discord.AllowedMentions.none())
         except (ValueError, TypeError, discord.Forbidden, discord.HTTPException):
             pass
 
