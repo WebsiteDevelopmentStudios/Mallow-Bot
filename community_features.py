@@ -1142,19 +1142,9 @@ def setup(bot):
                 f"│ we now have {member.guild.member_count or 1} members!!!\n"
                 "╰──────────────────────────╯"
             )
-            # Invite attribution is not currently persisted by this bot. Keep
-            # these explicit zero placeholders rather than guessing an invite.
-            invite_section = (
-                "\n\n╭─〔 📈 **INVITE BREAKDOWN** 〕─╮\n"
-                f"│ ✦ **User:** {member.mention}\n"
-                "│ ✦ **Valid:** 0\n"
-                "│ ✦ **Fake:** 0\n"
-                "│ ✦ **Left:** 0\n"
-                "╰──────────────────────────────╯"
-            )
             embed = discord.Embed(
                 title=str(mc.get("welcome_title") or "").strip()[:256] or None,
-                description=(welcomer_section + invite_section)[:4096],
+                description=welcomer_section[:4096],
                 color=discord.Color.green(),
             )
             card = await build_member_card(member, image_url, leaving=False)
