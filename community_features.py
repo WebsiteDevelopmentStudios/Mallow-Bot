@@ -315,6 +315,35 @@ async def prefix(bot, message, command, argument):
     if command in custom_commands:
         await message.reply(str(custom_commands[command])[:1900], mention_author=False, allowed_mentions=discord.AllowedMentions.none())
         return True
+    if command == "dm":
+        if not message.author.guild_permissions.manage_messages:
+            await message.reply("You need Manage Messages permission to use this command.", mention_author=False)
+            return True
+        target = message.mentions[0] if message.mentions else None
+        raw_parts = argument.split(maxsplit=1)
+        dm_text = raw_parts[1].strip() if len(raw_parts) > 1 else ""
+        if target is None or target.bot or not dm_text or len(dm_text) > 1900:
+            await message.reply("Usage: -mb dm @member <message> (message limit: 1,900 characters)", mention_author=False)
+            return True
+        configured_channel_id = data.get("log_channels", {}).get(str(gid))
+        destination = message.guild.get_channel(int(configured_channel_id)) if configured_channel_id else None
+        if not isinstance(destination, discord.TextChannel):
+            await message.reply("This server doesn't have an accessible DM log/mod channel configured. Ask the bot owner to set one with -mb set-log first.", mention_author=False)
+            return True
+        try:
+            await target.send(dm_text, allowed_mentions=discord.AllowedMentions.none())
+        except (discord.Forbidden, discord.HTTPException):
+            await message.reply("I couldn't DM that member. They may have DMs disabled.", mention_author=False)
+            return True
+        data.setdefault("dm_routes", {})[str(target.id)] = {
+            "guild_id": gid,
+            "channel_id": destination.id,
+            "set_by": uid,
+            "updated_at": int(time.time()),
+        }
+        save()
+        await message.reply(f"Sent a DM to {target.mention}. Their replies will be forwarded only to {destination.mention}.", mention_author=False)
+        return True
     if command == "set-log":
         if uid != OWNER_USER_ID:
             await message.reply("Only the bot developer can configure DM logs.", mention_author=False)
@@ -1213,7 +1242,7 @@ def setup(bot):
                 welcome = str(ticket_cfg.get("welcome_message") or "Thanks for opening a ticket. A staff member will be with you soon.")[:1800]
                 mentions = " ".join(f"<@&{rid}>" for rid in role_ids if guild.get_role(rid))
                 await channel.send(
-                    content=(mentions + "\\n" if mentions else "") + f"{message.author.mention}\\n{welcome}",
+                    content=(mentions + "\n" if mentions else "") + f"{message.author.mention}\n{welcome}",
                     allowed_mentions=discord.AllowedMentions(users=True, roles=True, everyone=False),
                 )
                 await message.reply(f"Your ticket is ready: {channel.mention}", mention_author=False)
