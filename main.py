@@ -63,21 +63,6 @@ BROWSER_USER_AGENT = (
 CINEBY_REFERER = "https://cineby.tech/"
 TMDB_API_KEY = os.getenv("TMDB_API_KEY", os.getenv("CINEBY_TMDB_API_KEY", "")).strip()
 TMDB_SEARCH_URL = "https://api.themoviedb.org/3/search/movie"
-# Runtime configuration for the normal and premium Zoi model endpoints.
-AI_KEY_FILE = BASE_DIR / ".zoi_api_key.json"
-AI_API_KEY = ""
-try:
-    saved_ai_key = json.loads(AI_KEY_FILE.read_text(encoding="utf-8")).get("api_key", "")
-    if isinstance(saved_ai_key, str):
-        AI_API_KEY = saved_ai_key.strip()
-except (OSError, ValueError, AttributeError, TypeError):
-    pass
-if not AI_API_KEY:
-    AI_API_KEY = os.getenv("ZOI_API_KEY", "").strip()
-AI_MODEL = os.getenv("ZOI_MODEL", "zoi").strip() or "zoi"
-AI_API_URL = os.getenv("ZOI_API_URL", "").strip()
-AI_UNFILTERED_API_URL = os.getenv("ZOI_UNFILTERED_API_URL", "").strip()
-AI_UNFILTERED_API_KEY = os.getenv("ZOI_UNFILTERED_API_KEY", "").strip()
 CLOUDFLARED_BIN = os.getenv("CLOUDFLARED_BIN", "cloudflared").strip() or "cloudflared"
 
 active_host = None
@@ -2484,96 +2469,6 @@ def _tos_embed() -> discord.Embed:
     )
     embed.set_footer(text="Mallow Bot • Terms of Service")
     return embed
-
-@bot.tree.command(name="setkey", description="Set the AI API key for this running bot session.")
-@app_commands.describe(api_key="Your normal Zoi API key. It is handled privately and never shown in the reply.")
-async def set_ai_key(interaction: discord.Interaction, api_key: str) -> None:
-    global AI_API_KEY
-    if not await bot.is_owner(interaction.user):
-        await send_interaction_response(
-            interaction,
-            "Only the bot owner can change the AI API key.",
-            ephemeral=True,
-        )
-        return
-
-    cleaned_key = api_key.strip()
-    if not cleaned_key or len(cleaned_key) > 500:
-        await send_interaction_response(
-            interaction,
-            "That API key does not look valid. Please check it and try again.",
-            ephemeral=True,
-        )
-        return
-
-    AI_API_KEY = cleaned_key
-    os.environ["ZOI_API_KEY"] = cleaned_key
-    await send_interaction_response(
-        interaction,
-        "The normal Zoi API key is set for this running session. To keep it after a restart, set ZOI_API_KEY in your hosting environment.",
-        ephemeral=True,
-    )
-
-
-class SaveZoiTokenModal(discord.ui.Modal, title="Save normal Zoi API key"):
-    api_key = discord.ui.TextInput(
-        label="Normal Zoi API key",
-        placeholder="Paste your API key here",
-        required=True,
-        min_length=1,
-        max_length=500,
-        style=discord.TextStyle.short,
-    )
-
-    async def on_submit(self, interaction: discord.Interaction) -> None:
-        global AI_API_KEY
-        cleaned_key = str(self.api_key.value).strip()
-        if not cleaned_key or len(cleaned_key) > 500:
-            await send_interaction_response(
-                interaction,
-                "That API key does not look valid. Please check it and try again.",
-                ephemeral=True,
-            )
-            return
-
-        try:
-            AI_KEY_FILE.write_text(
-                json.dumps({"api_key": cleaned_key, "saved_at": datetime.now(timezone.utc).isoformat()}),
-                encoding="utf-8",
-            )
-            try:
-                AI_KEY_FILE.chmod(0o600)
-            except OSError:
-                pass
-        except OSError:
-            logger.exception("Unable to save the normal Zoi API key to the runtime file.")
-            await send_interaction_response(
-                interaction,
-                "The key could not be saved to this host's filesystem. Check the host's writable storage settings.",
-                ephemeral=True,
-            )
-            return
-
-        AI_API_KEY = cleaned_key
-        os.environ["ZOI_API_KEY"] = cleaned_key
-        await send_interaction_response(
-            interaction,
-            "The normal Zoi API key was saved to the bot's local runtime storage and is active now. It can survive process restarts while that storage remains intact; redeploys or host resets may erase it, so use the hosting environment variable for durable storage.",
-            ephemeral=True,
-        )
-
-
-@bot.tree.command(name="savetoken", description="Save the normal Zoi API key privately across bot process restarts.")
-async def save_ai_key(interaction: discord.Interaction) -> None:
-    if not await bot.is_owner(interaction.user):
-        await send_interaction_response(
-            interaction,
-            "Only the bot owner can save the normal Zoi API key.",
-            ephemeral=True,
-        )
-        return
-    await interaction.response.send_modal(SaveZoiTokenModal())
-
 
 @bot.tree.command(name="tos", description="Show Mallow Bot acceptable-use rules")
 async def bot_tos(interaction: discord.Interaction) -> None:
