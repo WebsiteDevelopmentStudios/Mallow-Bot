@@ -164,7 +164,7 @@ async function route(request, env) {
   const serverName=String(access.guild?.name||"your server");
   const userName=String(s.user.global_name||s.user.username||"Test user");
   const description=rawMessage.replaceAll("{user}",userName).replaceAll("{server}",serverName).replaceAll("{member_count}","test");
-  const embed={description:description||"This is a test message." ,color:kind==="welcome"?0x8B5CF6:0xF59E0B,footer:{text:"Dashboard test · no member event was triggered"}};
+  const embed={description:description||"This is a test message.",color:kind==="welcome"?0x8B5CF6:0xF59E0B,thumbnail:{url:String(s.user.avatar_url||"https://cdn.discordapp.com/embed/avatars/0.png")},footer:{text:"Dashboard test · "+userName+" · This user "+(kind==="welcome"?"is":"was")+" #test on the server"}};
   if(title)embed.title=title.replaceAll("{user}",userName).replaceAll("{server}",serverName).replaceAll("{member_count}","test");
   const imageUrl=String(body.image_url||"").trim();
   if(imageUrl){
