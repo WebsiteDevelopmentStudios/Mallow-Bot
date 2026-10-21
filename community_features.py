@@ -1511,6 +1511,31 @@ def setup(bot):
         except discord.HTTPException:
             pass
 
+    @bot.tree.command(name="purge", description="Delete 1–100 recent messages from this channel.")
+    @app_commands.guild_only()
+    @app_commands.checks.has_permissions(manage_messages=True)
+    @app_commands.describe(amount="Number of recent messages to delete (1–100)")
+    async def purge_slash(interaction: discord.Interaction, amount: app_commands.Range[int, 1, 100]):
+        channel = interaction.channel
+        if not isinstance(channel, discord.TextChannel):
+            await interaction.response.send_message("Use this command in a text channel.", ephemeral=True)
+            return
+        bot_member = interaction.guild.me if interaction.guild else None
+        if bot_member is None or not bot_member.guild_permissions.manage_messages:
+            await interaction.response.send_message("Mallow needs the Manage Messages permission in this channel.", ephemeral=True)
+            return
+        await interaction.response.defer(ephemeral=True)
+        try:
+            deleted = await channel.purge(
+                limit=amount,
+                reason=f"/purge used by {interaction.user} ({interaction.user.id})",
+            )
+            await interaction.followup.send(f"Deleted {len(deleted)} message(s).", ephemeral=True)
+        except discord.Forbidden:
+            await interaction.followup.send("I couldn't delete messages. Check my Manage Messages permission.", ephemeral=True)
+        except discord.HTTPException:
+            await interaction.followup.send("Discord couldn't delete those messages. Try again in a moment.", ephemeral=True)
+
     bot.add_view(TicketPanelView())
     bot.add_view(TicketControlsView())
 
