@@ -1214,7 +1214,7 @@ def setup(bot):
                 await message.reply("No swears have been counted in this server yet.", mention_author=False)
                 return
             lines = [f"**{i}.** {name} — **{count}**" for i, (count, name, _uid) in enumerate(entries[:10], 1)]
-            await message.reply("**Swear leaderboard**\\n" + "\\n".join(lines), mention_author=False, allowed_mentions=discord.AllowedMentions.none())
+            await message.reply("**Swear leaderboard**\n" + "\n".join(lines), mention_author=False, allowed_mentions=discord.AllowedMentions.none())
             return
 
         # Prefix equivalents for the newer moderation and ticket slash commands.
