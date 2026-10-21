@@ -1134,7 +1134,6 @@ def setup(bot):
             channel = member.guild.get_channel(int(mc["welcome_channel_id"]))
             if not isinstance(channel, discord.TextChannel):
                 return
-            content = render_member_message(mc.get("welcome_message") or "Welcome {user} to {server}!", member)
             image_url = mc.get("welcome_image_url") or "https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/dashboard/Welcome.png"
             welcomer_section = (
                 "╭─〔 👤 **Welcomer** 〕─╮\n"
@@ -1150,12 +1149,12 @@ def setup(bot):
             card = await build_member_card(member, image_url, leaving=False)
             if card:
                 embed.set_image(url="attachment://mallow-member-card.png")
-                await channel.send(content=content, embed=embed, file=card, allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False))
+                await channel.send(embed=embed, file=card, allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False))
             else:
                 embed.set_thumbnail(url=member.display_avatar.url)
                 embed.set_image(url=image_url)
                 embed.set_footer(text=f"{member.display_name} · This user is #{member.guild.member_count or 1} on the server")
-                await channel.send(content=content, embed=embed, allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False))
+                await channel.send(embed=embed, allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False))
         except (ValueError, TypeError, discord.Forbidden, discord.HTTPException):
             pass
 
