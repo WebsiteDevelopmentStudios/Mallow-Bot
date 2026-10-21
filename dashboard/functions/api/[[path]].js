@@ -100,8 +100,11 @@ async function route(request, env) {
   const messages=parse(row?.messages_config,{welcome_enabled:false,welcome_channel_id:"",welcome_message:"Welcome {user} to {server}!",welcome_title:"",welcome_image_url:"https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/dashboard/Welcome.png",goodbye_enabled:false,goodbye_channel_id:"",goodbye_message:"{user} left {server}.",auto_reply_enabled:false,auto_replies:[]});
   const tickets=parse(row?.tickets_config,{enabled:false,category_id:"",support_role_ids:[],transcript_channel_id:"",welcome_message:"Thanks for opening a ticket. A staff member will be with you soon."});
   await ensureSwearWords(env);
+  await env.MALLOW_DB.prepare("CREATE TABLE IF NOT EXISTS swear_count_adjustments (guild_id TEXT NOT NULL, user_id TEXT NOT NULL, delta INTEGER NOT NULL DEFAULT 0, updated_by TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY(guild_id,user_id))").run();
   const swearRows=await env.MALLOW_DB.prepare("SELECT word FROM swear_words ORDER BY word COLLATE NOCASE").all();
-  return json({guild_id:guildId,settings:{prefix:row?.prefix||defaults.prefix,greeting:row?.greeting||defaults.greeting,greetings:row?!!row.greetings:true,mention_only:row?!!row.mention_only:true,disabled_commands:disabled,features,economy_config:economy,xp_config:xp,messages_config:messages,tickets_config:tickets,swear_words:(swearRows.results||[]).map(r=>r.word)}});
+  const adjustmentRows=await env.MALLOW_DB.prepare("SELECT user_id,delta FROM swear_count_adjustments WHERE guild_id=?").bind(guildId).all();
+  const swearCountAdjustments=Object.fromEntries((adjustmentRows.results||[]).map(r=>[r.user_id,Number(r.delta)||0]));
+  return json({guild_id:guildId,settings:{swear_count_adjustments:swearCountAdjustments,prefix:row?.prefix||defaults.prefix,greeting:row?.greeting||defaults.greeting,greetings:row?!!row.greetings:true,mention_only:row?!!row.mention_only:true,disabled_commands:disabled,features,economy_config:economy,xp_config:xp,messages_config:messages,tickets_config:tickets,swear_words:(swearRows.results||[]).map(r=>r.word)}});
  }
 
  if(path==="guild-resources"&&request.method==="GET"){
@@ -265,6 +268,26 @@ async function route(request, env) {
   return json({ok:true,settings:{prefix,greeting,greetings:!!body.greetings,mention_only:!!body.mention_only,disabled_commands:disabled,features,economy_config:economy,xp_config:xp}});
  }
 
+ if(path==="swear-counts"&&(request.method==="GET"||request.method==="POST")){
+  const s=await session(request,env);if(!s)return json({error:"Sign in with Discord first."},401);
+  if(s.user.id!==String(env.BOT_OWNER_ID))return json({error:"Only the bot owner can adjust swear counts."},403);
+  await env.MALLOW_DB.prepare("CREATE TABLE IF NOT EXISTS swear_count_adjustments (guild_id TEXT NOT NULL, user_id TEXT NOT NULL, delta INTEGER NOT NULL DEFAULT 0, updated_by TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY(guild_id,user_id))").run();
+  if(request.method==="GET"){
+   const guildId=url.searchParams.get("guild_id")||"";
+   if(!/^\\d{17,20}$/.test(guildId))return json({error:"Enter a valid 17–20 digit Discord server ID."},400);
+   const rows=await env.MALLOW_DB.prepare("SELECT user_id,delta,updated_by,updated_at FROM swear_count_adjustments WHERE guild_id=? ORDER BY updated_at DESC LIMIT 100").bind(guildId).all();
+   return json({adjustments:rows.results||[]});
+  }
+  let body;try{body=await request.json()}catch{return json({error:"Invalid JSON."},400)}
+  const guildId=String(body.guild_id||"").trim(),userId=String(body.user_id||"").trim(),amount=Number(body.amount),action=String(body.action||"");
+  if(!/^\\d{17,20}$/.test(guildId)||!/^\\d{17,20}$/.test(userId))return json({error:"Enter valid 17–20 digit Discord server and user IDs."},400);
+  if(!Number.isSafeInteger(amount)||amount<1||amount>100000)return json({error:"Amount must be a whole number from 1 to 100000."},400);
+  if(!["add","remove"].includes(action))return json({error:"Choose add or remove."},400);
+  const delta=action==="add"?amount:-amount,now=new Date().toISOString();
+  await env.MALLOW_DB.prepare("INSERT INTO swear_count_adjustments(guild_id,user_id,delta,updated_by,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(guild_id,user_id) DO UPDATE SET delta=swear_count_adjustments.delta+excluded.delta,updated_by=excluded.updated_by,updated_at=excluded.updated_at").bind(guildId,userId,delta,s.user.id,now).run();
+  const row=await env.MALLOW_DB.prepare("SELECT delta FROM swear_count_adjustments WHERE guild_id=? AND user_id=?").bind(guildId,userId).first();
+  return json({ok:true,guild_id:guildId,user_id:userId,delta:Number(row?.delta)||0});
+ }
  if(path==="swear-words"&&(request.method==="GET"||request.method==="POST"||request.method==="DELETE")){
   const s=await session(request,env);if(!s)return json({error:"Sign in with Discord first."},401);
   if(s.user.id!==String(env.BOT_OWNER_ID))return json({error:"Only the bot owner can manage the swear word list."},403);
