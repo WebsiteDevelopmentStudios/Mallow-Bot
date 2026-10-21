@@ -4,10 +4,12 @@ import os
 import random
 import re
 import time
+import io
 from pathlib import Path
 from datetime import timedelta
 
 import aiohttp
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 import discord
 from discord import app_commands
 
@@ -1024,6 +1026,93 @@ def setup(bot):
             .replace("{member_count}", str(member_count))
         )[:1900]
 
+    async def fetch_member_image(session: aiohttp.ClientSession, image_url: str, *, max_bytes: int = 5 * 1024 * 1024) -> bytes | None:
+        image_url = str(image_url or "").strip()
+        if not image_url.startswith(("https://", "http://")):
+            return None
+        try:
+            async with session.get(image_url, allow_redirects=True) as response:
+                if response.status != 200:
+                    return None
+                content_type = response.headers.get("Content-Type", "").split(";", 1)[0].lower()
+                if not content_type.startswith("image/"):
+                    return None
+                length = int(response.headers.get("Content-Length", "0") or 0)
+                if length > max_bytes:
+                    return None
+                payload = await response.content.read(max_bytes + 1)
+                return payload if len(payload) <= max_bytes else None
+        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
+            return None
+
+    def draw_member_card(background_bytes: bytes, avatar_bytes: bytes, username: str, member_number: int, *, leaving: bool) -> bytes:
+        with Image.open(io.BytesIO(background_bytes)) as source:
+            background = ImageOps.fit(source.convert("RGB"), (700, 400), method=Image.Resampling.LANCZOS)
+        avatar = Image.open(io.BytesIO(avatar_bytes)).convert("RGBA")
+        avatar = ImageOps.fit(avatar, (112, 112), method=Image.Resampling.LANCZOS)
+        mask = Image.new("L", (112, 112), 0)
+        ImageDraw.Draw(mask).ellipse((0, 0, 111, 111), fill=255)
+        avatar.putalpha(mask)
+
+        # A dark translucent footer keeps the username and member count legible
+        # without hiding the selected background image.
+        overlay = Image.new("RGBA", background.size, (0, 0, 0, 0))
+        draw = ImageDraw.Draw(overlay)
+        draw.rounded_rectangle((22, 248, 678, 378), radius=24, fill=(13, 12, 20, 220), outline=(255, 255, 255, 70), width=2)
+        background = Image.alpha_composite(background.convert("RGBA"), overlay)
+        background.alpha_composite(avatar, (42, 257))
+        draw = ImageDraw.Draw(background)
+        font_path_candidates = (
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
+        )
+        bold_path_candidates = (
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+            "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf",
+        )
+        def load_font(paths, size):
+            for path in paths:
+                try:
+                    return ImageFont.truetype(path, size=size)
+                except OSError:
+                    continue
+            return ImageFont.load_default()
+        name_font = load_font(bold_path_candidates, 28)
+        detail_font = load_font(font_path_candidates, 18)
+        safe_name = str(username or "Member").replace("\\n", " ").strip()[:80] or "Member"
+        max_name_width = 490
+        while safe_name and draw.textbbox((0, 0), safe_name, font=name_font)[2] > max_name_width:
+            safe_name = safe_name[:-2].rstrip() + "…" if len(safe_name) > 2 else safe_name[:-1]
+        draw.text((174, 272), safe_name, font=name_font, fill=(255, 255, 255, 255), stroke_width=1, stroke_fill=(0, 0, 0, 100))
+        detail = f"This user {'was' if leaving else 'is'} #{max(1, int(member_number))} on the server"
+        draw.text((174, 319), detail, font=detail_font, fill=(224, 218, 242, 255))
+        output = io.BytesIO()
+        background.convert("RGB").save(output, format="PNG", optimize=True)
+        return output.getvalue()
+
+    async def build_member_card(member: discord.Member, image_url: str, *, leaving: bool) -> discord.File | None:
+        avatar_url = member.display_avatar.replace(size=256, format="png").url
+        timeout = aiohttp.ClientTimeout(total=8)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            avatar_bytes = await fetch_member_image(session, avatar_url, max_bytes=2 * 1024 * 1024)
+            background_bytes = await fetch_member_image(session, image_url)
+        if not avatar_bytes:
+            return None
+        if not background_bytes:
+            fallback = "https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/dashboard/Welcome.png"
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                background_bytes = await fetch_member_image(session, fallback)
+        if not background_bytes:
+            return None
+        member_number = (member.guild.member_count or 1) + (1 if leaving else 0)
+        try:
+            card_bytes = await asyncio.to_thread(
+                draw_member_card, background_bytes, avatar_bytes, member.display_name, member_number, leaving=leaving
+            )
+            return discord.File(io.BytesIO(card_bytes), filename="mallow-member-card.png")
+        except (OSError, ValueError, TypeError):
+            return None
+
     def member_message_embed(title: str, image_url: str, color: discord.Color) -> discord.Embed | None:
         title = str(title or "").strip()
         image_url = str(image_url or "").strip()
@@ -1046,8 +1135,17 @@ def setup(bot):
             if not isinstance(channel, discord.TextChannel):
                 return
             content = render_member_message(mc.get("welcome_message") or "Welcome {user} to {server}!", member)
-            embed = member_message_embed(mc.get("welcome_title", ""), mc.get("welcome_image_url") or "https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/dashboard/Welcome.png", discord.Color.green())
-            await channel.send(content=content, embed=embed, allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False))
+            image_url = mc.get("welcome_image_url") or "https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/dashboard/Welcome.png"
+            embed = discord.Embed(title=str(mc.get("welcome_title") or "").strip()[:256] or None, color=discord.Color.green())
+            card = await build_member_card(member, image_url, leaving=False)
+            if card:
+                embed.set_image(url="attachment://mallow-member-card.png")
+                await channel.send(content=content, embed=embed, file=card, allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False))
+            else:
+                embed.set_thumbnail(url=member.display_avatar.url)
+                embed.set_image(url=image_url)
+                embed.set_footer(text=f"{member.display_name} · This user is #{member.guild.member_count or 1} on the server")
+                await channel.send(content=content, embed=embed, allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False))
         except (ValueError, TypeError, discord.Forbidden, discord.HTTPException):
             pass
 
@@ -1061,8 +1159,17 @@ def setup(bot):
             if not isinstance(channel, discord.TextChannel):
                 return
             content = render_member_message(mc.get("goodbye_message") or "{user} left {server}.", member, leaving=True)
-            embed = member_message_embed(mc.get("goodbye_title", ""), mc.get("goodbye_image_url", ""), discord.Color.orange())
-            await channel.send(content=content, embed=embed, allowed_mentions=discord.AllowedMentions.none())
+            image_url = mc.get("goodbye_image_url") or mc.get("welcome_image_url") or "https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/dashboard/Welcome.png"
+            embed = discord.Embed(title=str(mc.get("goodbye_title") or "").strip()[:256] or None, color=discord.Color.orange())
+            card = await build_member_card(member, image_url, leaving=True)
+            if card:
+                embed.set_image(url="attachment://mallow-member-card.png")
+                await channel.send(content=content, embed=embed, file=card, allowed_mentions=discord.AllowedMentions.none())
+            else:
+                embed.set_thumbnail(url=member.display_avatar.url)
+                embed.set_image(url=image_url)
+                embed.set_footer(text=f"{member.display_name} · This user was #{(member.guild.member_count or 1) + 1} on the server")
+                await channel.send(content=content, embed=embed, allowed_mentions=discord.AllowedMentions.none())
         except (ValueError, TypeError, discord.Forbidden, discord.HTTPException):
             pass
 
