@@ -143,6 +143,39 @@ async function route(request, env) {
   return json({ok:true,image_url:url.origin+"/api/welcome-image?guild_id="+encodeURIComponent(guildId)+"&kind="+kind+"&v="+Date.now()});
  }
 
+ if(path==="test-member-message"&&request.method==="POST"){
+  const s=await session(request,env);if(!s)return json({error:"Sign in required."},401);
+  const guildId=url.searchParams.get("guild_id")||"";
+  const access=await authorizedGuild(s,env,guildId);if(access.error)return json({error:access.error},access.status);
+  const premium=await premiumFor(env,s.user.id);if(!premium.active&&s.user.id!==String(env.BOT_OWNER_ID))return json({error:"An active seven-day Premium subscription is required to test welcome and goodbye messages."},402);
+  if(!env.BOT_TOKEN)return json({error:"Bot token is not configured."},503);
+  let body;try{body=await request.json()}catch{return json({error:"Invalid JSON."},400)}
+  const kind=String(body.kind||"");
+  if(!["welcome","goodbye"].includes(kind))return json({error:"Choose welcome or goodbye."},400);
+  const channelId=String(body.channel_id||"");
+  if(!/^\\d{17,20}$/.test(channelId))return json({error:"Choose a channel first."},400);
+  const headers={authorization:"Bot "+env.BOT_TOKEN,"content-type":"application/json"};
+  const channelResponse=await fetch("https://discord.com/api/channels/"+channelId,{headers});
+  if(!channelResponse.ok)return json({error:"Mallow cannot access that channel."},502);
+  const channel=await channelResponse.json();
+  if(channel.guild_id!==guildId||![0,5].includes(channel.type))return json({error:"Choose a text or announcement channel in this server."},400);
+  const title=String(body.title||"").trim().slice(0,256);
+  const rawMessage=String(body.message||"").slice(0,1500);
+  const serverName=String(access.guild?.name||"your server");
+  const userName=String(s.user.global_name||s.user.username||"Test user");
+  const description=rawMessage.replaceAll("{user}",userName).replaceAll("{server}",serverName).replaceAll("{member_count}","test");
+  const embed={description:description||"This is a test message." ,color:kind==="welcome"?0x8B5CF6:0xF59E0B,footer:{text:"Dashboard test · no member event was triggered"}};
+  if(title)embed.title=title.replaceAll("{user}",userName).replaceAll("{server}",serverName).replaceAll("{member_count}","test");
+  const imageUrl=String(body.image_url||"").trim();
+  if(imageUrl){
+   try{const parsed=new URL(imageUrl);if(!["http:","https:"].includes(parsed.protocol))throw Error();embed.image={url:parsed.toString()}}
+   catch{return json({error:"Image URL must be a valid HTTP or HTTPS URL."},400)}
+  }else if(kind==="welcome")embed.image={url:"https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/dashboard/Welcome.png"};
+  const sent=await fetch("https://discord.com/api/channels/"+channelId+"/messages",{method:"POST",headers,body:JSON.stringify({embeds:[embed],allowed_mentions:{parse:[]}})});
+  if(!sent.ok){const error=await sent.json().catch(()=>({}));return json({error:error.message||"Could not send the test message. Check Mallow's View Channel, Send Messages, and Embed Links permissions."},502)}
+  const result=await sent.json();
+  return json({ok:true,message_id:result.id,channel_id:channelId,kind});
+ }
  if(path==="messages-settings"&&(request.method==="GET"||request.method==="PUT")){
   const s=await session(request,env);if(!s)return json({error:"Sign in required."},401);
   const guildId=url.searchParams.get("guild_id")||"";
