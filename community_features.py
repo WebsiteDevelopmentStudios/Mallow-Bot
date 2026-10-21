@@ -1308,12 +1308,22 @@ def setup(bot):
             avatar_bytes = await fetch_member_image(session, avatar_url, max_bytes=2 * 1024 * 1024)
             background_bytes = await fetch_member_image(session, image_url)
         if not avatar_bytes:
+            import logging
+            logging.getLogger("mallow-member-messages").warning(
+                "Could not download/read avatar image for guild %s member %s.",
+                member.guild.id, member.id,
+            )
             return None
         if not background_bytes:
             fallback = "https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/dashboard/Welcome.png"
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 background_bytes = await fetch_member_image(session, fallback)
         if not background_bytes:
+            import logging
+            logging.getLogger("mallow-member-messages").warning(
+                "No readable welcome-card background was available for guild %s member %s.",
+                member.guild.id, member.id,
+            )
             return None
         member_number = (member.guild.member_count or 1) + (1 if leaving else 0)
         try:
@@ -1322,6 +1332,11 @@ def setup(bot):
             )
             return discord.File(io.BytesIO(card_bytes), filename="mallow-member-card.png")
         except (OSError, ValueError, TypeError):
+            import logging
+            logging.getLogger("mallow-member-messages").exception(
+                "Image composition failed for guild %s member %s.",
+                member.guild.id, member.id,
+            )
             return None
 
     def member_message_embed(title: str, image_url: str, color: discord.Color) -> discord.Embed | None:
