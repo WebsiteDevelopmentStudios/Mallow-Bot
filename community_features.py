@@ -1046,7 +1046,7 @@ def setup(bot):
             if not isinstance(channel, discord.TextChannel):
                 return
             content = render_member_message(mc.get("welcome_message") or "Welcome {user} to {server}!", member)
-            embed = member_message_embed(mc.get("welcome_title", ""), mc.get("welcome_image_url", ""), discord.Color.green())
+            embed = member_message_embed(mc.get("welcome_title", ""), mc.get("welcome_image_url") or "https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/dashboard/Welcome.png", discord.Color.green())
             await channel.send(content=content, embed=embed, allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False))
         except (ValueError, TypeError, discord.Forbidden, discord.HTTPException):
             pass
