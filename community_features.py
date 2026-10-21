@@ -25,12 +25,12 @@ def load():
     try:
         value = json.loads(DATA_FILE.read_text(encoding="utf-8"))
         if isinstance(value, dict):
-            for key in ("xp", "currency", "log_channels", "dm_routes", "timeout_minutes", "last_xp", "daily_claims", "snipes", "sticky_messages", "custom_commands", "vanity"):
+            for key in ("xp", "currency", "log_channels", "dm_routes", "timeout_minutes", "last_xp", "daily_claims", "snipes", "sticky_messages", "custom_commands", "vanity", "autoroles", "reaction_roles"):
                 value.setdefault(key, {})
             return value
     except (OSError, json.JSONDecodeError):
         pass
-    return {key: {} for key in ("xp", "currency", "log_channels", "dm_routes", "timeout_minutes", "last_xp", "daily_claims", "snipes", "sticky_messages", "custom_commands", "vanity")}
+    return {key: {} for key in ("xp", "currency", "log_channels", "dm_routes", "timeout_minutes", "last_xp", "daily_claims", "snipes", "sticky_messages", "custom_commands", "vanity", "autoroles", "reaction_roles")}
 
 data = load()
 _last_description = None
@@ -603,6 +603,196 @@ async def play_game(interaction: discord.Interaction, game: str, bet: int):
 
 
 def setup(bot):
+    autorole_group = app_commands.Group(name="autorole", description="Configure automatic member roles.")
+    reaction_role_group = app_commands.Group(name="reaction-role", description="Create and manage reaction-role panels.")
+
+    def role_is_assignable(guild: discord.Guild, role: discord.Role) -> bool:
+        me = guild.me
+        return bool(me and me.guild_permissions.manage_roles and not role.is_default() and not role.managed and role < me.top_role)
+
+    @autorole_group.command(name="set", description="Give a role to every new member.")
+    @app_commands.checks.has_permissions(manage_roles=True)
+    @app_commands.describe(role="Role automatically given to new members")
+    async def autorole_set(interaction: discord.Interaction, role: discord.Role):
+        guild = interaction.guild
+        if guild is None:
+            await interaction.response.send_message("Use this command in a server.", ephemeral=True)
+            return
+        if not role_is_assignable(guild, role):
+            await interaction.response.send_message("I can't assign that role. Make sure Mallow has Manage Roles and its highest role is above the selected role.", ephemeral=True)
+            return
+        data["autoroles"][str(guild.id)] = role.id
+        save()
+        await interaction.response.send_message(f"Auto-role enabled. New members will receive {role.mention}.", ephemeral=True)
+
+    @autorole_group.command(name="disable", description="Disable automatic member roles.")
+    @app_commands.checks.has_permissions(manage_roles=True)
+    async def autorole_disable(interaction: discord.Interaction):
+        if interaction.guild_id is None:
+            await interaction.response.send_message("Use this command in a server.", ephemeral=True)
+            return
+        data["autoroles"].pop(str(interaction.guild_id), None)
+        save()
+        await interaction.response.send_message("Auto-role has been disabled for this server.", ephemeral=True)
+
+    @autorole_group.command(name="status", description="Show the configured automatic member role.")
+    @app_commands.checks.has_permissions(manage_roles=True)
+    async def autorole_status(interaction: discord.Interaction):
+        if interaction.guild is None:
+            await interaction.response.send_message("Use this command in a server.", ephemeral=True)
+            return
+        role_id = data["autoroles"].get(str(interaction.guild.id))
+        role = interaction.guild.get_role(int(role_id)) if str(role_id or "").isdigit() else None
+        await interaction.response.send_message(
+            f"New members will receive {role.mention}." if role else "Auto-role is not configured. Use /autorole set to choose a role.",
+            ephemeral=True,
+        )
+
+    @reaction_role_group.command(name="create", description="Create a reaction-role panel in a channel.")
+    @app_commands.checks.has_permissions(manage_roles=True)
+    @app_commands.describe(channel="Where to post the panel", title="Panel title", description="Instructions shown above the role list")
+    async def reaction_role_create(interaction: discord.Interaction, channel: discord.TextChannel, title: str = "Choose your roles", description: str = "React below to get a role. Remove your reaction to remove it."):
+        if interaction.guild is None:
+            await interaction.response.send_message("Use this command in a server.", ephemeral=True)
+            return
+        embed = discord.Embed(title=title[:256], description=description[:3500], color=discord.Color.blurple())
+        embed.set_footer(text="Server reaction roles")
+        try:
+            message = await channel.send(embed=embed)
+        except (discord.Forbidden, discord.HTTPException):
+            await interaction.response.send_message("I couldn't post in that channel. Check my View Channel, Send Messages, and Embed Links permissions.", ephemeral=True)
+            return
+        data["reaction_roles"][str(message.id)] = {
+            "guild_id": str(interaction.guild.id),
+            "channel_id": str(channel.id),
+            "title": title[:256],
+            "roles": {},
+        }
+        save()
+        await interaction.response.send_message(f"Reaction-role panel created: {message.jump_url}\nUse /reaction-role add to connect an emoji and role.", ephemeral=True)
+
+    @reaction_role_group.command(name="add", description="Connect an emoji on a panel to a role.")
+    @app_commands.checks.has_permissions(manage_roles=True)
+    @app_commands.describe(message_id="ID of a panel created with /reaction-role create", emoji="Emoji users react with", role="Role to give while the reaction is present")
+    async def reaction_role_add(interaction: discord.Interaction, message_id: str, emoji: str, role: discord.Role):
+        guild = interaction.guild
+        if guild is None:
+            await interaction.response.send_message("Use this command in a server.", ephemeral=True)
+            return
+        if not message_id.isdigit():
+            await interaction.response.send_message("Message ID must contain only numbers.", ephemeral=True)
+            return
+        panel = data["reaction_roles"].get(message_id)
+        if not panel or panel.get("guild_id") != str(guild.id):
+            await interaction.response.send_message("That panel wasn't found in this server. Create one with /reaction-role create first.", ephemeral=True)
+            return
+        if not role_is_assignable(guild, role):
+            await interaction.response.send_message("I can't assign that role. Make sure Mallow has Manage Roles and its highest role is above the selected role.", ephemeral=True)
+            return
+        emoji_value = emoji.strip()
+        if not emoji_value or len(emoji_value) > 100:
+            await interaction.response.send_message("Enter a valid Unicode emoji or custom emoji.", ephemeral=True)
+            return
+        channel = guild.get_channel(int(panel.get("channel_id", "0")))
+        if not isinstance(channel, discord.TextChannel):
+            await interaction.response.send_message("The panel channel no longer exists.", ephemeral=True)
+            return
+        try:
+            message = await channel.fetch_message(int(message_id))
+            await message.add_reaction(emoji_value)
+        except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+            await interaction.response.send_message("I couldn't find the panel or add that reaction. Check my channel permissions and the emoji.", ephemeral=True)
+            return
+        panel.setdefault("roles", {})[emoji_value] = role.id
+        save()
+        await interaction.response.send_message(f"Added {emoji_value} → {role.mention}. React to the panel to receive the role; remove your reaction to lose it.", ephemeral=True)
+
+    @reaction_role_group.command(name="remove", description="Remove an emoji-to-role mapping from a panel.")
+    @app_commands.checks.has_permissions(manage_roles=True)
+    @app_commands.describe(message_id="ID of the reaction-role panel", emoji="Emoji mapping to remove")
+    async def reaction_role_remove(interaction: discord.Interaction, message_id: str, emoji: str):
+        if interaction.guild is None:
+            await interaction.response.send_message("Use this command in a server.", ephemeral=True)
+            return
+        panel = data["reaction_roles"].get(message_id)
+        if not panel or panel.get("guild_id") != str(interaction.guild.id):
+            await interaction.response.send_message("That panel wasn't found in this server.", ephemeral=True)
+            return
+        emoji_value = emoji.strip()
+        roles = panel.get("roles", {})
+        if emoji_value not in roles:
+            await interaction.response.send_message("That emoji isn't connected to a role on this panel.", ephemeral=True)
+            return
+        roles.pop(emoji_value, None)
+        save()
+        await interaction.response.send_message(f"Removed the {emoji_value} role mapping. The reaction no longer changes roles.", ephemeral=True)
+
+    @reaction_role_group.command(name="list", description="List the role mappings on a panel.")
+    @app_commands.checks.has_permissions(manage_roles=True)
+    @app_commands.describe(message_id="ID of the reaction-role panel")
+    async def reaction_role_list(interaction: discord.Interaction, message_id: str):
+        if interaction.guild is None:
+            await interaction.response.send_message("Use this command in a server.", ephemeral=True)
+            return
+        panel = data["reaction_roles"].get(message_id)
+        if not panel or panel.get("guild_id") != str(interaction.guild.id):
+            await interaction.response.send_message("That panel wasn't found in this server.", ephemeral=True)
+            return
+        lines = []
+        for emoji_value, role_id in panel.get("roles", {}).items():
+            role = interaction.guild.get_role(int(role_id))
+            lines.append(f"{emoji_value} → {role.mention if role else 'deleted role'}")
+        await interaction.response.send_message("\n".join(lines) if lines else "This panel has no role mappings yet.", ephemeral=True)
+
+    async def auto_role_member_join_listener(member: discord.Member):
+        role_id = data["autoroles"].get(str(member.guild.id))
+        if not str(role_id or "").isdigit():
+            return
+        role = member.guild.get_role(int(role_id))
+        if role is None or not role_is_assignable(member.guild, role):
+            return
+        try:
+            await member.add_roles(role, reason="Mallow Bot automatic join role")
+        except (discord.Forbidden, discord.HTTPException):
+            pass
+
+    async def reaction_role_listener(payload: discord.RawReactionActionEvent, *, added: bool):
+        if payload.guild_id is None or bot.user is None or payload.user_id == bot.user.id:
+            return
+        panel = data["reaction_roles"].get(str(payload.message_id))
+        if not panel or panel.get("guild_id") != str(payload.guild_id):
+            return
+        role_id = panel.get("roles", {}).get(str(payload.emoji))
+        if not str(role_id or "").isdigit():
+            return
+        guild = bot.get_guild(payload.guild_id)
+        if guild is None:
+            return
+        member = payload.member if added else guild.get_member(payload.user_id)
+        if member is None:
+            try:
+                member = await guild.fetch_member(payload.user_id)
+            except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+                return
+        role = guild.get_role(int(role_id))
+        if role is None or not role_is_assignable(guild, role):
+            return
+        try:
+            if added:
+                await member.add_roles(role, reason="Mallow Bot reaction role")
+            else:
+                await member.remove_roles(role, reason="Mallow Bot reaction role removed")
+        except (discord.Forbidden, discord.HTTPException):
+            pass
+
+    async def reaction_role_added(payload: discord.RawReactionActionEvent):
+        await reaction_role_listener(payload, added=True)
+
+    async def reaction_role_removed(payload: discord.RawReactionActionEvent):
+        await reaction_role_listener(payload, added=False)
+
+    bot.tree.add_command(autorole_group)
+    bot.tree.add_command(reaction_role_group)
     @bot.tree.command(name="set-log", description="Set the bot DM log channel (developer only).")
     @app_commands.describe(channel="Channel that receives incoming bot DMs")
     async def set_log_slash(interaction: discord.Interaction, channel: discord.TextChannel):
@@ -1187,6 +1377,9 @@ def setup(bot):
     bot.add_listener(message_listener, "on_message")
     bot.add_listener(prefix_listener, "on_message")
     bot.add_listener(member_join_listener, "on_member_join")
+    bot.add_listener(auto_role_member_join_listener, "on_member_join")
+    bot.add_listener(reaction_role_added, "on_raw_reaction_add")
+    bot.add_listener(reaction_role_removed, "on_raw_reaction_remove")
     bot.add_listener(member_remove_listener, "on_member_remove")
 
     class TicketPanelView(discord.ui.View):
