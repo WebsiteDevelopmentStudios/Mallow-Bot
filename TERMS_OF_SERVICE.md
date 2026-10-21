@@ -5,6 +5,7 @@
 These Terms of Service (“Terms”) govern your use of Mallow Bot (“Mallow,” “the bot”), a Discord bot that provides community commands, XP and levels, leaderboards, virtual Mallow Coins, games, support tickets, moderation utilities, direct-message routing, and other features. Slash commands and text commands using the configured prefix (by default, `-mb`) may provide overlapping functionality. By using the bot, you agree to these Terms. If you do not agree, do not use the bot.
 
 ## 1. Eligibility and Discord
+https://discord.gg/MTxV4cyxvC
 
 You must be permitted to use Discord and comply with Discord’s Terms of Service, Community Guidelines, and applicable law. You are responsible for ensuring your use of Mallow Bot is allowed in your jurisdiction.
 
