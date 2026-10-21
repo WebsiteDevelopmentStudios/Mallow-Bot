@@ -271,7 +271,7 @@ async function ensureSwearWords(env){
   if(request.method==="GET"){const rows=await env.MALLOW_DB.prepare("SELECT word,added_by,added_at FROM swear_words ORDER BY word COLLATE NOCASE").all();return json({words:rows.results||[]})}
   let body;try{body=await request.json()}catch{return json({error:"Invalid JSON."},400)}
   const word=String(body.word||"").trim().toLocaleLowerCase();
-  if(!word||word.length>40||/[\\s\\r\\n]/.test(word)||!/^[\\p{L}\\p{N}'-]+$/u.test(word))return json({error:"Enter one word (up to 40 letters, numbers, apostrophes, or hyphens)."},400);
+  if(!word||word.length>40||/[\s\r\n]/.test(word)||!/^[\p{L}\p{N}'-]+$/u.test(word))return json({error:"Enter one word (up to 40 letters, numbers, apostrophes, or hyphens)."},400);
   if(request.method==="POST"){
    await env.MALLOW_DB.prepare("INSERT INTO swear_words(word,added_by,added_at) VALUES(?,?,?) ON CONFLICT(word) DO NOTHING").bind(word,s.user.id,new Date().toISOString()).run();
    return json({ok:true,word,action:"added"});
