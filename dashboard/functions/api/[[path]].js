@@ -164,14 +164,18 @@ async function route(request, env) {
   const serverName=String(access.guild?.name||"your server");
   const userName=String(s.user.global_name||s.user.username||"Test user");
   const description=rawMessage.replaceAll("{user}",userName).replaceAll("{server}",serverName).replaceAll("{member_count}","test");
-  const embed={description:description||"This is a test message.",color:kind==="welcome"?0x8B5CF6:0xF59E0B,thumbnail:{url:String(s.user.avatar_url||"https://cdn.discordapp.com/embed/avatars/0.png")},footer:{text:"Dashboard test · "+userName+" · This user "+(kind==="welcome"?"is":"was")+" #test on the server"}};
-  if(title)embed.title=title.replaceAll("{user}",userName).replaceAll("{server}",serverName).replaceAll("{member_count}","test");
-  const imageUrl=String(body.image_url||"").trim();
-  if(imageUrl){
-   try{const parsed=new URL(imageUrl);if(!["http:","https:"].includes(parsed.protocol))throw Error();embed.image={url:parsed.toString()}}
-   catch{return json({error:"Image URL must be a valid HTTP or HTTPS URL."},400)}
-  }else if(kind==="welcome")embed.image={url:"https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/dashboard/Welcome.png"};
-  const sent=await fetch("https://discord.com/api/channels/"+channelId+"/messages",{method:"POST",headers,body:JSON.stringify({embeds:[embed],allowed_mentions:{parse:[]}})});
+  const cardDataUrl=String(body.card_data_url||"");
+  const cardMatch=/^data:image\\/png;base64,([A-Za-z0-9+/=]+)$/.exec(cardDataUrl);
+  if(!cardMatch)return json({error:"Could not render the welcome/goodbye card. Try an image URL that permits image loading, or import the image in the dashboard."},400);
+  const cardBase64=cardMatch[1];
+  if(cardBase64.length>1400000)return json({error:"Rendered card is too large."},413);
+  let cardBytes;try{cardBytes=Uint8Array.from(atob(cardBase64),c=>c.charCodeAt(0))}catch{return json({error:"Rendered card data is invalid."},400)}
+  const embed={description:description||"This is a test message.",color:kind==="welcome"?0x8B5CF6:0xF59E0B,image:{url:"attachment://mallow-member-card.png"}};
+  if(title)embed.title=title.replaceAll("{user}",userName).replaceAll("{server}",serverName).replaceAll("{member_count}","123");
+  const form=new FormData();
+  form.set("payload_json",JSON.stringify({embeds:[embed],allowed_mentions:{parse:[]}}));
+  form.set("files[0]",new Blob([cardBytes],{type:"image/png"}),"mallow-member-card.png");
+  const sent=await fetch("https://discord.com/api/channels/"+channelId+"/messages",{method:"POST",headers:{authorization:"Bot "+env.BOT_TOKEN},body:form});
   if(!sent.ok){const error=await sent.json().catch(()=>({}));return json({error:error.message||"Could not send the test message. Check Mallow's View Channel, Send Messages, and Embed Links permissions."},502)}
   const result=await sent.json();
   return json({ok:true,message_id:result.id,channel_id:channelId,kind});
