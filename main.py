@@ -2810,7 +2810,7 @@ async def on_message(message: discord.Message) -> None:
         "economy": {"balance","daily","gamble","coinflip","slots","roulette","dice","blackjack","work","pay","rob"},
         "xp": {"xp","level","leaderboard"},
         "music": {"play","pause","resume","lyrics","skip","queue","volume","stop","join","leave"},
-        "moderation": {"dm","set-log","timeout-minutes"},
+        "moderation": {"dm","set-log","timeout-minutes","purge"},
         "fun": {"vibecheck","ship","fortune","wyr"},
         "utility": {"uptime","update","commands","help","sync","countdown","say","ticket","ticket-panel","ticket-close"},
         "social": {"youtube"},
