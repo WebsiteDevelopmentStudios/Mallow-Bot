@@ -59,7 +59,8 @@ async function authorizedGuild(s, env, guildId) {
 
 async function ensureSwearWords(env){
   await env.MALLOW_DB.prepare("CREATE TABLE IF NOT EXISTS swear_words (word TEXT PRIMARY KEY, added_by TEXT NOT NULL, added_at TEXT NOT NULL)").run();
-  for(const word of ["fuck","fucking","shit","bitch","asshole","bastard","damn","crap","dick","piss","motherfucker"]) {
+  const existing=await env.MALLOW_DB.prepare("SELECT COUNT(*) AS total FROM swear_words").first();
+  if(Number(existing?.total||0)===0) for(const word of ["fuck","fucking","shit","bitch","asshole","bastard","damn","crap","dick","piss","motherfucker"]) {
     await env.MALLOW_DB.prepare("INSERT INTO swear_words(word,added_by,added_at) VALUES(?,?,?) ON CONFLICT(word) DO NOTHING").bind(word,"system",new Date().toISOString()).run();
   }
 }
@@ -95,7 +96,7 @@ async function ensureSwearWords(env){
   const tickets=parse(row?.tickets_config,{enabled:false,category_id:"",support_role_ids:[],transcript_channel_id:"",welcome_message:"Thanks for opening a ticket. A staff member will be with you soon."});
   await ensureSwearWords(env);
   const swearRows=await env.MALLOW_DB.prepare("SELECT word FROM swear_words ORDER BY word COLLATE NOCASE").all();
-  return json({guild_id:guildId,settings:{prefix:row?.prefix||defaults.prefix,greeting:row?.greeting||defaults.greeting,greetings:row?!!row.greetings:true,mention_only:row?!!row.mention_only:true,disabled_commands:disabled,features,economy_config:economy,xp_config:xp,messages_config:messages,tickets_config:tickets}});
+  return json({guild_id:guildId,settings:{prefix:row?.prefix||defaults.prefix,greeting:row?.greeting||defaults.greeting,greetings:row?!!row.greetings:true,mention_only:row?!!row.mention_only:true,disabled_commands:disabled,features,economy_config:economy,xp_config:xp,messages_config:messages,tickets_config:tickets,swear_words:(swearRows.results||[]).map(r=>r.word)}});
  }
 
  if(path==="guild-resources"&&request.method==="GET"){
