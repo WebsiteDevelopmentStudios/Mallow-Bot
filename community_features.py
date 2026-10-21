@@ -90,16 +90,34 @@ async def process_message(bot, message):
     dashboard_config = await get_guild_config(guild.id)
     command_prefix = dashboard_config.get("prefix", "-mb")
     message_cfg = dashboard_config.get("messages_config", {})
-    swear_words = [str(w).casefold().strip() for w in dashboard_config.get("swear_words", []) if isinstance(w, str) and w.strip()]
-    # Count every occurrence of a configured swear word.
+    # Normalize and deduplicate the configured list so duplicate entries never
+    # cause a single swear to be counted multiple times.
+    swear_words = sorted({
+        str(w).casefold().strip()
+        for w in dashboard_config.get("swear_words", [])
+        if isinstance(w, str) and w.strip()
+    }, key=len, reverse=True)
+    # Count each matching occurrence once, preferring longer terms when they overlap.
     # This is a counter only; it does not delete messages or punish members.
     if dashboard_config.get("features", {}).get("swear_counter", True) and content.strip() and not content.casefold().startswith(command_prefix.casefold()) and swear_words:
         folded_content = content.casefold()
-        swear_count = sum(len(re.findall(r"(?<!\w)" + re.escape(word) + r"(?!\w)", folded_content)) for word in swear_words)
+        pattern = re.compile(r"(?<!\w)(?:" + "|".join(re.escape(word) for word in swear_words) + r")(?!\w)")
+        swear_count = sum(1 for _ in pattern.finditer(folded_content))
         if swear_count:
             skey = key(guild.id, message.author.id)
-            data.setdefault("swears", {})[skey] = int(data.setdefault("swears", {}).get(skey, 0)) + swear_count
+            updated_count = int(data.setdefault("swears", {}).get(skey, 0)) + swear_count
+            data["swears"][skey] = updated_count
             save()
+            adjustment = int(dashboard_config.get("swear_count_adjustments", {}).get(str(message.author.id), 0))
+            displayed_count = max(0, updated_count + adjustment)
+            try:
+                await message.reply(
+                    f"You now have {displayed_count} swear(s) in this server.",
+                    mention_author=False,
+                    allowed_mentions=discord.AllowedMentions.none(),
+                )
+            except (discord.Forbidden, discord.HTTPException):
+                pass
 
     if message_cfg.get("auto_reply_enabled") and content.strip() and not content.casefold().startswith(command_prefix.casefold()):
         folded = content.strip().casefold()
