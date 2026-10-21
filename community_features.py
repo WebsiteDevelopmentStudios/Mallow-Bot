@@ -1079,7 +1079,7 @@ def setup(bot):
             return ImageFont.load_default()
         name_font = load_font(bold_path_candidates, 28)
         detail_font = load_font(font_path_candidates, 18)
-        safe_name = str(username or "Member").replace("\\n", " ").strip()[:80] or "Member"
+        safe_name = str(username or "Member").replace("\n", " ").strip()[:80] or "Member"
         max_name_width = 490
         while safe_name and draw.textbbox((0, 0), safe_name, font=name_font)[2] > max_name_width:
             safe_name = safe_name[:-2].rstrip() + "…" if len(safe_name) > 2 else safe_name[:-1]
@@ -1137,19 +1137,19 @@ def setup(bot):
             content = render_member_message(mc.get("welcome_message") or "Welcome {user} to {server}!", member)
             image_url = mc.get("welcome_image_url") or "https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/dashboard/Welcome.png"
             welcomer_section = (
-                "╭─〔 👤 **Welcomer** 〕─╮\\n"
-                f"│ WELCOME {member.mention} TO {discord.utils.escape_markdown(member.guild.name)}!!\\n"
-                f"│ we now have {member.guild.member_count or 1} members!!!\\n"
+                "╭─〔 👤 **Welcomer** 〕─╮\n"
+                f"│ WELCOME {member.mention} TO {discord.utils.escape_markdown(member.guild.name)}!!\n"
+                f"│ we now have {member.guild.member_count or 1} members!!!\n"
                 "╰──────────────────────────╯"
             )
             # Invite attribution is not currently persisted by this bot. Keep
             # these explicit zero placeholders rather than guessing an invite.
             invite_section = (
-                "\\n\\n╭─〔 📈 **INVITE BREAKDOWN** 〕─╮\\n"
-                f"│ ✦ **User:** {member.mention}\\n"
-                "│ ✦ **Valid:** 0\\n"
-                "│ ✦ **Fake:** 0\\n"
-                "│ ✦ **Left:** 0\\n"
+                "\n\n╭─〔 📈 **INVITE BREAKDOWN** 〕─╮\n"
+                f"│ ✦ **User:** {member.mention}\n"
+                "│ ✦ **Valid:** 0\n"
+                "│ ✦ **Fake:** 0\n"
+                "│ ✦ **Left:** 0\n"
                 "╰──────────────────────────────╯"
             )
             embed = discord.Embed(
