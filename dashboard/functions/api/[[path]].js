@@ -165,7 +165,7 @@ async function route(request, env) {
   const userName=String(s.user.global_name||s.user.username||"Test user");
   const description=rawMessage.replaceAll("{user}",userName).replaceAll("{server}",serverName).replaceAll("{member_count}","test");
   const cardDataUrl=String(body.card_data_url||"");
-  const cardMatch=/^data:image\\/png;base64,([A-Za-z0-9+/=]+)$/.exec(cardDataUrl);
+  const cardMatch=/^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(cardDataUrl);
   if(!cardMatch)return json({error:"Could not render the welcome/goodbye card. Try an image URL that permits image loading, or import the image in the dashboard."},400);
   const cardBase64=cardMatch[1];
   if(cardBase64.length>1400000)return json({error:"Rendered card is too large."},413);
