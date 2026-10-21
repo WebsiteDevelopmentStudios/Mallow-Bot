@@ -3196,8 +3196,10 @@ async def on_message(message: discord.Message) -> None:
 
 
 async def refresh_application_commands(guild: discord.Guild) -> list:
-    """Remove duplicate guild-only registrations and publish the global command tree."""
-    bot.tree.clear_commands(guild=guild)
+    """Publish global commands globally and to this guild for faster command availability."""
+    # Global command updates can take time to appear in Discord's picker. Mirror the
+    # current global tree to the invoking guild so newly added commands appear promptly.
+    bot.tree.copy_global_to(guild=guild)
     await bot.tree.sync(guild=guild)
     global_synced = await bot.tree.sync()
     premium_names = {"embed", "snipe", "sticky", "backup", "custom-command", "vanity", "premium-status"}
@@ -3231,7 +3233,7 @@ async def bot_sync(interaction: discord.Interaction) -> None:
     standard_count = len(synced) - premium_count
     await interaction.followup.send(
         f"Synced **{standard_count} commands** and **{premium_count} Premium commands**. "
-        "Deleted this server's old command registrations. Discord may take a few minutes to update the list.",
+        "Published commands to this server for faster availability and synced the global command list.",
         ephemeral=True,
     )
 
