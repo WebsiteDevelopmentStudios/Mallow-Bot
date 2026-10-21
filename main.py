@@ -2199,7 +2199,7 @@ async def _dashboard_tree_interaction_check(interaction: discord.Interaction) ->
             "economy": {"balance","daily","gamble","coinflip","slots","roulette","dice","blackjack","work","pay","rob"},
             "xp": {"xp","level","leaderboard"},
             "music": {"play","pause","resume","lyrics","skip","queue","volume","stop","join","leave"},
-            "moderation": {"dm","set-log","timeout-minutes"},
+            "moderation": {"dm","set-log","timeout-minutes","purge"},
                 "fun": {"vibecheck","ship","fortune","wyr"},
             "utility": {"uptime","update","commands","help","sync","countdown"},
             "social": {"youtube"},
@@ -2812,7 +2812,7 @@ async def on_message(message: discord.Message) -> None:
         "music": {"play","pause","resume","lyrics","skip","queue","volume","stop","join","leave"},
         "moderation": {"dm","set-log","timeout-minutes"},
         "fun": {"vibecheck","ship","fortune","wyr"},
-        "utility": {"uptime","update","commands","help","sync","countdown","say"},
+        "utility": {"uptime","update","commands","help","sync","countdown","say","ticket","ticket-panel","ticket-close"},
         "social": {"youtube"},
         "premium": {"embed","snipe","sticky","backup","custom-command","vanity","premium-status","premium"},
     }
@@ -2881,6 +2881,9 @@ async def on_message(message: discord.Message) -> None:
                 "`-mb work` · `-mb pay @member <amount>` · `-mb rob @member`\n\n"
                 "**Fun & social**\n"
                 "`-mb vibecheck [@member]` · `-mb ship @member` · `-mb fortune` · `-mb wyr`\n\n"
+                "**Moderation & support tickets**\n"
+                "`-mb purge <1-100>` (Manage Messages) · `-mb dm @member <message>` (Manage Messages)\n"
+                "`-mb ticket` · `-mb ticket-panel` (Manage Server) · `-mb ticket-close`\n\n"
                 "**Movies & utilities**\n"
                 "`-mb movie list` · `-mb movie search <title>` · `-mb movie play <URL>`\n"
                 "`-mb channel link <#channel or ID>` (Administrator) · `-mb youtube <URL>`\n"
@@ -3186,6 +3189,7 @@ async def on_message(message: discord.Message) -> None:
             "xp", "level", "leaderboard", "balance", "daily", "gamble",
             "coinflip", "slots", "roulette", "dice", "blackjack", "work",
             "pay", "rob", "youtube", "set-log", "timeout-minutes",
+            "purge", "ticket", "ticket-panel", "ticket-close", "dm",
         }:
             return
 
@@ -3285,7 +3289,8 @@ async def bot_commands(interaction: discord.Interaction) -> None:
         "**Other slash commands**\n"
         "`/uptime` · `/update` · `/commands` · `/say <message>` (private invocation, public bot post)\n"
         "`/channel link` · `/movie list` · `/movie search <title>` · `/movie play <URL>`\n"
-        "`/youtube <URL>` · `/dm <member> <message>` · `/set-log <channel>` · `/sync` (administrator)\n\n"
+        "`/youtube <URL>` · `/dm <member> <message>` · `/purge <1-100>` · `/ticket` · `/ticket-panel` · `/ticket-close`\n"
+        "`/set-log <channel>` · `/sync` (administrator)\n\n"
         "**Text command equivalents**\n"
         "`-mb xp` · `-mb level` · `-mb leaderboard`\n"
         "`-mb balance` · `-mb daily` · `-mb gamble <bet>` · `-mb coinflip <bet>` · `-mb slots <bet>`\n"
