@@ -274,13 +274,13 @@ async function route(request, env) {
   await env.MALLOW_DB.prepare("CREATE TABLE IF NOT EXISTS swear_count_adjustments (guild_id TEXT NOT NULL, user_id TEXT NOT NULL, delta INTEGER NOT NULL DEFAULT 0, updated_by TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY(guild_id,user_id))").run();
   if(request.method==="GET"){
    const guildId=url.searchParams.get("guild_id")||"";
-   if(!/^\\d{17,20}$/.test(guildId))return json({error:"Enter a valid 17–20 digit Discord server ID."},400);
+   if(!/^\d{17,20}$/.test(guildId))return json({error:"Enter a valid 17–20 digit Discord server ID."},400);
    const rows=await env.MALLOW_DB.prepare("SELECT user_id,delta,updated_by,updated_at FROM swear_count_adjustments WHERE guild_id=? ORDER BY updated_at DESC LIMIT 100").bind(guildId).all();
    return json({adjustments:rows.results||[]});
   }
   let body;try{body=await request.json()}catch{return json({error:"Invalid JSON."},400)}
   const guildId=String(body.guild_id||"").trim(),userId=String(body.user_id||"").trim(),amount=Number(body.amount),action=String(body.action||"");
-  if(!/^\\d{17,20}$/.test(guildId)||!/^\\d{17,20}$/.test(userId))return json({error:"Enter valid 17–20 digit Discord server and user IDs."},400);
+  if(!/^\d{17,20}$/.test(guildId)||!/^\d{17,20}$/.test(userId))return json({error:"Enter valid 17–20 digit Discord server and user IDs."},400);
   if(!Number.isSafeInteger(amount)||amount<1||amount>100000)return json({error:"Amount must be a whole number from 1 to 100000."},400);
   if(!["add","remove"].includes(action))return json({error:"Choose add or remove."},400);
   const delta=action==="add"?amount:-amount,now=new Date().toISOString();
@@ -381,7 +381,7 @@ async function route(request, env) {
  }
  if(path==="premium-check"&&request.method==="GET"){
   const id=String(url.searchParams.get("discord_id")||"").trim();
-  if(!/^\\d{17,20}$/.test(id))return json({error:"Invalid Discord ID."},400);
+  if(!/^\d{17,20}$/.test(id))return json({error:"Invalid Discord ID."},400);
   const premium=await premiumFor(env,id);
   return json({ok:true,active:premium.active,expires_at:premium.expires_at,banned:premium.banned});
  }
