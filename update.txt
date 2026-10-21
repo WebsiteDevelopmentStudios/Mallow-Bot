@@ -1,10 +1,7 @@
 Mallow Bot — New in This Update
 
-- Added `-mb purge <1-100>` as a text-command equivalent to `/purge`. Requires Manage Messages permission for the user and bot.
-- Added `-mb ticket` to open a private support ticket when tickets are enabled in the Mallow dashboard.
-- Added `-mb ticket-panel` to post the support-ticket panel. Requires Manage Server permission.
-- Added `-mb ticket-close` to close a ticket, limited to the ticket creator or support staff.
-- Added `-mb dm @member <message>` as a text-command equivalent to `/dm`. Requires Manage Messages permission and a configured DM log channel.
-- Fixed slash-command syncing to remove guild-specific copies that caused duplicate commands. Run `/sync` or `-mb sync` in each affected server; Discord may take a few minutes to refresh.
-Need Help?
-[Mallow Bot Discord](<https://discord.gg/MTxV4cyxvC>)
+- Added a per-server swear counter toggle to the dashboard.
+- Added `-mb swears` to check your own swear-counted messages in the current server.
+- Added `-mb swear-leaderboard` to show the top ten members by count in the current server.
+- Added owner-only swear-word management to the developer panel, including adding and removing words.
+- The counter counts each matching message once and does not delete messages or apply punishments.
