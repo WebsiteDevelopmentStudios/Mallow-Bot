@@ -153,7 +153,7 @@ async function route(request, env) {
   const kind=String(body.kind||"");
   if(!["welcome","goodbye"].includes(kind))return json({error:"Choose welcome or goodbye."},400);
   const channelId=String(body.channel_id||"");
-  if(!/^\\d{17,20}$/.test(channelId))return json({error:"Choose a channel first."},400);
+  if(!/^\d{17,20}$/.test(channelId))return json({error:"Choose a channel first."},400);
   const headers={authorization:"Bot "+env.BOT_TOKEN,"content-type":"application/json"};
   const channelResponse=await fetch("https://discord.com/api/channels/"+channelId,{headers});
   if(!channelResponse.ok)return json({error:"Mallow cannot access that channel."},502);
