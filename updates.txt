@@ -1,7 +1,7 @@
 Mallow Bot — New in This Update
 
-- Added the per-server swear counter toggle in the dashboard.
-- Added `-mb swears` to view your own counted messages in the current server.
-- Added `-mb swear-leaderboard` to show the server's top ten swear-counter totals.
-- Added an owner-only developer panel to add and remove words from the global swear list.
-- Swear counting is passive: it counts a message once when it contains a configured word and does not delete messages or apply punishments.
+- Added a per-server swear counter toggle to the dashboard.
+- Added `-mb swears` to check your own counted swear-word occurrences in the current server.
+- Added `-mb swear-leaderboard` to show the top ten members by swear-word count in the current server.
+- Added owner-only swear-word management to the developer panel, including adding and removing words.
+- Each configured word occurrence is counted. The counter does not delete messages or apply punishments.
