@@ -2158,6 +2158,7 @@ async def play_next(guild_id: int) -> bool:
 # Create the Discord client before registering slash commands and events.
 intents = discord.Intents.default()
 intents.message_content = True
+intents.members = True
 
 
 class MallowBot(commands.Bot):
