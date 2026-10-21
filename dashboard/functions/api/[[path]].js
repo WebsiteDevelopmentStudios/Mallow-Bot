@@ -163,7 +163,12 @@ async function route(request, env) {
   const rawMessage=String(body.message||"").slice(0,1500);
   const serverName=String(access.guild?.name||"your server");
   const userName=String(s.user.global_name||s.user.username||"Test user");
-  const description=rawMessage.replaceAll("{user}",userName).replaceAll("{server}",serverName).replaceAll("{member_count}","test");
+  const configuredMessage=rawMessage.replaceAll("{user}",kind==="welcome"?"<@"+String(s.user.id)+">":userName).replaceAll("{server}",serverName).replaceAll("{member_count}","123");
+  const welcomerSection="╭─〔 👤 **Welcomer** 〕─╮\\n│ WELCOME <@"+String(s.user.id)+"> TO "+serverName+"!!\\n│ we now have 123 members!!!\\n╰──────────────────────────╯";
+  const inviteSection="╭─〔 📈 **INVITE BREAKDOWN** 〕─╮\\n│ ✦ **User:** <@"+String(s.user.id)+">\\n│ ✦ **Valid:** 0\\n│ ✦ **Fake:** 0\\n│ ✦ **Left:** 0\\n╰──────────────────────────────╯";
+  const description=kind==="welcome"
+   ? [welcomerSection,inviteSection,configuredMessage].filter(Boolean).join("\\n\\n").slice(0,4096)
+   : configuredMessage.slice(0,4096);
   const cardDataUrl=String(body.card_data_url||"");
   const cardMatch=/^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(cardDataUrl);
   if(!cardMatch)return json({error:"Could not render the welcome/goodbye card. Try an image URL that permits image loading, or import the image in the dashboard."},400);
@@ -173,7 +178,7 @@ async function route(request, env) {
   const embed={description:description||"This is a test message.",color:kind==="welcome"?0x8B5CF6:0xF59E0B,image:{url:"attachment://mallow-member-card.png"}};
   if(title)embed.title=title.replaceAll("{user}",userName).replaceAll("{server}",serverName).replaceAll("{member_count}","123");
   const form=new FormData();
-  form.set("payload_json",JSON.stringify({embeds:[embed],allowed_mentions:{parse:[]}}));
+  form.set("payload_json",JSON.stringify({embeds:[embed],allowed_mentions:kind==="welcome"?{parse:[],users:[String(s.user.id)]}:{parse:[]}}));
   form.set("files[0]",new Blob([cardBytes],{type:"image/png"}),"mallow-member-card.png");
   const sent=await fetch("https://discord.com/api/channels/"+channelId+"/messages",{method:"POST",headers:{authorization:"Bot "+env.BOT_TOKEN},body:form});
   if(!sent.ok){const error=await sent.json().catch(()=>({}));return json({error:error.message||"Could not send the test message. Check Mallow's View Channel, Send Messages, and Embed Links permissions."},502)}
