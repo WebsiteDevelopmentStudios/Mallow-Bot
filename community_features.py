@@ -1177,6 +1177,14 @@ def setup(bot):
             return
 
         argument = parts[1] if len(parts) > 1 else ""
+        prefix_feature = (
+            "moderation" if command_name in {"purge", "dm"}
+            else "utility" if command_name in {"ticket", "ticket-panel", "ticket-close"}
+            else None
+        )
+        if prefix_feature and not cfg.get("features", {}).get(prefix_feature, True):
+            await message.reply(f"The {command_name} feature is disabled in this server.", mention_author=False)
+            return
         # Prefix equivalents for the newer moderation and ticket slash commands.
         if command_name == "purge":
             if not message.author.guild_permissions.manage_messages:
