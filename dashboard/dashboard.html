@@ -214,14 +214,45 @@ async function importMemberImage(kind){
  }catch(e){status.textContent=e.message||'Image import failed.'}
  finally{button.disabled=false}
 }
+async function loadCardImage(src){
+ return new Promise((resolve,reject)=>{
+  const image=new Image();
+  image.crossOrigin='anonymous';
+  image.onload=()=>resolve(image);
+  image.onerror=()=>reject(Error('Could not load the background/avatar image. If this is a custom URL, import the image into the dashboard or use a host that allows cross-origin image loading.'));
+  image.src=src;
+ });
+}
+async function renderMemberTestCard(kind,memberName,avatarUrl){
+ const canvas=document.createElement('canvas');canvas.width=700;canvas.height=400;
+ const ctx=canvas.getContext('2d');
+ const inputUrl=$(kind+'Image').value.trim()||(kind==='welcome'?'https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/dashboard/Welcome.png':'https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/dashboard/Welcome.png');
+ const background=await loadCardImage(inputUrl);
+ const scale=Math.max(700/background.width,400/background.height),sw=background.width*scale,sh=background.height*scale;
+ ctx.drawImage(background,(700-sw)/2,(400-sh)/2,sw,sh);
+ ctx.fillStyle='rgba(13,12,20,0.86)';ctx.beginPath();ctx.roundRect(22,248,656,130,24);ctx.fill();
+ ctx.strokeStyle='rgba(255,255,255,0.28)';ctx.lineWidth=2;ctx.stroke();
+ const avatar=await loadCardImage(avatarUrl);
+ ctx.save();ctx.beginPath();ctx.arc(98,313,56,0,Math.PI*2);ctx.clip();ctx.drawImage(avatar,42,257,112,112);ctx.restore();
+ ctx.fillStyle='#fff';ctx.font='bold 28px Arial, sans-serif';
+ let name=memberName||'Test user';while(ctx.measureText(name).width>490&&name.length>3)name=name.slice(0,-2)+'…';
+ ctx.fillText(name,174,300);
+ ctx.fillStyle='#e0daf2';ctx.font='18px Arial, sans-serif';
+ ctx.fillText('This user '+(kind==='welcome'?'is':'was')+' #123 on the server',174,337);
+ return canvas.toDataURL('image/png');
+}
 async function testMemberMessage(kind){
  const status=$(kind==='welcome'?'testWelcomeStatus':'testGoodbyeStatus'),button=$(kind==='welcome'?'testWelcome':'testGoodbye');
  const channelId=$(kind==='welcome'?'welcomeChannel':'goodbyeChannel').value;
  if(!channelId){status.textContent='Choose a '+(kind==='welcome'?'welcome':'goodbye')+' channel first.';return}
- button.disabled=true;status.textContent='Sending test…';
+ button.disabled=true;status.textContent='Rendering image card…';
  try{
-  await api('test-member-message?guild_id='+encodeURIComponent(guildId),{method:'POST',body:JSON.stringify({kind,channel_id:channelId,title:$(kind+'Title').value,message:$(kind+'Message').value,image_url:$(kind+'Image').value})});
-  status.textContent='Test message sent to the selected channel.';
+  const me=await api('me');
+  const avatarUrl=me.user.avatar_url||(me.user.avatar?'https://cdn.discordapp.com/avatars/'+me.user.id+'/'+me.user.avatar+'.png?size=256':'https://cdn.discordapp.com/embed/avatars/0.png');
+  const cardDataUrl=await renderMemberTestCard(kind,me.user.global_name||me.user.username||'Test user',avatarUrl);
+  status.textContent='Sending test…';
+  await api('test-member-message?guild_id='+encodeURIComponent(guildId),{method:'POST',body:JSON.stringify({kind,channel_id:channelId,title:$(kind+'Title').value,message:$(kind+'Message').value,card_data_url:cardDataUrl})});
+  status.textContent='Rendered image card sent to the selected channel.';
  }catch(e){status.textContent=e.message||'Could not send the test message.'}
  finally{button.disabled=false}
 }
