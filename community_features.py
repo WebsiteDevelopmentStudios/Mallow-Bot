@@ -1232,10 +1232,18 @@ def setup(bot):
                 if length > max_bytes:
                     logger.warning("Member-card image from host %s is too large (%s bytes).", response.url.host, length)
                     return None
-                payload = await response.content.read(max_bytes + 1)
-                if len(payload) > max_bytes:
-                    logger.warning("Member-card image from host %s exceeded the %s-byte limit while downloading.", response.url.host, max_bytes)
-                    return None
+                # Stream the entire response in bounded chunks. StreamReader.read(n) may
+                # return fewer than n bytes even when the response has not finished;
+                # validating that partial first chunk makes valid PNGs look corrupt.
+                chunks = []
+                total_bytes = 0
+                async for chunk in response.content.iter_chunked(64 * 1024):
+                    total_bytes += len(chunk)
+                    if total_bytes > max_bytes:
+                        logger.warning("Member-card image from host %s exceeded the %s-byte limit while downloading.", response.url.host, max_bytes)
+                        return None
+                    chunks.append(chunk)
+                payload = b"".join(chunks)
                 if not payload:
                     logger.warning("Member-card image from host %s was empty.", response.url.host)
                     return None
