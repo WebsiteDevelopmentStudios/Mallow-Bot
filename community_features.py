@@ -1136,7 +1136,27 @@ def setup(bot):
                 return
             content = render_member_message(mc.get("welcome_message") or "Welcome {user} to {server}!", member)
             image_url = mc.get("welcome_image_url") or "https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/dashboard/Welcome.png"
-            embed = discord.Embed(title=str(mc.get("welcome_title") or "").strip()[:256] or None, color=discord.Color.green())
+            welcomer_section = (
+                "╭─〔 👤 **Welcomer** 〕─╮\\n"
+                f"│ WELCOME {member.mention} TO {discord.utils.escape_markdown(member.guild.name)}!!\\n"
+                f"│ we now have {member.guild.member_count or 1} members!!!\\n"
+                "╰──────────────────────────╯"
+            )
+            # Invite attribution is not currently persisted by this bot. Keep
+            # these explicit zero placeholders rather than guessing an invite.
+            invite_section = (
+                "\\n\\n╭─〔 📈 **INVITE BREAKDOWN** 〕─╮\\n"
+                f"│ ✦ **User:** {member.mention}\\n"
+                "│ ✦ **Valid:** 0\\n"
+                "│ ✦ **Fake:** 0\\n"
+                "│ ✦ **Left:** 0\\n"
+                "╰──────────────────────────────╯"
+            )
+            embed = discord.Embed(
+                title=str(mc.get("welcome_title") or "").strip()[:256] or None,
+                description=(welcomer_section + invite_section)[:4096],
+                color=discord.Color.green(),
+            )
             card = await build_member_card(member, image_url, leaving=False)
             if card:
                 embed.set_image(url="attachment://mallow-member-card.png")
