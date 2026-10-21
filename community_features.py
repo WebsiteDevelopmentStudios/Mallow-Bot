@@ -25,12 +25,12 @@ def load():
     try:
         value = json.loads(DATA_FILE.read_text(encoding="utf-8"))
         if isinstance(value, dict):
-            for key in ("xp", "currency", "log_channels", "dm_routes", "timeout_minutes", "last_xp", "daily_claims", "snipes", "sticky_messages", "custom_commands", "vanity", "autoroles", "reaction_roles"):
+            for key in ("xp", "currency", "log_channels", "dm_routes", "timeout_minutes", "last_xp", "daily_claims", "snipes", "sticky_messages", "custom_commands", "vanity", "autoroles", "reaction_roles", "swears"):
                 value.setdefault(key, {})
             return value
     except (OSError, json.JSONDecodeError):
         pass
-    return {key: {} for key in ("xp", "currency", "log_channels", "dm_routes", "timeout_minutes", "last_xp", "daily_claims", "snipes", "sticky_messages", "custom_commands", "vanity", "autoroles", "reaction_roles")}
+    return {key: {} for key in ("xp", "currency", "log_channels", "dm_routes", "timeout_minutes", "last_xp", "daily_claims", "snipes", "sticky_messages", "custom_commands", "vanity", "autoroles", "reaction_roles", "swears") }
 
 data = load()
 _last_description = None
@@ -90,6 +90,15 @@ async def process_message(bot, message):
     dashboard_config = await get_guild_config(guild.id)
     command_prefix = dashboard_config.get("prefix", "-mb")
     message_cfg = dashboard_config.get("messages_config", {})
+    swear_words = [str(w).casefold().strip() for w in dashboard_config.get("swear_words", []) if isinstance(w, str) and w.strip()]
+    # Count each message once when it contains at least one configured swear word.
+    # This is a counter only; it does not delete messages or punish members.
+    if dashboard_config.get("features", {}).get("swear_counter", True) and content.strip() and not content.casefold().startswith(command_prefix.casefold()) and swear_words:
+        folded_content = content.casefold()
+        if any(re.search(r"(?<![\\w])" + re.escape(word) + r"(?![\\w])", folded_content) for word in swear_words):
+            skey = key(guild.id, message.author.id)
+            data.setdefault("swears", {})[skey] = int(data.setdefault("swears", {}).get(skey, 0)) + 1
+            save()
 
     if message_cfg.get("auto_reply_enabled") and content.strip() and not content.casefold().startswith(command_prefix.casefold()):
         folded = content.strip().casefold()
@@ -1185,6 +1194,29 @@ def setup(bot):
         if prefix_feature and not cfg.get("features", {}).get(prefix_feature, True):
             await message.reply(f"The {command_name} feature is disabled in this server.", mention_author=False)
             return
+        if command_name == "swears":
+            count = int(data.setdefault("swears", {}).get(key(message.guild.id, message.author.id), 0))
+            await message.reply(f"You have {count} swear-counted message(s) in this server.", mention_author=False)
+            return
+
+        if command_name == "swear-leaderboard":
+            entries = []
+            for entry_key, count in data.setdefault("swears", {}).items():
+                try:
+                    guild_id, user_id = entry_key.split(":", 1)
+                    if guild_id == str(message.guild.id) and int(count) > 0:
+                        member = message.guild.get_member(int(user_id))
+                        entries.append((int(count), member.display_name if member else f"User {user_id}", user_id))
+                except (ValueError, TypeError):
+                    continue
+            entries.sort(key=lambda item: (-item[0], item[1].casefold()))
+            if not entries:
+                await message.reply("No swears have been counted in this server yet.", mention_author=False)
+                return
+            lines = [f"**{i}.** {name} — **{count}**" for i, (count, name, _uid) in enumerate(entries[:10], 1)]
+            await message.reply("**Swear leaderboard**\\n" + "\\n".join(lines), mention_author=False, allowed_mentions=discord.AllowedMentions.none())
+            return
+
         # Prefix equivalents for the newer moderation and ticket slash commands.
         if command_name == "purge":
             if not message.author.guild_permissions.manage_messages:
