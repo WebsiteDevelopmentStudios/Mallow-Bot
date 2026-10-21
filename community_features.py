@@ -1146,7 +1146,114 @@ def setup(bot):
         if command_name in set(cfg.get("disabled_commands", [])):
             await message.reply("The " + command_prefix + command_name + " command is disabled in this server.", mention_author=False)
             return
-        await prefix(bot,message,command_name,parts[1] if len(parts)>1 else "")
+
+        argument = parts[1] if len(parts) > 1 else ""
+        # Prefix equivalents for the newer moderation and ticket slash commands.
+        if command_name == "purge":
+            if not message.author.guild_permissions.manage_messages:
+                await message.reply("You need Manage Messages permission to use this command.", mention_author=False)
+                return
+            if not message.guild.me or not message.guild.me.guild_permissions.manage_messages:
+                await message.reply("Mallow needs Manage Messages permission in this channel.", mention_author=False)
+                return
+            try:
+                amount = int(argument.strip())
+                if not 1 <= amount <= 100:
+                    raise ValueError
+            except ValueError:
+                await message.reply("Usage: -mb purge <1-100>", mention_author=False)
+                return
+            try:
+                deleted = await message.channel.purge(
+                    limit=amount + 1,
+                    reason=f"-mb purge used by {message.author} ({message.author.id})",
+                )
+                # Exclude the command invocation from the reported deletion count.
+                deleted_count = sum(1 for item in deleted if item.id != message.id)
+                await message.channel.send(f"Deleted {deleted_count} message(s).")
+            except discord.Forbidden:
+                await message.reply("I couldn't delete messages. Check my Manage Messages permission.", mention_author=False)
+            except discord.HTTPException:
+                await message.reply("Discord couldn't delete those messages. Try again in a moment.", mention_author=False)
+            return
+
+        if command_name == "ticket":
+            guild = message.guild
+            ticket_cfg = cfg.get("tickets_config", {})
+            if not ticket_cfg.get("enabled", False):
+                await message.reply("Tickets are disabled in this server. Ask a server manager to enable them in the Mallow dashboard.", mention_author=False)
+                return
+            existing = discord.utils.find(
+                lambda ch: isinstance(ch, discord.TextChannel) and ch.topic == f"mallow-ticket:{message.author.id}:{guild.id}",
+                guild.text_channels,
+            )
+            if existing:
+                await message.reply(f"You already have a ticket open: {existing.mention}", mention_author=False)
+                return
+            category = guild.get_channel(int(ticket_cfg.get("category_id") or 0))
+            if not isinstance(category, discord.CategoryChannel):
+                category = None
+            role_ids = {int(x) for x in ticket_cfg.get("support_role_ids", []) if str(x).isdigit()}
+            overwrites = {
+                guild.default_role: discord.PermissionOverwrite(view_channel=False),
+                message.author: discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True, attach_files=True, embed_links=True),
+            }
+            for role_id in role_ids:
+                role = guild.get_role(role_id)
+                if role:
+                    overwrites[role] = discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True)
+            try:
+                channel = await guild.create_text_channel(
+                    f"ticket-{message.author.name}".lower().replace(" ", "-")[:90],
+                    category=category,
+                    overwrites=overwrites,
+                    topic=f"mallow-ticket:{message.author.id}:{guild.id}",
+                    reason=f"Support ticket opened by {message.author}",
+                )
+                welcome = str(ticket_cfg.get("welcome_message") or "Thanks for opening a ticket. A staff member will be with you soon.")[:1800]
+                mentions = " ".join(f"<@&{rid}>" for rid in role_ids if guild.get_role(rid))
+                await channel.send(
+                    content=(mentions + "\\n" if mentions else "") + f"{message.author.mention}\\n{welcome}",
+                    allowed_mentions=discord.AllowedMentions(users=True, roles=True, everyone=False),
+                )
+                await message.reply(f"Your ticket is ready: {channel.mention}", mention_author=False)
+            except (discord.Forbidden, discord.HTTPException):
+                await message.reply("I couldn't create the ticket. Check that Mallow has Manage Channels and View Channel permissions.", mention_author=False)
+            return
+
+        if command_name == "ticket-panel":
+            if not message.author.guild_permissions.manage_guild:
+                await message.reply("You need Manage Server permission to post a ticket panel.", mention_author=False)
+                return
+            if not cfg.get("tickets_config", {}).get("enabled", False):
+                await message.reply("Enable tickets in the Mallow dashboard first.", mention_author=False)
+                return
+            embed = discord.Embed(title="Support tickets", description="Need help? Click the button below to open a private ticket.", color=discord.Color.blurple())
+            await message.channel.send(embed=embed, view=TicketPanelView())
+            await message.reply("Ticket panel posted.", mention_author=False)
+            return
+
+        if command_name == "ticket-close":
+            channel = message.channel
+            if not isinstance(channel, discord.TextChannel) or not channel.topic or not channel.topic.startswith("mallow-ticket:"):
+                await message.reply("This command only works inside a Mallow ticket channel.", mention_author=False)
+                return
+            ticket_cfg = cfg.get("tickets_config", {})
+            allowed = {int(x) for x in ticket_cfg.get("support_role_ids", []) if str(x).isdigit()}
+            is_support = message.author.guild_permissions.manage_channels or any(role.id in allowed for role in message.author.roles)
+            owner_text = channel.topic.split(":", 2)[1] if len(channel.topic.split(":")) > 1 else ""
+            if not is_support and str(message.author.id) != owner_text:
+                await message.reply("Only the ticket creator or support staff can close this ticket.", mention_author=False)
+                return
+            await message.reply("Closing this ticket in 5 seconds…", mention_author=False)
+            await asyncio.sleep(5)
+            try:
+                await channel.delete(reason=f"Ticket closed by {message.author}")
+            except (discord.Forbidden, discord.HTTPException):
+                pass
+            return
+
+        await prefix(bot,message,command_name,argument)
     @bot.tree.command(name="dm", description="Send a direct message to a server member.")
     @app_commands.checks.has_permissions(manage_messages=True)
     @app_commands.describe(member="Member to message", message="Message to send")
