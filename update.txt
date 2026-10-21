@@ -6,4 +6,5 @@ Mallow Bot — New in This Update
 - Added `-mb ticket-close` to close a ticket, limited to the ticket creator or support staff.
 - Added `-mb dm @member <message>` as a text-command equivalent to `/dm`. Requires Manage Messages permission and a configured DM log channel.
 - Fixed slash-command syncing to remove guild-specific copies that caused duplicate commands. Run `/sync` or `-mb sync` in each affected server; Discord may take a few minutes to refresh.
-[Mallow Bot](https://discord.gg/MTxV4cyxvC)
+Need Help?
+[Mallow Bot Discord](<https://discord.gg/MTxV4cyxvC>)
