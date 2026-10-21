@@ -1314,15 +1314,21 @@ def setup(bot):
         return embed
 
     async def member_join_listener(member: discord.Member):
-        if await is_bot_access_banned(member.id):
-            return
+        import logging
+        logger = logging.getLogger("mallow-member-messages")
         try:
+            if await is_bot_access_banned(member.id):
+                return
             cfg = await get_guild_config(member.guild.id)
             mc = cfg.get("messages_config", {})
             if not mc.get("welcome_enabled") or not mc.get("welcome_channel_id"):
                 return
-            channel = member.guild.get_channel(int(mc["welcome_channel_id"]))
+            channel_id = int(mc["welcome_channel_id"])
+            channel = member.guild.get_channel(channel_id)
+            if channel is None:
+                channel = await member.guild.fetch_channel(channel_id)
             if not isinstance(channel, discord.TextChannel):
+                logger.warning("Welcome channel %s for guild %s is not a text channel.", channel_id, member.guild.id)
                 return
             image_url = mc.get("welcome_image_url") or "https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/dashboard/Welcome.png"
             welcomer_section = (
@@ -1341,36 +1347,48 @@ def setup(bot):
                 embed.set_image(url="attachment://mallow-member-card.png")
                 await channel.send(embed=embed, file=card, allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False))
             else:
+                logger.warning("Could not render welcome card for guild %s member %s; sending a non-rendered fallback.", member.guild.id, member.id)
                 embed.set_thumbnail(url=member.display_avatar.url)
                 embed.set_image(url=image_url)
                 embed.set_footer(text=f"{member.display_name} · This user is #{member.guild.member_count or 1} on the server")
                 await channel.send(embed=embed, allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False))
-        except (ValueError, TypeError, discord.Forbidden, discord.HTTPException):
-            pass
+        except Exception:
+            logger.exception("Welcome message failed for guild %s member %s.", member.guild.id, member.id)
 
     async def member_remove_listener(member: discord.Member):
+        import logging
+        logger = logging.getLogger("mallow-member-messages")
         try:
             cfg = await get_guild_config(member.guild.id)
             mc = cfg.get("messages_config", {})
             if not mc.get("goodbye_enabled") or not mc.get("goodbye_channel_id"):
                 return
-            channel = member.guild.get_channel(int(mc["goodbye_channel_id"]))
+            channel_id = int(mc["goodbye_channel_id"])
+            channel = member.guild.get_channel(channel_id)
+            if channel is None:
+                channel = await member.guild.fetch_channel(channel_id)
             if not isinstance(channel, discord.TextChannel):
+                logger.warning("Goodbye channel %s for guild %s is not a text channel.", channel_id, member.guild.id)
                 return
             content = render_member_message(mc.get("goodbye_message") or "{user} left {server}.", member, leaving=True)
             image_url = mc.get("goodbye_image_url") or mc.get("welcome_image_url") or "https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/dashboard/Welcome.png"
-            embed = discord.Embed(title=str(mc.get("goodbye_title") or "").strip()[:256] or None, color=discord.Color.orange())
+            embed = discord.Embed(
+                title=str(mc.get("goodbye_title") or "").strip()[:256] or None,
+                description=content[:4096] or f"{discord.utils.escape_markdown(member.display_name)} left {discord.utils.escape_markdown(member.guild.name)}.",
+                color=discord.Color.orange(),
+            )
             card = await build_member_card(member, image_url, leaving=True)
             if card:
                 embed.set_image(url="attachment://mallow-member-card.png")
-                await channel.send(content=content, embed=embed, file=card, allowed_mentions=discord.AllowedMentions.none())
+                await channel.send(embed=embed, file=card, allowed_mentions=discord.AllowedMentions.none())
             else:
+                logger.warning("Could not render goodbye card for guild %s member %s; sending a non-rendered fallback.", member.guild.id, member.id)
                 embed.set_thumbnail(url=member.display_avatar.url)
                 embed.set_image(url=image_url)
                 embed.set_footer(text=f"{member.display_name} · This user was #{(member.guild.member_count or 1) + 1} on the server")
-                await channel.send(content=content, embed=embed, allowed_mentions=discord.AllowedMentions.none())
-        except (ValueError, TypeError, discord.Forbidden, discord.HTTPException):
-            pass
+                await channel.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
+        except Exception:
+            logger.exception("Goodbye message failed for guild %s member %s.", member.guild.id, member.id)
 
     bot.add_listener(deleted_message_listener, "on_message_delete")
     bot.add_listener(sticky_message_listener, "on_message")
