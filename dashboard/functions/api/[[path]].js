@@ -59,9 +59,13 @@ async function authorizedGuild(s, env, guildId) {
 
 async function ensureSwearWords(env){
   await env.MALLOW_DB.prepare("CREATE TABLE IF NOT EXISTS swear_words (word TEXT PRIMARY KEY, added_by TEXT NOT NULL, added_at TEXT NOT NULL)").run();
-  const existing=await env.MALLOW_DB.prepare("SELECT COUNT(*) AS total FROM swear_words").first();
-  if(Number(existing?.total||0)===0) for(const word of ["fuck","fucking","shit","bitch","asshole","bastard","damn","crap","dick","piss","motherfucker"]) {
-    await env.MALLOW_DB.prepare("INSERT INTO swear_words(word,added_by,added_at) VALUES(?,?,?) ON CONFLICT(word) DO NOTHING").bind(word,"system",new Date().toISOString()).run();
+  await env.MALLOW_DB.prepare("CREATE TABLE IF NOT EXISTS swear_word_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)").run();
+  const seeded=await env.MALLOW_DB.prepare("SELECT value FROM swear_word_meta WHERE key='defaults_seeded'").first();
+  if(!seeded){
+    for(const word of ["fuck","fucking","shit","bitch","asshole","bastard","damn","crap","dick","piss","motherfucker"]) {
+      await env.MALLOW_DB.prepare("INSERT INTO swear_words(word,added_by,added_at) VALUES(?,?,?) ON CONFLICT(word) DO NOTHING").bind(word,"system",new Date().toISOString()).run();
+    }
+    await env.MALLOW_DB.prepare("INSERT INTO swear_word_meta(key,value) VALUES('defaults_seeded','1') ON CONFLICT(key) DO UPDATE SET value='1'").run();
   }
 }
 \nasync function route(request, env) {
