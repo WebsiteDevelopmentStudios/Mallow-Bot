@@ -165,9 +165,8 @@ async function route(request, env) {
   const userName=String(s.user.global_name||s.user.username||"Test user");
   const configuredMessage=rawMessage.replaceAll("{user}",kind==="welcome"?"<@"+String(s.user.id)+">":userName).replaceAll("{server}",serverName).replaceAll("{member_count}","123");
   const welcomerSection="╭─〔 👤 **Welcomer** 〕─╮\n│ WELCOME <@"+String(s.user.id)+"> TO "+serverName+"!!\n│ we now have 123 members!!!\n╰──────────────────────────╯";
-  const inviteSection="╭─〔 📈 **INVITE BREAKDOWN** 〕─╮\n│ ✦ **User:** <@"+String(s.user.id)+">\n│ ✦ **Valid:** 0\n│ ✦ **Fake:** 0\n│ ✦ **Left:** 0\n╰──────────────────────────────╯";
   const description=kind==="welcome"
-   ? [welcomerSection,inviteSection,configuredMessage].filter(Boolean).join("\n\n").slice(0,4096)
+   ? [welcomerSection,configuredMessage].filter(Boolean).join("\n\n").slice(0,4096)
    : configuredMessage.slice(0,4096);
   const cardDataUrl=String(body.card_data_url||"");
   const cardMatch=/^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(cardDataUrl);
