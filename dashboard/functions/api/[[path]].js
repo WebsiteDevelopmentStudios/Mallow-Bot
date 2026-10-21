@@ -104,6 +104,45 @@ async function route(request, env) {
   const [roles,channels]=await Promise.all([rr.json(),cr.json()]);
   return json({roles:roles.filter(r=>r.id!==guildId).map(r=>({id:r.id,name:r.name,position:r.position})).sort((a,b)=>b.position-a.position),channels:channels.filter(ch=>[0,4,5,15].includes(ch.type)).map(ch=>({id:ch.id,name:ch.name,type:ch.type,parent_id:ch.parent_id||null}))});
  }
+
+ if(path==="welcome-image"&&request.method==="GET"){
+  const guildId=url.searchParams.get("guild_id")||"",kind=url.searchParams.get("kind")||"welcome";
+  if(!/^\d{17,20}$/.test(guildId)||!["welcome","goodbye"].includes(kind))return json({error:"Invalid image request."},400);
+  await env.MALLOW_DB.prepare("CREATE TABLE IF NOT EXISTS guild_member_images (guild_id TEXT NOT NULL, kind TEXT NOT NULL, content_type TEXT NOT NULL, image_data TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY(guild_id,kind))").run();
+  const row=await env.MALLOW_DB.prepare("SELECT content_type,image_data FROM guild_member_images WHERE guild_id=? AND kind=?").bind(guildId,kind).first();
+  if(!row)return new Response("Image not found.",{status:404,headers:{"content-type":"text/plain; charset=utf-8","cache-control":"no-store"}});
+  const binary=Uint8Array.from(atob(row.image_data),c=>c.charCodeAt(0));
+  return new Response(binary,{status:200,headers:{"content-type":row.content_type,"cache-control":"public, max-age=3600","x-content-type-options":"nosniff"}});
+ }
+ if(path==="welcome-image"&&request.method==="PUT"){
+  const s=await session(request,env);if(!s)return json({error:"Sign in required."},401);
+  const guildId=url.searchParams.get("guild_id")||"",kind=url.searchParams.get("kind")||"welcome";
+  const access=await authorizedGuild(s,env,guildId);if(access.error)return json({error:access.error},access.status);
+  const premium=await premiumFor(env,s.user.id);if(!premium.active&&s.user.id!==String(env.BOT_OWNER_ID))return json({error:"An active seven-day Premium subscription is required to import images."},402);
+  if(!["welcome","goodbye"].includes(kind))return json({error:"Choose welcome or goodbye image."},400);
+  let body;try{body=await request.json()}catch{return json({error:"Invalid image upload."},400)}
+  const match=/^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/.exec(String(body.data_url||""));
+  if(!match)return json({error:"Use a PNG, JPG, or WebP image."},400);
+  const contentType=match[1],imageData=match[2];
+  if(imageData.length>1400000)return json({error:"Image must be 1 MB or smaller."},413);
+  let bytes;try{bytes=Uint8Array.from(atob(imageData),c=>c.charCodeAt(0))}catch{return json({error:"Image data is invalid."},400)}
+  const dimensions=(b,type)=>{
+   if(type==="image/png"&&b.length>=24&&b[0]===137&&b[1]===80&&b[2]===78&&b[3]===71)return {w:(b[16]<<24)|(b[17]<<16)|(b[18]<<8)|b[19],h:(b[20]<<24)|(b[21]<<16)|(b[22]<<8)|b[23]};
+   if(type==="image/webp"&&b.length>=30&&String.fromCharCode(...b.slice(0,4))==="RIFF"&&String.fromCharCode(...b.slice(8,12))==="WEBP"){
+    const kind=String.fromCharCode(...b.slice(12,16));
+    if(kind==="VP8X")return {w:1+b[24]+(b[25]<<8)+(b[26]<<16),h:1+b[27]+(b[28]<<8)+(b[29]<<16)};
+    if(kind==="VP8 "&&b.length>=30)return {w:((b[26]&0x3f)<<8)|b[25],h:((b[28]&0x3f)<<8)|b[27]};
+    if(kind==="VP8L"&&b.length>=25){const bits=b[21]|(b[22]<<8)|(b[23]<<16)|(b[24]<<24);return {w:(bits&0x3fff)+1,h:((bits>>14)&0x3fff)+1};}
+   }
+   if(type==="image/jpeg"&&b[0]===255&&b[1]===216){let i=2;while(i+9<b.length){if(b[i++]!==255)continue;let marker=b[i++];while(marker===255)marker=b[i++];if([192,193,194,195,197,198,199,201,202,203,205,206,207].includes(marker))return {h:(b[i+3]<<8)|b[i+4],w:(b[i+5]<<8)|b[i+6]};if(marker===216||marker===217||(marker>=208&&marker<=215))continue;const len=(b[i]<<8)|b[i+1];if(len<2)break;i+=len;}}
+   return null;
+  };
+  const size=dimensions(bytes,contentType);if(!size||size.w!==700||size.h!==400)return json({error:"Image must be exactly 700 × 400 pixels."},400);
+  await env.MALLOW_DB.prepare("CREATE TABLE IF NOT EXISTS guild_member_images (guild_id TEXT NOT NULL, kind TEXT NOT NULL, content_type TEXT NOT NULL, image_data TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY(guild_id,kind))").run();
+  await env.MALLOW_DB.prepare("INSERT INTO guild_member_images(guild_id,kind,content_type,image_data,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(guild_id,kind) DO UPDATE SET content_type=excluded.content_type,image_data=excluded.image_data,updated_at=excluded.updated_at").bind(guildId,kind,contentType,imageData,new Date().toISOString()).run();
+  return json({ok:true,image_url:url.origin+"/api/welcome-image?guild_id="+encodeURIComponent(guildId)+"&kind="+kind+"&v="+Date.now()});
+ }
+
  if(path==="messages-settings"&&(request.method==="GET"||request.method==="PUT")){
   const s=await session(request,env);if(!s)return json({error:"Sign in required."},401);
   const guildId=url.searchParams.get("guild_id")||"";
