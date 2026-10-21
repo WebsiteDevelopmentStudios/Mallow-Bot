@@ -1188,7 +1188,11 @@ def setup(bot):
             pass
 
     async def message_listener(message):
-        await process_message(bot, message)
+        # main.py already calls process_community_message for every guild message.
+        # Keep this listener only for DMs, which main.py intentionally skips, so
+        # guild features (including swear counting) cannot run twice per message.
+        if message.guild is None:
+            await process_message(bot, message)
     async def prefix_listener(message):
         if message.author.bot or message.guild is None or await is_bot_access_banned(message.author.id):
             return
