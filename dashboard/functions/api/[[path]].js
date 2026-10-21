@@ -85,7 +85,7 @@ async function route(request, env) {
   for(const key of Object.keys(features))if(!["economy","xp","moderation","music","fun","movies","utility","social"].includes(key))delete features[key];
   const economy=parse(row?.economy_config,{starting_money:100,daily_reward:100,work_min:20,work_max:80});
   const xp=parse(row?.xp_config,{min_xp:10,max_xp:20,cooldown_seconds:60,announce_level_up:true});
-  const messages=parse(row?.messages_config,{welcome_enabled:false,welcome_channel_id:"",welcome_message:"Welcome {user} to {server}!",goodbye_enabled:false,goodbye_channel_id:"",goodbye_message:"{user} left {server}.",auto_reply_enabled:false,auto_replies:[]});
+  const messages=parse(row?.messages_config,{welcome_enabled:false,welcome_channel_id:"",welcome_message:"Welcome {user} to {server}!",welcome_title:"",welcome_image_url:"https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/dashboard/Welcome.png",goodbye_enabled:false,goodbye_channel_id:"",goodbye_message:"{user} left {server}.",auto_reply_enabled:false,auto_replies:[]});
   const tickets=parse(row?.tickets_config,{enabled:false,category_id:"",support_role_ids:[],transcript_channel_id:"",welcome_message:"Thanks for opening a ticket. A staff member will be with you soon."});
   return json({guild_id:guildId,settings:{prefix:row?.prefix||defaults.prefix,greeting:row?.greeting||defaults.greeting,greetings:row?!!row.greetings:true,mention_only:row?!!row.mention_only:true,disabled_commands:disabled,features,economy_config:economy,xp_config:xp,messages_config:messages,tickets_config:tickets}});
  }
@@ -149,7 +149,7 @@ async function route(request, env) {
   const access=await authorizedGuild(s,env,guildId);if(access.error)return json({error:access.error},access.status);const premium=await premiumFor(env,s.user.id);if(!premium.active&&s.user.id!==String(env.BOT_OWNER_ID))return json({error:"An active seven-day Premium subscription is required to configure roles and channels."},402);
   await ensureGuildSettings(env);
   const row=await env.MALLOW_DB.prepare("SELECT messages_config FROM guild_settings WHERE guild_id=?").bind(guildId).first();
-  const fallback={welcome_enabled:false,welcome_channel_id:"",welcome_message:"Welcome {user} to {server}!",welcome_title:"",welcome_image_url:"",goodbye_enabled:false,goodbye_channel_id:"",goodbye_message:"{user} left {server}.",goodbye_title:"",goodbye_image_url:"",auto_reply_enabled:false,auto_replies:[]};
+  const fallback={welcome_enabled:false,welcome_channel_id:"",welcome_message:"Welcome {user} to {server}!",welcome_title:"",welcome_image_url:"https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/dashboard/Welcome.png",goodbye_enabled:false,goodbye_channel_id:"",goodbye_message:"{user} left {server}.",goodbye_title:"",goodbye_image_url:"",auto_reply_enabled:false,auto_replies:[]};
   const parse=(v)=>{try{return {...fallback,...JSON.parse(v||"{}")}}catch{return fallback}};
   if(request.method==="GET")return json({messages_config:parse(row?.messages_config)});
   let body;try{body=await request.json()}catch{return json({error:"Invalid JSON."},400)}
