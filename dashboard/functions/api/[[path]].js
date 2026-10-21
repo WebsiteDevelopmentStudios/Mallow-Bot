@@ -57,7 +57,13 @@ async function authorizedGuild(s, env, guildId) {
 
  }
 
-async function route(request, env) {
+async function ensureSwearWords(env){
+  await env.MALLOW_DB.prepare("CREATE TABLE IF NOT EXISTS swear_words (word TEXT PRIMARY KEY, added_by TEXT NOT NULL, added_at TEXT NOT NULL)").run();
+  for(const word of ["fuck","fucking","shit","bitch","asshole","bastard","damn","crap","dick","piss","motherfucker"]) {
+    await env.MALLOW_DB.prepare("INSERT INTO swear_words(word,added_by,added_at) VALUES(?,?,?) ON CONFLICT(word) DO NOTHING").bind(word,"system",new Date().toISOString()).run();
+  }
+}
+\nasync function route(request, env) {
  const missing=["CLIENT_ID","CLIENT_SECRET","REDIRECT_URI","SESSION_SECRET","BOT_OWNER_ID","MALLOW_DB"].filter(k=>!env[k]); if(missing.length) return json({error:"Dashboard server configuration is incomplete.",missing},503);
  const url=new URL(request.url); const path=url.pathname.replace(/^\/api\/?/,"");
  if(path==="login"&&request.method==="GET"){const state=b64(crypto.getRandomValues(new Uint8Array(24)));const signed=await token({state,exp:Date.now()+10*60*1000},env.SESSION_SECRET);const auth=new URL("https://discord.com/oauth2/authorize");auth.searchParams.set("client_id",env.CLIENT_ID);auth.searchParams.set("redirect_uri",env.REDIRECT_URI);auth.searchParams.set("response_type","code");auth.searchParams.set("scope","identify guilds");auth.searchParams.set("state",state);return Response.redirect(auth.toString(),302);}
@@ -81,12 +87,14 @@ async function route(request, env) {
   const row=await env.MALLOW_DB.prepare("SELECT prefix,greeting,greetings,mention_only,disabled_commands,features,economy_config,xp_config,messages_config,tickets_config FROM guild_settings WHERE guild_id=?").bind(guildId).first();
   let disabled=[];try{disabled=JSON.parse(row?.disabled_commands||"[]");if(!Array.isArray(disabled))disabled=[]}catch{}
   const parse=(v,fallback)=>{try{return {...fallback,...JSON.parse(v||"{}")}}catch{return fallback}};
-  const features=parse(row?.features,{economy:true,xp:true,moderation:true,music:true,fun:true,movies:true,utility:true,social:true});
-  for(const key of Object.keys(features))if(!["economy","xp","moderation","music","fun","movies","utility","social"].includes(key))delete features[key];
+  const features=parse(row?.features,{economy:true,xp:true,moderation:true,music:true,fun:true,movies:true,utility:true,social:true,swear_counter:true});
+  for(const key of Object.keys(features))if(!["economy","xp","moderation","music","fun","movies","utility","social","swear_counter"].includes(key))delete features[key];
   const economy=parse(row?.economy_config,{starting_money:100,daily_reward:100,work_min:20,work_max:80});
   const xp=parse(row?.xp_config,{min_xp:10,max_xp:20,cooldown_seconds:60,announce_level_up:true});
   const messages=parse(row?.messages_config,{welcome_enabled:false,welcome_channel_id:"",welcome_message:"Welcome {user} to {server}!",welcome_title:"",welcome_image_url:"https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/dashboard/Welcome.png",goodbye_enabled:false,goodbye_channel_id:"",goodbye_message:"{user} left {server}.",auto_reply_enabled:false,auto_replies:[]});
   const tickets=parse(row?.tickets_config,{enabled:false,category_id:"",support_role_ids:[],transcript_channel_id:"",welcome_message:"Thanks for opening a ticket. A staff member will be with you soon."});
+  await ensureSwearWords(env);
+  const swearRows=await env.MALLOW_DB.prepare("SELECT word FROM swear_words ORDER BY word COLLATE NOCASE").all();
   return json({guild_id:guildId,settings:{prefix:row?.prefix||defaults.prefix,greeting:row?.greeting||defaults.greeting,greetings:row?!!row.greetings:true,mention_only:row?!!row.mention_only:true,disabled_commands:disabled,features,economy_config:economy,xp_config:xp,messages_config:messages,tickets_config:tickets}});
  }
 
@@ -229,8 +237,8 @@ async function route(request, env) {
    if(!row)row={prefix:defaults.prefix,greeting:defaults.greeting,greetings:1,mention_only:1,disabled_commands:"[]",features:"{}",economy_config:"{}",xp_config:"{}",updated_at:null};
    let disabled=[];try{disabled=JSON.parse(row.disabled_commands||"[]");if(!Array.isArray(disabled))disabled=[]}catch{}
    const parse=(v,fallback)=>{try{return {...fallback,...JSON.parse(v||"{}")}}catch{return fallback}};
-   const savedFeatures=parse(row.features,{economy:true,xp:true,moderation:true,music:true,fun:true,movies:true,utility:true,social:true});
-   for(const key of Object.keys(savedFeatures))if(!["economy","xp","moderation","music","fun","movies","utility","social"].includes(key))delete savedFeatures[key];
+   const savedFeatures=parse(row.features,{economy:true,xp:true,moderation:true,music:true,fun:true,movies:true,utility:true,social:true,swear_counter:true});
+   for(const key of Object.keys(savedFeatures))if(!["economy","xp","moderation","music","fun","movies","utility","social","swear_counter"].includes(key))delete savedFeatures[key];
    return json({guild:{id:guildId,name:access.guild.name,icon:access.guild.icon||null},settings:{prefix:row.prefix,greeting:row.greeting,greetings:!!row.greetings,mention_only:!!row.mention_only,disabled_commands:disabled,features:savedFeatures,economy_config:parse(row.economy_config,{starting_money:100,daily_reward:100,work_min:20,work_max:80,currency_symbol:"M$",multiplier:1}),xp_config:parse(row.xp_config,{min_xp:10,max_xp:20,cooldown_seconds:60,announce_level_up:true}),updated_at:row.updated_at}});
   }
   let body;try{body=await request.json()}catch{return json({error:"Invalid JSON."},400)}
@@ -238,7 +246,7 @@ async function route(request, env) {
   const disabled=Array.isArray(body.disabled_commands)?[...new Set(body.disabled_commands.map(x=>String(x).trim()).filter(x=>/^[a-z0-9_-]{1,32}$/i.test(x)))].slice(0,200):[];
   if(!prefix||prefix.length>8||/[\\r\n\\s]/.test(prefix))return json({error:"Prefix must be 1–8 characters with no spaces or line breaks."},400);
   if(greeting.length>500)return json({error:"Greeting must be 500 characters or fewer."},400);
-  const featureDefaults={economy:true,xp:true,moderation:true,music:true,fun:true,movies:true,utility:true,social:true};
+  const featureDefaults={economy:true,xp:true,moderation:true,music:true,fun:true,movies:true,utility:true,social:true,swear_counter:true};
   const featureInput=body.features&&typeof body.features==="object"?body.features:{};
   const features=Object.fromEntries(Object.keys(featureDefaults).map(k=>[k,featureInput[k]===undefined?featureDefaults[k]:!!featureInput[k]]));
   const clamp=(v,min,max,fallback)=>Number.isFinite(Number(v))?Math.max(min,Math.min(max,Math.round(Number(v)))):fallback;
@@ -251,6 +259,21 @@ async function route(request, env) {
   return json({ok:true,settings:{prefix,greeting,greetings:!!body.greetings,mention_only:!!body.mention_only,disabled_commands:disabled,features,economy_config:economy,xp_config:xp}});
  }
 
+ if(path==="swear-words"&&(request.method==="GET"||request.method==="POST"||request.method==="DELETE")){
+  const s=await session(request,env);if(!s)return json({error:"Sign in with Discord first."},401);
+  if(s.user.id!==String(env.BOT_OWNER_ID))return json({error:"Only the bot owner can manage the swear word list."},403);
+  await ensureSwearWords(env);
+  if(request.method==="GET"){const rows=await env.MALLOW_DB.prepare("SELECT word,added_by,added_at FROM swear_words ORDER BY word COLLATE NOCASE").all();return json({words:rows.results||[]})}
+  let body;try{body=await request.json()}catch{return json({error:"Invalid JSON."},400)}
+  const word=String(body.word||"").trim().toLocaleLowerCase();
+  if(!word||word.length>40||/[\\s\\r\\n]/.test(word)||!/^[\\p{L}\\p{N}'-]+$/u.test(word))return json({error:"Enter one word (up to 40 letters, numbers, apostrophes, or hyphens)."},400);
+  if(request.method==="POST"){
+   await env.MALLOW_DB.prepare("INSERT INTO swear_words(word,added_by,added_at) VALUES(?,?,?) ON CONFLICT(word) DO NOTHING").bind(word,s.user.id,new Date().toISOString()).run();
+   return json({ok:true,word,action:"added"});
+  }
+  await env.MALLOW_DB.prepare("DELETE FROM swear_words WHERE word=?").bind(word).run();
+  return json({ok:true,word,action:"removed"});
+ }
  if(path==="developers"&&request.method==="GET"){
   const s=await session(request,env);if(!s)return json({error:"Sign in with Discord first."},401);
   await env.MALLOW_DB.prepare("CREATE TABLE IF NOT EXISTS dashboard_developers (discord_id TEXT PRIMARY KEY, added_by TEXT NOT NULL, added_at TEXT NOT NULL)").run();
