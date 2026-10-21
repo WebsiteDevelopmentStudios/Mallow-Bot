@@ -1,8 +1,8 @@
 # Mallow Bot Terms of Service
 
-**Effective date:** October 15, 2026
+**Effective date:** October 20, 2026
 
-These Terms of Service (“Terms”) govern your use of Mallow Bot (“Mallow,” “the bot”), a Discord bot that provides community commands, XP and levels, leaderboards, virtual Mallow Coins, games, and other features. By using the bot, you agree to these Terms. If you do not agree, do not use the bot.
+These Terms of Service (“Terms”) govern your use of Mallow Bot (“Mallow,” “the bot”), a Discord bot that provides community commands, XP and levels, leaderboards, virtual Mallow Coins, games, support tickets, moderation utilities, direct-message routing, and other features. Slash commands and text commands using the configured prefix (by default, `-mb`) may provide overlapping functionality. By using the bot, you agree to these Terms. If you do not agree, do not use the bot.
 
 ## 1. Eligibility and Discord
 
@@ -41,9 +41,15 @@ Mallow Bot is provided on an “as available” basis. Features may be changed, 
 
 The bot relies on Discord and may rely on external hosting providers or APIs. Those services are governed by their own terms and policies. We are not responsible for third-party services, their availability, or their independent practices.
 
-## 6. User content and permissions
+## 6. User content, tickets, moderation, and permissions
 
 You are responsible for content you submit through commands or messages and for having the rights and permissions necessary to submit it. You must not use Mallow Bot to distribute unlawful content or content that violates Discord’s rules.
+
+**Support tickets:** If ticket functionality is enabled for a server, Mallow may create private ticket channels and apply channel permission overrides so the ticket creator and configured support staff can access them. Server administrators are responsible for configuring support roles, ticket categories, and access settings correctly. No permission configuration can guarantee confidentiality if server permissions are misconfigured or changed by administrators.
+
+**Moderation commands:** Commands such as purge can delete messages from a server channel. They may require the invoking member and Mallow to have appropriate permissions. Members and server administrators are responsible for using moderation commands lawfully and carefully; deleted content may not be recoverable.
+
+**Direct-message routing:** When an authorized moderator uses the DM feature, Mallow may send a message to a member and forward replies to the server’s configured DM log channel. Do not use this feature to harass, threaten, or send unlawful content. Server administrators are responsible for selecting an appropriate, access-restricted log channel.
 
 When adding Mallow Bot to a Discord server, the authorization flow may request the **Administrator** permission. Administrator grants broad control over server settings, channels, roles, and other resources. This permission is requested to allow Mallow Bot to perform its server features, including creating server invite links where supported. Only authorize the bot with Administrator if you trust it and have authority to grant that permission. Server owners and administrators are responsible for reviewing the requested permissions and deciding whether to install or continue using the bot. Discord may impose additional limits, and invite creation is not guaranteed in every server or channel.
 
