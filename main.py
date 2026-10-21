@@ -3188,8 +3188,8 @@ async def on_message(message: discord.Message) -> None:
         if command_name in {
             "xp", "level", "leaderboard", "balance", "daily", "gamble",
             "coinflip", "slots", "roulette", "dice", "blackjack", "work",
-            "pay", "rob", "youtube", "set-log", "timeout-minutes",
-            "purge", "ticket", "ticket-panel", "ticket-close", "dm",
+            "pay", "rob", "youtube", "set-log", "timeout-minutes", "swears", "swear-leaderboard",
+            "purge", "ticket", "ticket-panel", "ticket-close", "dm", "swears", "swear-leaderboard",
         }:
             return
 
