@@ -1217,22 +1217,43 @@ def setup(bot):
         )[:1900]
 
     async def fetch_member_image(session: aiohttp.ClientSession, image_url: str, *, max_bytes: int = 5 * 1024 * 1024) -> bytes | None:
+        import logging
+        logger = logging.getLogger("mallow-member-messages")
         image_url = str(image_url or "").strip()
         if not image_url.startswith(("https://", "http://")):
+            logger.warning("Member-card image URL is missing or is not HTTP(S).")
             return None
         try:
             async with session.get(image_url, allow_redirects=True) as response:
                 if response.status != 200:
-                    return None
-                content_type = response.headers.get("Content-Type", "").split(";", 1)[0].lower()
-                if not content_type.startswith("image/"):
+                    logger.warning("Member-card image request returned HTTP %s for host %s.", response.status, response.url.host)
                     return None
                 length = int(response.headers.get("Content-Length", "0") or 0)
                 if length > max_bytes:
+                    logger.warning("Member-card image from host %s is too large (%s bytes).", response.url.host, length)
                     return None
                 payload = await response.content.read(max_bytes + 1)
-                return payload if len(payload) <= max_bytes else None
-        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
+                if len(payload) > max_bytes:
+                    logger.warning("Member-card image from host %s exceeded the %s-byte limit while downloading.", response.url.host, max_bytes)
+                    return None
+                if not payload:
+                    logger.warning("Member-card image from host %s was empty.", response.url.host)
+                    return None
+                # Some image hosts return application/octet-stream despite serving a valid image.
+                # Pillow validates the actual image format before it is used for rendering.
+                try:
+                    with Image.open(io.BytesIO(payload)) as image:
+                        image.verify()
+                except (OSError, ValueError, TypeError):
+                    content_type = response.headers.get("Content-Type", "").split(";", 1)[0].lower()
+                    logger.warning("Member-card response from host %s was not a readable image (Content-Type: %s).", response.url.host, content_type or "missing")
+                    return None
+                return payload
+        except asyncio.TimeoutError:
+            logger.warning("Timed out downloading a member-card image from host %s.", __import__("urllib.parse", fromlist=["urlparse"]).urlparse(image_url).hostname or "unknown")
+            return None
+        except (aiohttp.ClientError, ValueError) as exc:
+            logger.warning("Could not download a member-card image: %s.", type(exc).__name__)
             return None
 
     def draw_member_card(background_bytes: bytes, avatar_bytes: bytes, username: str, member_number: int, *, leaving: bool) -> bytes:
