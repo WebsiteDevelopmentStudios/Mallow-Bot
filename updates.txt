@@ -43,7 +43,6 @@
 
 𝗦𝗜𝗠𝗣𝗟𝗜𝗙𝗜𝗘𝗗 𝗦𝗘𝗧𝗨𝗣
 • Removed the YouTube login command, OAuth callback, and cookie-import features.
-• AI responses have been removed; bot mentions use the self-description replies instead.
 
 𝗙𝗜𝗫𝗘𝗦
 • Fixed the daily reward so it checks and saves a persistent 24-hour cooldown shared by slash and prefix commands.
