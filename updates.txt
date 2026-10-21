@@ -18,4 +18,4 @@ SLASH COMMAND FIX
 • Run the sync command in each server where duplicates remain. Discord may take a few minutes to refresh.
 
 ━━━━━━━━━━━━━━━━━━━━
-Mallow Bot
+[Mallow Bot](https://discord.gg/MTxV4cyxvC)
