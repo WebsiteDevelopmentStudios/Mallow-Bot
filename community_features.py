@@ -91,7 +91,7 @@ async def process_message(bot, message):
     command_prefix = dashboard_config.get("prefix", "-mb")
     message_cfg = dashboard_config.get("messages_config", {})
     swear_words = [str(w).casefold().strip() for w in dashboard_config.get("swear_words", []) if isinstance(w, str) and w.strip()]
-    # Count each message once when it contains at least one configured swear word.
+    # Count every occurrence of a configured swear word.
     # This is a counter only; it does not delete messages or punish members.
     if dashboard_config.get("features", {}).get("swear_counter", True) and content.strip() and not content.casefold().startswith(command_prefix.casefold()) and swear_words:
         folded_content = content.casefold()
