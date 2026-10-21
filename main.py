@@ -3196,17 +3196,18 @@ async def on_message(message: discord.Message) -> None:
 
 
 async def refresh_application_commands(guild: discord.Guild) -> list:
-    """Publish global commands globally and to this guild for faster command availability."""
-    # Global command updates can take time to appear in Discord's picker. Mirror the
-    # current global tree to the invoking guild so newly added commands appear promptly.
-    bot.tree.copy_global_to(guild=guild)
+    """Remove guild-scoped copies and sync commands globally to prevent duplicates."""
+    # Commands are registered globally. Do not copy them into a guild scope: Discord
+    # displays global and guild-scoped registrations separately, creating duplicates.
+    # Clear any guild-scoped copies left by previous /sync runs, then publish globally.
+    bot.tree.clear_commands(guild=guild)
     await bot.tree.sync(guild=guild)
     global_synced = await bot.tree.sync()
     premium_names = {"embed", "snipe", "sticky", "backup", "custom-command", "vanity", "premium-status"}
     premium_count = sum(1 for command in global_synced if command.name in premium_names)
     standard_count = len(global_synced) - premium_count
     logger.info(
-        "Synced %d standard commands and %d Premium commands globally; cleared guild-only duplicates for %s (%s).",
+        "Synced %d standard commands and %d Premium commands globally; removed guild-scoped command copies from %s (%s).",
         standard_count, premium_count, guild.name, guild.id,
     )
     return global_synced
@@ -3233,7 +3234,7 @@ async def bot_sync(interaction: discord.Interaction) -> None:
     standard_count = len(synced) - premium_count
     await interaction.followup.send(
         f"Synced **{standard_count} commands** and **{premium_count} Premium commands**. "
-        "Published commands to this server for faster availability and synced the global command list.",
+        "Removed this server’s duplicate guild-scoped commands and synced the global command list. Discord may take a few minutes to refresh.",
         ephemeral=True,
     )
 
