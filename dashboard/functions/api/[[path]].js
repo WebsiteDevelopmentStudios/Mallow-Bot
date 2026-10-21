@@ -57,14 +57,6 @@ async function authorizedGuild(s, env, guildId) {
 
  }
 
-async function sha256Hex(value) {
- const digest=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(value));
- return Array.from(new Uint8Array(digest)).map(b=>b.toString(16).padStart(2,"0")).join("");
-}
-async function ensureUnfilteredKeyTable(env) {
- await env.MALLOW_DB.prepare("CREATE TABLE IF NOT EXISTS unfiltered_api_keys (id TEXT PRIMARY KEY, key_hash TEXT UNIQUE NOT NULL, discord_id TEXT NOT NULL, created_at TEXT NOT NULL, revoked_at TEXT, last_used_at TEXT, response_count INTEGER NOT NULL DEFAULT 0)").run();
- try{await env.MALLOW_DB.prepare("ALTER TABLE unfiltered_api_keys ADD COLUMN response_count INTEGER NOT NULL DEFAULT 0").run()}catch{}
-}
 async function route(request, env) {
  const missing=["CLIENT_ID","CLIENT_SECRET","REDIRECT_URI","SESSION_SECRET","BOT_OWNER_ID","MALLOW_DB"].filter(k=>!env[k]); if(missing.length) return json({error:"Dashboard server configuration is incomplete.",missing},503);
  const url=new URL(request.url); const path=url.pathname.replace(/^\/api\/?/,"");
@@ -89,7 +81,7 @@ async function route(request, env) {
   const row=await env.MALLOW_DB.prepare("SELECT prefix,greeting,greetings,mention_only,disabled_commands,features,economy_config,xp_config,messages_config,tickets_config FROM guild_settings WHERE guild_id=?").bind(guildId).first();
   let disabled=[];try{disabled=JSON.parse(row?.disabled_commands||"[]");if(!Array.isArray(disabled))disabled=[]}catch{}
   const parse=(v,fallback)=>{try{return {...fallback,...JSON.parse(v||"{}")}}catch{return fallback}};
-  const features=parse(row?.features,{economy:true,xp:true,moderation:true,music:true,fun:true,movies:true,utility:true,social:true,ai:false});
+  const features=parse(row?.features,{economy:true,xp:true,moderation:true,music:true,fun:true,movies:true,utility:true,social:true});
   const economy=parse(row?.economy_config,{starting_money:100,daily_reward:100,work_min:20,work_max:80});
   const xp=parse(row?.xp_config,{min_xp:10,max_xp:20,cooldown_seconds:60,announce_level_up:true});
   const messages=parse(row?.messages_config,{welcome_enabled:false,welcome_channel_id:"",welcome_message:"Welcome {user} to {server}!",goodbye_enabled:false,goodbye_channel_id:"",goodbye_message:"{user} left {server}.",auto_reply_enabled:false,auto_replies:[]});
@@ -263,67 +255,6 @@ async function route(request, env) {
   const premium=await premiumFor(env,s.user.id);
   return json({ok:true,discord_id:s.user.id,is_owner:s.user.id===String(env.BOT_OWNER_ID),premium});
  }
- if(path==="unfiltered-keys"&&(request.method==="GET"||request.method==="POST"||request.method==="DELETE")){
-   const s=await session(request,env);if(!s)return json({error:"Sign in with Discord first."},401);
-   const owner=s.user.id===String(env.BOT_OWNER_ID);
-   const premium=await premiumFor(env,s.user.id);
-   if(!owner&&(!premium.active||premium.banned))return json({error:"Active Premium is required to create or use Zoi Unfiltered API keys."},403);
-   await ensureUnfilteredKeyTable(env);
-   // Keep older accounts within the three-key limit as well as blocking new excess keys.
-   const activeKeys=await env.MALLOW_DB.prepare("SELECT id FROM unfiltered_api_keys WHERE discord_id=? AND revoked_at IS NULL ORDER BY created_at DESC").bind(s.user.id).all();
-   const excessKeys=(activeKeys.results||[]).slice(3);
-   for(const oldKey of excessKeys){
-    await env.MALLOW_DB.prepare("UPDATE unfiltered_api_keys SET revoked_at=? WHERE id=? AND discord_id=? AND revoked_at IS NULL").bind(new Date().toISOString(),oldKey.id,s.user.id).run();
-   }
-   if(request.method==="GET"){
-    const rows=await env.MALLOW_DB.prepare("SELECT id,created_at,last_used_at,response_count FROM unfiltered_api_keys WHERE discord_id=? AND revoked_at IS NULL ORDER BY created_at DESC").bind(s.user.id).all();
-    return json({ok:true,keys:rows.results||[]});
-   }
-   if(request.method==="POST"){
-    const count=await env.MALLOW_DB.prepare("SELECT COUNT(*) AS count FROM unfiltered_api_keys WHERE discord_id=? AND revoked_at IS NULL").bind(s.user.id).first();
-    if(Number(count?.count||0)>=3)return json({error:"You can have up to three active Unfiltered API keys. Revoke one before generating another."},409);
-    const raw="mallow_zoiu_"+Array.from(crypto.getRandomValues(new Uint8Array(32))).map(b=>b.toString(16).padStart(2,"0")).join("");
-    const id=crypto.randomUUID();
-    const createdAt=new Date().toISOString();
-    const hash=await sha256Hex(raw);
-    await env.MALLOW_DB.prepare("INSERT INTO unfiltered_api_keys(id,key_hash,discord_id,created_at) VALUES(?,?,?,?)").bind(id,hash,s.user.id,createdAt).run();
-    return json({ok:true,key:raw,id:id,created_at:createdAt});
-   }
-   let body;try{body=await request.json()}catch{return json({error:"Invalid JSON."},400)}
-   const id=String(body.id||"").trim();
-   if(!id)return json({error:"Select a key to revoke."},400);
-   await env.MALLOW_DB.prepare("UPDATE unfiltered_api_keys SET revoked_at=? WHERE id=? AND discord_id=? AND revoked_at IS NULL").bind(new Date().toISOString(),id,s.user.id).run();
-   return json({ok:true,revoked:true});
-  }
-  if(path==="zoi-unfiltered"&&request.method==="POST"){
-   const auth=(request.headers.get("Authorization")||"").replace(/^Bearer\s+/i,"").trim();
-   if(!auth.startsWith("mallow_zoiu_"))return json({error:"A valid Mallow Zoi Unfiltered API key is required."},401);
-   await ensureUnfilteredKeyTable(env);
-   const hash=await sha256Hex(auth);
-   const row=await env.MALLOW_DB.prepare("SELECT id,discord_id FROM unfiltered_api_keys WHERE key_hash=? AND revoked_at IS NULL").bind(hash).first();
-   if(!row)return json({error:"Invalid or revoked API key."},401);
-   const premium=await premiumFor(env,row.discord_id);
-   if(row.discord_id!==String(env.BOT_OWNER_ID)&&(!premium.active||premium.banned))return json({error:"An active Premium subscription is required to use Zoi Unfiltered."},403);
-   if(!env.ZOI_UNFILTERED_UPSTREAM_URL)return json({error:"The Unfiltered model endpoint has not been configured yet."},503);
-   let body;try{body=await request.json()}catch{return json({error:"Invalid JSON."},400)}
-   if(!Array.isArray(body.messages)||body.messages.length<1||body.messages.length>20)return json({error:"Provide between one and twenty chat messages."},400);
-   const messages=[];
-   for(const item of body.messages){
-    if(!item||!["system","user","assistant"].includes(item.role)||typeof item.content!=="string")return json({error:"Each message must have a supported role and text content."},400);
-    messages.push({role:item.role,content:item.content.slice(0,6000)});
-   }
-   await env.MALLOW_DB.prepare("UPDATE unfiltered_api_keys SET last_used_at=? WHERE id=?").bind(new Date().toISOString(),row.id).run();
-   const headers={"content-type":"application/json"};
-   if(env.ZOI_UNFILTERED_UPSTREAM_KEY)headers.authorization="Bearer "+env.ZOI_UNFILTERED_UPSTREAM_KEY;
-   let upstream;
-   try {
-    upstream=await fetch(env.ZOI_UNFILTERED_UPSTREAM_URL,{method:"POST",headers:headers,body:JSON.stringify({model:env.ZOI_UNFILTERED_MODEL||"zoi-unfiltered",messages:messages,temperature:Math.max(0,Math.min(2,Number(body.temperature??0.7)||0.7)),max_tokens:Math.max(1,Math.min(2000,Number.parseInt(body.max_tokens??"700",10)||700))})});
-   } catch {
-    return json({error:"The Unfiltered model did not return a response. Please try again."},502);
-   }
-   if(upstream.ok) await env.MALLOW_DB.prepare("UPDATE unfiltered_api_keys SET response_count=response_count+1 WHERE id=?").bind(row.id).run();
-   return new Response(upstream.body,{status:upstream.status,headers:{"content-type":upstream.headers.get("content-type")||"application/json","cache-control":"no-store"}});
-  }
   if(path==="premium-codes"&&request.method==="GET"){
   const s=await session(request,env);if(!s)return json({error:"Sign in with Discord first."},401);
   if(s.user.id!==String(env.BOT_OWNER_ID))return json({error:"Only the owner can manage premium codes."},403);
