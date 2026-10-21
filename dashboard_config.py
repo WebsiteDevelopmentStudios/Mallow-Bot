@@ -27,7 +27,7 @@ def default_config() -> dict[str, Any]:
         "greetings": True,
         "mention_only": True,
         "disabled_commands": [],
-        "features": {"economy": True, "xp": True, "moderation": True, "music": True, "fun": True, "movies": True, "utility": True, "social": True, "ai": False},
+        "features": {"economy": True, "xp": True, "moderation": True, "music": True, "fun": True, "movies": True, "utility": True, "social": True},
         "economy_config": {"starting_money": 100, "daily_reward": 100, "work_min": 20, "work_max": 80},
         "xp_config": {"min_xp": 10, "max_xp": 20, "cooldown_seconds": 60, "announce_level_up": True},
         "messages_config": {"welcome_enabled": False, "welcome_channel_id": "", "welcome_message": "Welcome {user} to {server}!", "goodbye_enabled": False, "goodbye_channel_id": "", "goodbye_message": "{user} left {server}.", "auto_reply_enabled": False, "auto_replies": []},
