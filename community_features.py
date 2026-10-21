@@ -1253,7 +1253,13 @@ def setup(bot):
                 await message.reply("No swears have been counted in this server yet.", mention_author=False)
                 return
             lines = [f"**{i}.** {name} — **{count}**" for i, (count, name, _uid) in enumerate(entries[:10], 1)]
-            await message.reply("**Swear leaderboard**\n" + "\n".join(lines), mention_author=False, allowed_mentions=discord.AllowedMentions.none())
+            embed = discord.Embed(
+                title="Swear Leaderboard",
+                description="\n".join(lines),
+                color=discord.Color.red(),
+            )
+            embed.set_footer(text=f"{message.guild.name} • Top 10")
+            await message.reply(embed=embed, mention_author=False, allowed_mentions=discord.AllowedMentions.none())
             return
 
         # Prefix equivalents for the newer moderation and ticket slash commands.
