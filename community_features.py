@@ -1196,20 +1196,36 @@ def setup(bot):
             await message.reply(f"The {command_name} feature is disabled in this server.", mention_author=False)
             return
         if command_name == "swears":
-            count = int(data.setdefault("swears", {}).get(key(message.guild.id, message.author.id), 0))
-            await message.reply(f"You have {count} swear-counted message(s) in this server.", mention_author=False)
+            raw_count = int(data.setdefault("swears", {}).get(key(message.guild.id, message.author.id), 0))
+            adjustment = int(cfg.get("swear_count_adjustments", {}).get(str(message.author.id), 0))
+            count = max(0, raw_count + adjustment)
+            await message.reply(f"You have {count} swear count(s) in this server.", mention_author=False)
             return
 
         if command_name == "swear-leaderboard":
             entries = []
-            for entry_key, count in data.setdefault("swears", {}).items():
+            adjustments = cfg.get("swear_count_adjustments", {})
+            seen_users = set()
+            for entry_key, raw_count in data.setdefault("swears", {}).items():
                 try:
                     guild_id, user_id = entry_key.split(":", 1)
-                    if guild_id == str(message.guild.id) and int(count) > 0:
-                        member = message.guild.get_member(int(user_id))
-                        entries.append((int(count), member.display_name if member else f"User {user_id}", user_id))
+                    if guild_id == str(message.guild.id):
+                        count = max(0, int(raw_count) + int(adjustments.get(user_id, 0)))
+                        seen_users.add(user_id)
+                        if count > 0:
+                            member = message.guild.get_member(int(user_id))
+                            entries.append((count, member.display_name if member else f"User {user_id}", user_id))
                 except (ValueError, TypeError):
                     continue
+            for user_id, adjustment in adjustments.items():
+                if user_id not in seen_users:
+                    try:
+                        count = max(0, int(adjustment))
+                        if count > 0:
+                            member = message.guild.get_member(int(user_id))
+                            entries.append((count, member.display_name if member else f"User {user_id}", user_id))
+                    except (ValueError, TypeError):
+                        continue
             entries.sort(key=lambda item: (-item[0], item[1].casefold()))
             if not entries:
                 await message.reply("No swears have been counted in this server yet.", mention_author=False)
