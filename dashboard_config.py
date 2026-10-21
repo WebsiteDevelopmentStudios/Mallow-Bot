@@ -32,6 +32,7 @@ def default_config() -> dict[str, Any]:
         "xp_config": {"min_xp": 10, "max_xp": 20, "cooldown_seconds": 60, "announce_level_up": True},
         "messages_config": {"welcome_enabled": False, "welcome_channel_id": "", "welcome_message": "Welcome {user} to {server}!", "welcome_title": "", "welcome_image_url": "", "goodbye_enabled": False, "goodbye_channel_id": "", "goodbye_message": "{user} left {server}.", "goodbye_title": "", "goodbye_image_url": "", "auto_reply_enabled": False, "auto_replies": []},
         "tickets_config": {"enabled": False, "category_id": "", "support_role_ids": [], "transcript_channel_id": "", "welcome_message": "Thanks for opening a ticket. A staff member will be with you soon."},
+        "swear_count_adjustments": {},
     }
 
 
@@ -96,6 +97,9 @@ async def get_guild_config(guild_id: int | str) -> dict[str, Any]:
             if isinstance(settings.get("xp_config"), dict):
                 config["xp_config"]["announce_level_up"] = settings["xp_config"].get("announce_level_up", True) is not False
             config["swear_words"] = [str(w) for w in settings.get("swear_words", []) if isinstance(w, str) and w.strip()][:200] if isinstance(settings.get("swear_words", []), list) else []
+            adjustments = settings.get("swear_count_adjustments", {})
+            if isinstance(adjustments, dict):
+                config["swear_count_adjustments"] = {str(uid): max(-1000000, min(1000000, int(delta))) for uid, delta in adjustments.items() if str(uid).isdigit() and str(delta).lstrip("-").isdigit()}
             for field in ("messages_config", "tickets_config"):
                 values = settings.get(field, {})
                 if isinstance(values, dict):
