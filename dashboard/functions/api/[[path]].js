@@ -164,10 +164,10 @@ async function route(request, env) {
   const serverName=String(access.guild?.name||"your server");
   const userName=String(s.user.global_name||s.user.username||"Test user");
   const configuredMessage=rawMessage.replaceAll("{user}",kind==="welcome"?"<@"+String(s.user.id)+">":userName).replaceAll("{server}",serverName).replaceAll("{member_count}","123");
-  const welcomerSection="╭─〔 👤 **Welcomer** 〕─╮\\n│ WELCOME <@"+String(s.user.id)+"> TO "+serverName+"!!\\n│ we now have 123 members!!!\\n╰──────────────────────────╯";
-  const inviteSection="╭─〔 📈 **INVITE BREAKDOWN** 〕─╮\\n│ ✦ **User:** <@"+String(s.user.id)+">\\n│ ✦ **Valid:** 0\\n│ ✦ **Fake:** 0\\n│ ✦ **Left:** 0\\n╰──────────────────────────────╯";
+  const welcomerSection="╭─〔 👤 **Welcomer** 〕─╮\n│ WELCOME <@"+String(s.user.id)+"> TO "+serverName+"!!\n│ we now have 123 members!!!\n╰──────────────────────────╯";
+  const inviteSection="╭─〔 📈 **INVITE BREAKDOWN** 〕─╮\n│ ✦ **User:** <@"+String(s.user.id)+">\n│ ✦ **Valid:** 0\n│ ✦ **Fake:** 0\n│ ✦ **Left:** 0\n╰──────────────────────────────╯";
   const description=kind==="welcome"
-   ? [welcomerSection,inviteSection,configuredMessage].filter(Boolean).join("\\n\\n").slice(0,4096)
+   ? [welcomerSection,inviteSection,configuredMessage].filter(Boolean).join("\n\n").slice(0,4096)
    : configuredMessage.slice(0,4096);
   const cardDataUrl=String(body.card_data_url||"");
   const cardMatch=/^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(cardDataUrl);
@@ -237,7 +237,7 @@ async function route(request, env) {
   let body;try{body=await request.json()}catch{return json({error:"Invalid JSON."},400)}
   const prefix=String(body.prefix??"-mb").trim(),greeting=String(body.greeting??defaults.greeting);
   const disabled=Array.isArray(body.disabled_commands)?[...new Set(body.disabled_commands.map(x=>String(x).trim()).filter(x=>/^[a-z0-9_-]{1,32}$/i.test(x)))].slice(0,200):[];
-  if(!prefix||prefix.length>8||/[\\r\\n\\s]/.test(prefix))return json({error:"Prefix must be 1–8 characters with no spaces or line breaks."},400);
+  if(!prefix||prefix.length>8||/[\\r\n\\s]/.test(prefix))return json({error:"Prefix must be 1–8 characters with no spaces or line breaks."},400);
   if(greeting.length>500)return json({error:"Greeting must be 500 characters or fewer."},400);
   const featureDefaults={economy:true,xp:true,moderation:true,music:true,fun:true,movies:true,utility:true,social:true};
   const featureInput=body.features&&typeof body.features==="object"?body.features:{};
