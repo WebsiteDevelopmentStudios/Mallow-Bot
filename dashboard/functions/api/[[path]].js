@@ -331,7 +331,13 @@ async function route(request, env) {
  }
  if(path==="swear-words"&&(request.method==="GET"||request.method==="POST"||request.method==="DELETE")){
   const s=await session(request,env);if(!s)return json({error:"Sign in with Discord first."},401);
-  if(s.user.id!==String(env.BOT_OWNER_ID))return json({error:"Only the bot owner can manage the swear word list."},403);
+  const owner=s.user.id===String(env.BOT_OWNER_ID);
+  if(!owner){
+   if(request.method!=="GET")return json({error:"Only the bot owner can edit the swear word list."},403);
+   await env.MALLOW_DB.prepare("CREATE TABLE IF NOT EXISTS dashboard_developers (discord_id TEXT PRIMARY KEY, added_by TEXT NOT NULL, added_at TEXT NOT NULL)").run();
+   const allowed=await env.MALLOW_DB.prepare("SELECT discord_id FROM dashboard_developers WHERE discord_id=?").bind(s.user.id).first();
+   if(!allowed)return json({error:"Developer access required."},403);
+  }
   await ensureSwearWords(env);
   if(request.method==="GET"){const rows=await env.MALLOW_DB.prepare("SELECT word,added_by,added_at FROM swear_words ORDER BY word COLLATE NOCASE").all();return json({words:rows.results||[]})}
   let body;try{body=await request.json()}catch{return json({error:"Invalid JSON."},400)}
