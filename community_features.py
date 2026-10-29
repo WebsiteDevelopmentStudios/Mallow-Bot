@@ -55,14 +55,18 @@ def _normalize_swear_text(value):
 
 
 def _build_swear_pattern(words):
-    # Allow punctuation/spaces between letters (f.u.c.k / f u c k), while
-    # retaining word boundaries to avoid matching inside ordinary words.
+    # Match phrases as phrases while allowing punctuation/spacing obfuscation
+    # inside each word (e.g. "f.i.l.h.o de uma k.e.n.g.a").
     normalized = {_normalize_swear_text(word) for word in words}
     alternatives = []
     for term in sorted((item for item in normalized if item), key=len, reverse=True):
-        letters = [re.escape(char) for char in term if char != " "]
-        if letters:
-            alternatives.append(r"(?<!\w)" + r"[\W_]*".join(letters) + r"(?!\w)")
+        word_patterns = []
+        for word in term.split():
+            letters = [re.escape(char) for char in word]
+            if letters:
+                word_patterns.append(r"[\\W_]*".join(letters))
+        if word_patterns:
+            alternatives.append(r"(?<!\\w)" + r"[\\W_]+".join(word_patterns) + r"(?!\\w)")
     return re.compile("|".join(alternatives), re.IGNORECASE) if alternatives else None
 
 
