@@ -62,7 +62,7 @@ async function ensureSwearWords(env){
   await env.MALLOW_DB.prepare("CREATE TABLE IF NOT EXISTS swear_word_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)").run();
   // Versioned seed: add the multilingual defaults to existing databases without removing
   // words administrators already added or requiring a database reset.
-  const seeded=await env.MALLOW_DB.prepare("SELECT value FROM swear_word_meta WHERE key='defaults_seeded_v3'").first();
+  const seeded=await env.MALLOW_DB.prepare("SELECT value FROM swear_word_meta WHERE key='defaults_seeded_v4'").first();
   if(!seeded){
     const defaults = [
       // English
@@ -97,6 +97,28 @@ async function ensureSwearWords(env){
       "くそ","糞","くそったれ","ばか","バカ","あほ","アホ","ちくしょう","畜生","くたばれ","くそ野郎","씨발","시발","개새끼","병신","좆","닥쳐","엿먹어","염병","미친놈","미친년",
       // Indonesian and Filipino
       "anjing","bangsat","kontol","memek","jancuk","ngentot","asu","bajingan","tai","kampret","goblok","tolol","bego","brengsek","putang ina","puta","putangina","tangina","gago","gagu","bobo","leche","pakyu","pakshet","ulol","tarantado","hayop",
+      // Hindi, Urdu, Bengali, and Punjabi
+      "चूतिया","चूत","भोसड़ी","भोसड़ीके","गांड","गांडू","लंड","लौड़ा","मादरचोद","बहनचोद","हरामी","कमीना","रंडी","साला","बकचोद","چوتیا","چوت","بہن چود","ماں چود","گشتی","حرامی","کمینہ","لنڈ","چودنا","চোদা","চোদন","খানকি","মাগী","হারামজাদা","বোকাচোদা","বাল","গান্ডু","মাদারচোদ","বোনচোদ","ਭੈਣਚੋਦ","ਮਾਦਰਚੋਦ","ਗਾਂਡੂ","ਚੂਤੀਆ",
+      // Persian and Hebrew
+      "کسکش","کیر","کونی","جنده","حرومزاده","بی‌شعور","بی شعور","گوه","کص","مادرجنده","זין","כוס","כוסאמא","בן זונה","בת זונה","מניאק","חרא","שרמוטה","אידיוט","לך לעזאזל",
+      // Chinese
+      "他妈的","妈的","操你妈","傻逼","傻屄","屌","肏","干你","狗屎","王八蛋","混蛋","滚蛋","去死","白痴","脑残","扑街","冚家铲","屌你老母",
+      // Vietnamese and Thai
+      "địt","đụ","đụ má","địt mẹ","địt mẹ mày","đĩ","lồn","buồi","cặc","đéo","vãi lồn","con mẹ mày","chó chết","khốn nạn","mất dạy","ngu lồn","เหี้ย","สัส","สัตว์","ควย","หี","เย็ด","แม่ง","ระยำ","ชิบหาย","อีดอก",
+      // Malay and Indonesian variants
+      "pukimak","babi","sialan","celaka","butoh","kimak","lancau","pantat","pantek","pepek","jembut","monyet","setan","keparat","ngewe","fucklah","anjir","bangke","asu tenan",
+      // Filipino regional variants
+      "yawa","pisti","piste","buang","atay","bilat","yati","kolera","gago ka","putang ina mo","tang ina mo","inutil","leche ka","pak u","pakyo",
+      // Japanese and Korean variants
+      "くそが","死ね","糞野郎","クソ野郎","きちがい","ちんこ","まんこ","ふざけんな","うざい","ばかやろう","씨발놈","씨발년","시발놈","시발년","좆같아","좆까","개같은","개자식","씹새끼","씹덕",
+      // Swahili, West African, and Amharic slang
+      "mjinga","mavi","malaya","mshenzi","umbwa","kumama","fala","mpumbavu","shenzi","ode","oloriburuku","werey","ashawo","agbero","onye ara","ewu","mumu","olodo","ውሻ","ሞኝ","ቂጥ","ጅል",
+      // Balkan and Greek variants
+      "γαμιέσαι","γαμήσου","σκατό","πουτάνα","μαλακισμένο","jebem ti","jebem ti mater","kurac","kurčina","pička","picka","mater ti jebem","jebi se","jebiga","pizdarija","jebemti",
+      // Portuguese and Spanish regional variants
+      "vai tomar no cu","vai tomar nocu","tomar no cu","carai","karalho","krl","f0da-se","fdp","vtnc","vsf","puta madre","hijo de puta","conchetumare","conchesumadre","culiado","wea","weon ql","maricon culiao","pinche pendejo","chingas a tu madre","vete a la mierda","me cago en",
+      // Common bypass spellings and shorthand
+      "fu ck","fukc","phuk","phuq","fuxk","fcked","fkn","shyt","shiit","5h1t","b1tch","bi7ch","d!ck","a55","azzhole","assh0le","c0ck","c0nt","k y s","kys","ret4rd","r3tard","wh0re","skank","cumdump","jizz","t1ts","bo0bs","p0rn","kurw@","pizd@","j3bac","spierdal4j","zjeb","skurwiel","kutas","vaffancul0","c4zzo","str0nzo","put1n","fils de pute","kankerlijer","kankerhoer"
       // Common spelling variants and censored forms
       "f*ck","f**k","fuсk","sh1t","sh!t","b!tch","a$hole","d1ck","bast@rd","fuk","fck","phuck","f u c k","s h i t","bull sh*t","motherf*cker"
     ];
@@ -106,7 +128,7 @@ async function ensureSwearWords(env){
       if(!word)continue;
       await env.MALLOW_DB.prepare("INSERT INTO swear_words(word,added_by,added_at) VALUES(?,?,?) ON CONFLICT(word) DO NOTHING").bind(word,"system",now).run();
     }
-    await env.MALLOW_DB.prepare("INSERT INTO swear_word_meta(key,value) VALUES('defaults_seeded_v3','1') ON CONFLICT(key) DO UPDATE SET value='1'").run();
+    await env.MALLOW_DB.prepare("INSERT INTO swear_word_meta(key,value) VALUES('defaults_seeded_v4','1') ON CONFLICT(key) DO UPDATE SET value='1'").run();
   }
 }
 
