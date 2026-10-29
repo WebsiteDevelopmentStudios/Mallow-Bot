@@ -60,12 +60,53 @@ async function authorizedGuild(s, env, guildId) {
 async function ensureSwearWords(env){
   await env.MALLOW_DB.prepare("CREATE TABLE IF NOT EXISTS swear_words (word TEXT PRIMARY KEY, added_by TEXT NOT NULL, added_at TEXT NOT NULL)").run();
   await env.MALLOW_DB.prepare("CREATE TABLE IF NOT EXISTS swear_word_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)").run();
-  const seeded=await env.MALLOW_DB.prepare("SELECT value FROM swear_word_meta WHERE key='defaults_seeded'").first();
+  // Versioned seed: add the multilingual defaults to existing databases without removing
+  // words administrators already added or requiring a database reset.
+  const seeded=await env.MALLOW_DB.prepare("SELECT value FROM swear_word_meta WHERE key='defaults_seeded_v2'").first();
   if(!seeded){
-    for(const word of ["fuck","fucking","shit","bitch","asshole","bastard","damn","crap","dick","piss","motherfucker"]) {
-      await env.MALLOW_DB.prepare("INSERT INTO swear_words(word,added_by,added_at) VALUES(?,?,?) ON CONFLICT(word) DO NOTHING").bind(word,"system",new Date().toISOString()).run();
+    const defaults = [
+      // English
+      "fuck","fucks","fucked","fucker","fuckers","fucking","fuckin","motherfucker","motherfuckers","motherfucking","fuckwit","fuckface","fuckhead","clusterfuck","bullshit","horseshit","shit","shits","shitty","shithead","shitface","shitbag","shitshow","dipshit","jackshit","batshit","holyshit","apeshit","crap","crappy","damn","dammit","goddamn","goddammit","hell","ass","arse","asshole","arsehole","asshat","dumbass","jackass","badass","smartass","fatass","kissass","lazyass","pissed","piss","piss off","pissoff","pisshead","bitch","bitches","bitchy","sonofabitch","bastard","bastards","dick","dicks","dickhead","dickwad","dickweed","prick","twat","cunt","cunts","wanker","wank","wanking","bollocks","bugger","bloody","bellend","knobhead","tosser","git","minger","shag","shagging","screw you","screwed","screwing","suck my","sucks","sucker"," douche","douchebag","moron","idiot","jackhole","pube","pissweak","crikey",
+      // Spanish
+      "mierda","mierdas","joder","jodido","jodida","jodiendo","coño","cojones","puta","putas","puto","putos","putada","putear","cabron","cabrón","cabrona","cabrones","gilipollas","imbecil","imbécil","pendejo","pendeja","pendejos","pendejas","chingar","chingada","chingado","chingada madre","chingón","chingon","pinche","verga","vergas","culero","culera","mamón","mamon","maricón","maricon","hostia","ostia","jolines","carajo","carajos","hijueputa","gonorrea","malparido","malparida","concha","boludo","boluda","pelotudo","pelotuda","weon","huevon","huevón","culiao",
+      // French
+      "merde","putain","putain de","bordel","con","connard","connasse","cons","connerie","salopard","salope","salaud","enculé","encule","enculée","enculee","emmerde","emmerder","foutre","foutu","foutue","chiant","chiante","nique","niquer","nique ta mère","ta gueule","branleur","branleuse","bite","couilles","cul","débile","debile",
+      // German
+      "scheiße","scheisse","scheiss","scheiß","beschissen","arsch","arschloch","arschlöcher","arschloecher","fick","ficken","gefickt","ficker","fick dich","fickkopf","wichser","wichsen","hurensohn","hure","huren","miststück","schlampe","fotze","kacke","kacken","kack","verdammt","spasti","vollidiot","drecksack",
+      // Italian
+      "cazzo","cazzi","cazzata","cazzate","cazzone","coglione","coglioni","stronzo","stronza","stronzi","stronzata","merda","merdoso","puttana","puttane","puttaniere","figa","fica","figlio di puttana","vaffanculo","affanculo","minchia","porca miseria","porcodio","bastardo","bastarda","rompicoglioni","cretino","cretina",
+      // Portuguese
+      "porra","caralho","caralhos","foda","foder","foda-se","foda se","fodido","fodida","fodendo","fuder","puta","puto","putaria","merda","bosta","cu","cú","cuzao","cuzão","arrombado","arrombada","otario","otário","otaria","otária","viado","veado","desgraça","desgraca","cacete","pqp","vai se foder","filho da puta","filha da puta","buceta","boceta","piroca","rola",
+      // Dutch
+      "kut","kanker","tering","tyfus","godverdomme","godver","verdomme","lul","lullo","klootzak"," klootviool"," klootzak","eikel","reet","sukkel"," kloot","hoer","neuken","geneukt","kutwijf","mongool",
+      // Polish
+      "kurwa","kurwy","kurwo","kurwа","chuj","chuje","chujowy","chujnia","pizda","pizdy","pierdol","pierdolić","pierdolic","pierdolenie","spierdalaj","spierdalać","spierdalac","jebac","jebać","jebany","jebana","pojeb","pojebany","skurwysyn","suka","gówno","gowno","cholera","dupek","dupa","dziwka",
+      // Russian and Ukrainian transliterations/native spellings
+      "блядь","блять","сука","сучка","хуй","хуя","хуёвый","хуевый","пизда","пиздец","ебать","ебал","ебаный","заебал","заебись","мудак","мудила","говно","дерьмо","жопа","залупа","нахуй","на хуй","охуел","охуеть","блядский","нахер","ёб твою мать","ёбаный","ёбать","йобаний","сука блять",
+      // Turkish
+      "amk","aq","amina koyim","amına koyayım","siktir","siktir git","sikik","sik","sikerim","orospu","orospu çocuğu","pic","piç","göt","got","yarrak","yarram","bok","salak","gerizekali","gerizekalı","kahpe","pezevenk",
+      // Greek
+      "μαλάκας","μαλακας","μαλακία","μαλακια","γαμώ","γαμω","σκατά","σκατα","πούτσα","πουτσα","μουνί","μουνι","αρχίδι","αρχιδι","καριόλης","καριολης",
+      // Swedish, Norwegian, Danish, Finnish
+      "fan","helvete","jävlar","javlar","jävla","javla","skit","fitta","kuk","hora","satan","pikk","perkele","vittu","saatana","helvetti","paska","runkku","runkare","faen","for helvede","kraftedeme","lort","røv","roev","idiot",
+      // Romanian, Czech, Slovak, Hungarian
+      "pula","pulă","muie","căcat","cacat","futuți","fututi","futai","dracu","dracului","curva","curvă","pizda","pizdă","piča","pica","kurva","kokot","debil","do prdele","hovno","sračka","sracka","šukat","sukat","szar","fasz","geci","kurva anyád","baszd meg","bassza meg","picsa",
+      // Arabic common profanity
+      "كس","كسمك","شرموط","شرموطة","قحبة","كلب","حمار","يلعن","طيز","زب","منيوك","خرا",
+      // Japanese and Korean
+      "くそ","糞","くそったれ","ばか","バカ","あほ","アホ","ちくしょう","畜生","くたばれ","くそ野郎","씨발","시발","개새끼","병신","좆","닥쳐","엿먹어","염병","미친놈","미친년",
+      // Indonesian and Filipino
+      "anjing","bangsat","kontol","memek","jancuk","ngentot","asu","bajingan","tai","kampret","goblok","tolol","bego","brengsek","putang ina","puta","putangina","tangina","gago","gagu","bobo","leche","pakyu","pakshet","ulol","tarantado","hayop",
+      // Common spelling variants and censored forms
+      "f*ck","f**k","fuсk","sh1t","sh!t","b!tch","a$hole","d1ck","bast@rd","fuk","fck","phuck","f u c k","s h i t","bull sh*t","motherf*cker"
+    ];
+    const now=new Date().toISOString();
+    for(const raw of defaults){
+      const word=raw.trim().toLocaleLowerCase();
+      if(!word)continue;
+      await env.MALLOW_DB.prepare("INSERT INTO swear_words(word,added_by,added_at) VALUES(?,?,?) ON CONFLICT(word) DO NOTHING").bind(word,"system",now).run();
     }
-    await env.MALLOW_DB.prepare("INSERT INTO swear_word_meta(key,value) VALUES('defaults_seeded','1') ON CONFLICT(key) DO UPDATE SET value='1'").run();
+    await env.MALLOW_DB.prepare("INSERT INTO swear_word_meta(key,value) VALUES('defaults_seeded_v2','1') ON CONFLICT(key) DO UPDATE SET value='1'").run();
   }
 }
 
