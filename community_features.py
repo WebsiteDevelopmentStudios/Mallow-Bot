@@ -5,6 +5,7 @@ import random
 import re
 import time
 import io
+import unicodedata
 from pathlib import Path
 from datetime import timedelta
 
@@ -34,6 +35,37 @@ def load():
 
 data = load()
 _last_description = None
+
+# Normalize obfuscated profanity without changing the original Discord message.
+_LEET_TRANSLATION = str.maketrans({
+    "0": "o", "1": "i", "!": "i", "|": "i", "3": "e",
+    "4": "a", "@": "a", "5": "s", "$": "s", "7": "t",
+    "+": "t", "8": "b", "9": "g", "€": "e",
+})
+_ZERO_WIDTH_RE = re.compile("[\\u200b-\\u200f\\u2060\\ufeff]")
+_NON_WORD_RE = re.compile(r"[^a-z0-9]+")
+
+
+def _normalize_swear_text(value):
+    value = unicodedata.normalize("NFKD", unicodedata.normalize("NFKC", str(value)).casefold())
+    value = _ZERO_WIDTH_RE.sub("", value)
+    value = "".join(char for char in value if not unicodedata.combining(char))
+    value = value.translate(_LEET_TRANSLATION)
+    return _NON_WORD_RE.sub(" ", value).strip()
+
+
+def _build_swear_pattern(words):
+    # Allow punctuation/spaces between letters (f.u.c.k / f u c k), while
+    # retaining word boundaries to avoid matching inside ordinary words.
+    normalized = {_normalize_swear_text(word) for word in words}
+    alternatives = []
+    for term in sorted((item for item in normalized if item), key=len, reverse=True):
+        letters = [re.escape(char) for char in term if char != " "]
+        if letters:
+            alternatives.append(r"(?<!\\w)" + r"[\\W_]*".join(letters) + r"(?!\\w)")
+    return re.compile("|".join(alternatives), re.IGNORECASE) if alternatives else None
+
+
 def save():
     temp = DATA_FILE.with_suffix(".tmp")
     temp.write_text(json.dumps(data, indent=2), encoding="utf-8")
@@ -90,19 +122,17 @@ async def process_message(bot, message):
     dashboard_config = await get_guild_config(guild.id)
     command_prefix = dashboard_config.get("prefix", "-mb")
     message_cfg = dashboard_config.get("messages_config", {})
-    # Normalize and deduplicate the configured list so duplicate entries never
-    # cause a single swear to be counted multiple times.
+    # Deduplicate configured terms; normalization catches common obfuscations.
     swear_words = sorted({
-        str(w).casefold().strip()
+        str(w).strip()
         for w in dashboard_config.get("swear_words", [])
         if isinstance(w, str) and w.strip()
     }, key=len, reverse=True)
-    # Count each matching occurrence once, preferring longer terms when they overlap.
-    # This is a counter only; it does not delete messages or punish members.
+    # Counter only: no message deletion or punishment.
     if dashboard_config.get("features", {}).get("swear_counter", True) and content.strip() and not content.casefold().startswith(command_prefix.casefold()) and swear_words:
-        folded_content = content.casefold()
-        pattern = re.compile(r"(?<!\w)(?:" + "|".join(re.escape(word) for word in swear_words) + r")(?!\w)")
-        swear_count = sum(1 for _ in pattern.finditer(folded_content))
+        pattern = _build_swear_pattern(swear_words)
+        normalized_content = _normalize_swear_text(content)
+        swear_count = sum(1 for _ in pattern.finditer(normalized_content)) if pattern else 0
         if swear_count:
             skey = key(guild.id, message.author.id)
             updated_count = int(data.setdefault("swears", {}).get(skey, 0)) + swear_count
