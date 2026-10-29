@@ -62,7 +62,7 @@ def _build_swear_pattern(words):
     for term in sorted((item for item in normalized if item), key=len, reverse=True):
         letters = [re.escape(char) for char in term if char != " "]
         if letters:
-            alternatives.append(r"(?<!\w)" + r"[\\W_]*".join(letters) + r"(?!\\w)")
+            alternatives.append(r"(?<!\w)" + r"[\W_]*".join(letters) + r"(?!\w)")
     return re.compile("|".join(alternatives), re.IGNORECASE) if alternatives else None
 
 
