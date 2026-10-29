@@ -62,7 +62,7 @@ async function ensureSwearWords(env){
   await env.MALLOW_DB.prepare("CREATE TABLE IF NOT EXISTS swear_word_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)").run();
   // Versioned seed: add the multilingual defaults to existing databases without removing
   // words administrators already added or requiring a database reset.
-  const seeded=await env.MALLOW_DB.prepare("SELECT value FROM swear_word_meta WHERE key='defaults_seeded_v2'").first();
+  const seeded=await env.MALLOW_DB.prepare("SELECT value FROM swear_word_meta WHERE key='defaults_seeded_v3'").first();
   if(!seeded){
     const defaults = [
       // English
@@ -76,7 +76,7 @@ async function ensureSwearWords(env){
       // Italian
       "cazzo","cazzi","cazzata","cazzate","cazzone","coglione","coglioni","stronzo","stronza","stronzi","stronzata","merda","merdoso","puttana","puttane","puttaniere","figa","fica","figlio di puttana","vaffanculo","affanculo","minchia","porca miseria","porcodio","bastardo","bastarda","rompicoglioni","cretino","cretina",
       // Portuguese
-      "porra","caralho","caralhos","foda","foder","foda-se","foda se","fodido","fodida","fodendo","fuder","puta","puto","putaria","merda","bosta","cu","cú","cuzao","cuzão","arrombado","arrombada","otario","otário","otaria","otária","viado","veado","desgraça","desgraca","cacete","pqp","vai se foder","filho da puta","filha da puta","buceta","boceta","piroca","rola",
+      "porra","caralho","caralhos","foda","foder","foda-se","foda se","fodido","fodida","fodendo","fuder","puta","puto","putaria","merda","bosta","cu","cú","cuzao","cuzão","arrombado","arrombada","otario","otário","otaria","otária","viado","veado","desgraça","desgraca","cacete","pqp","vai se foder","filho da puta","filha da puta","filho de uma kenga","filho duma kenga","filho de uma quenga","filho duma quenga","kenga","quenga","buceta","boceta","piroca","rola",
       // Dutch
       "kut","kanker","tering","tyfus","godverdomme","godver","verdomme","lul","lullo","klootzak"," klootviool"," klootzak","eikel","reet","sukkel"," kloot","hoer","neuken","geneukt","kutwijf","mongool",
       // Polish
@@ -106,7 +106,7 @@ async function ensureSwearWords(env){
       if(!word)continue;
       await env.MALLOW_DB.prepare("INSERT INTO swear_words(word,added_by,added_at) VALUES(?,?,?) ON CONFLICT(word) DO NOTHING").bind(word,"system",now).run();
     }
-    await env.MALLOW_DB.prepare("INSERT INTO swear_word_meta(key,value) VALUES('defaults_seeded_v2','1') ON CONFLICT(key) DO UPDATE SET value='1'").run();
+    await env.MALLOW_DB.prepare("INSERT INTO swear_word_meta(key,value) VALUES('defaults_seeded_v3','1') ON CONFLICT(key) DO UPDATE SET value='1'").run();
   }
 }
 
