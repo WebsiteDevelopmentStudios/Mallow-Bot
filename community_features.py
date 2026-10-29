@@ -64,9 +64,9 @@ def _build_swear_pattern(words):
         for word in term.split():
             letters = [re.escape(char) for char in word]
             if letters:
-                word_patterns.append(r"[\\W_]*".join(letters))
+                word_patterns.append(r"[\W_]*".join(letters))
         if word_patterns:
-            alternatives.append(r"(?<!\\w)" + r"[\\W_]+".join(word_patterns) + r"(?!\\w)")
+            alternatives.append(r"(?<!\w)" + r"[\W_]+".join(word_patterns) + r"(?!\w)")
     return re.compile("|".join(alternatives), re.IGNORECASE) if alternatives else None
 
 
