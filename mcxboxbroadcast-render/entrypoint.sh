@@ -33,7 +33,7 @@ for key, value in values.items():
     if pattern.search(content):
         content = pattern.sub(replacement, content, count=1)
     else:
-        content += f"  {key}: {replacement.split(chr(10))[-1]}\n"
+        content += (f'  {key}: "{value}"\n' if key == "remote-address" else f"  {key}: {value}\n")
 path.write_text(content, encoding="utf-8")
 print(f"Configured backend: {values['remote-address']}:{values['remote-port']}")
 PY
