@@ -62,6 +62,27 @@ for key, value in values.items():
 path.write_text(content, encoding="utf-8")
 print(f"Configured backend: {values['remote-address']}:{values['remote-port']}")
 PY
+# Prevent ConfigLoader's legacy standalone migration from restoring an old loopback target.
+# Version 7 migrates session.session-info.ip/port over remote-address/remote-port.
+python3 - <<'PY'
+from pathlib import Path
+import re
+
+p = Path("/opt/mcxboxbroadcast/config.yml")
+s = p.read_text(encoding="utf-8")
+# Remove legacy standalone endpoint fields so migration cannot overwrite our target.
+m = re.search(r"(?ms)^  session-info:\\s*\\n(.*?)(?=^  [^ \\t#][^\\n]*:|\\Z)", s)
+if m:
+    legacy = re.sub(r"(?m)^    (?:ip|port):[^\\n]*\\n?", "", m.group(1))
+    s = s[:m.start(1)] + legacy + s[m.end(1):]
+# ConfigLoader's current transformation version is 9; mark the cleaned file current.
+if re.search(r"(?m)^config-version:", s):
+    s = re.sub(r"(?m)^config-version:.*$", "config-version: 9", s, count=1)
+else:
+    s = "config-version: 9\\n" + s
+p.write_text(s, encoding="utf-8")
+print("Cleaned legacy session-info IP/port and set config-version: 9")
+PY
 python3 /opt/mcxboxbroadcast/health_server.py &
 HEALTH_PID=$!
 python3 /opt/mcxboxbroadcast/backup.py &
