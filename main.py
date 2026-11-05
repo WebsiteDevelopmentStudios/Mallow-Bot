@@ -41,6 +41,33 @@ from lavalink_manager import (
 load_dotenv()
 
 
+MCXBROADCAST_URL = os.getenv("MCXBROADCAST_URL", "").strip().rstrip("/")
+MCXBROADCAST_PING_INTERVAL = max(60, int(os.getenv("MCXBROADCAST_PING_INTERVAL", "300")))
+
+
+async def keep_mcxboxbroadcast_awake() -> None:
+    """Send inbound health requests to the separate MCXboxBroadcast Render service."""
+    if not MCXBROADCAST_URL:
+        logger.info("MCXboxBroadcast keep-alive is disabled; MCXBROADCAST_URL is not set.")
+        return
+
+    health_url = f"{MCXBROADCAST_URL}/health"
+    timeout = aiohttp.ClientTimeout(total=10)
+    async with aiohttp.ClientSession(timeout=timeout) as session:
+        while True:
+            try:
+                async with session.get(health_url, headers={"User-Agent": "Mallow-Bot/1.0"}) as response:
+                    if response.status == 200:
+                        logger.debug("MCXboxBroadcast keep-alive succeeded.")
+                    else:
+                        logger.warning("MCXboxBroadcast keep-alive returned HTTP %s.", response.status)
+            except asyncio.CancelledError:
+                raise
+            except (aiohttp.ClientError, asyncio.TimeoutError, OSError) as exc:
+                logger.warning("MCXboxBroadcast keep-alive request failed: %s", exc)
+            await asyncio.sleep(MCXBROADCAST_PING_INTERVAL)
+
+
 # Paths and settings referenced by the remaining media-hosting code.
 BASE_DIR = Path(__file__).resolve().parent
 MOVIES_DIR = BASE_DIR / "Movies"
@@ -2167,6 +2194,11 @@ class MallowBot(commands.Bot):
         self.web_runner = await start_movie_web_server(self)
         # Connect to the configured external Lavalink node and publish slash commands.
         await initialize_lavalink()
+        if MCXBROADCAST_URL and not getattr(self, "mcxboxbroadcast_keepalive_task", None):
+            self.mcxboxbroadcast_keepalive_task = asyncio.create_task(
+                keep_mcxboxbroadcast_awake(),
+                name="mcxboxbroadcast-render-keepalive",
+            )
         try:
             synced = await self.tree.sync()
             logger.info("Synced %d global slash command(s).", len(synced))
