@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 cd /opt/mcxboxbroadcast
-: "${MCXB_SERVER_ADDRESS:=bliss1.atbp.fun}"
+: "${MCXB_SERVER_ADDRESS:=104.234.6.182}"
 : "${MCXB_SERVER_PORT:=19205}"
 : "${PORT:=10000}"
 mkdir -p /opt/mcxboxbroadcast/cache
@@ -26,7 +26,7 @@ m = re.search(r"(?ms)^session:\s*\n(.*?)(?=^[^ \t#][^\n]*:|\Z)", s)
 if not m:
     raise SystemExit("config.yml has no session block")
 block = m.group(1)
-for key, value in (("remote-address", os.environ.get("MCXB_SERVER_ADDRESS", "bliss1.atbp.fun")),
+for key, value in (("remote-address", os.environ.get("MCXB_SERVER_ADDRESS", "104.234.6.182")),
                    ("remote-port", os.environ.get("MCXB_SERVER_PORT", "19205"))):
     line = re.compile(rf"(?m)^(  {re.escape(key)}:\s*).*$")
     replacement = rf'\g<1>"{value}"' if key == "remote-address" else rf"\g<1>{value}"
@@ -49,7 +49,7 @@ from pathlib import Path
 path = Path("/opt/mcxboxbroadcast/config.yml")
 content = path.read_text(encoding="utf-8") if path.exists() else "session:\n"
 values = {
-    "remote-address": os.environ.get("MCXB_SERVER_ADDRESS", "bliss1.atbp.fun"),
+    "remote-address": os.environ.get("MCXB_SERVER_ADDRESS", "104.234.6.182"),
     "remote-port": os.environ.get("MCXB_SERVER_PORT", "19205"),
 }
 for key, value in values.items():
