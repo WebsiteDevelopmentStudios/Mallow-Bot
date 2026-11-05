@@ -79,7 +79,7 @@ if m:
 if re.search(r"(?m)^config-version:", s):
     s = re.sub(r"(?m)^config-version:.*$", "config-version: 9", s, count=1)
 else:
-    s = "config-version: 9\\n" + s
+    s = "config-version: 9\n" + s
 p.write_text(s, encoding="utf-8")
 print("Cleaned legacy session-info IP/port and set config-version: 9")
 PY
