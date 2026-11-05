@@ -1,8 +1,10 @@
 FROM eclipse-temurin:21-jre-jammy
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends python3 python3-pip ca-certificates curl \
+    && apt-get install -y --no-install-recommends python3 python3-venv python3-pip ca-certificates curl \
     && rm -rf /var/lib/apt/lists/* \
-    && pip3 install --no-cache-dir --break-system-packages cryptography
+    && python3 -m venv /opt/venv \
+    && /opt/venv/bin/pip install --no-cache-dir cryptography
+ENV PATH="/opt/venv/bin:${PATH}"
 WORKDIR /opt/mcxboxbroadcast
 RUN curl -fL --retry 5 --retry-delay 2 https://github.com/MCXboxBroadcast/Broadcaster/releases/latest/download/MCXboxBroadcastStandalone.jar -o MCXboxBroadcastStandalone.jar
 COPY mcxboxbroadcast-render/entrypoint.sh /opt/mcxboxbroadcast/entrypoint.sh
