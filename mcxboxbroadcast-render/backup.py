@@ -75,10 +75,11 @@ def upload():
 def main():
     if not TOKEN or not KEY: print("Encrypted backup disabled: set MCXB_BACKUP_TOKEN and MCXB_BACKUP_ENCRYPTION_KEY.",flush=True); return
     key_bytes()
-    check_repository_access()
     if len(sys.argv)>1 and sys.argv[1]=="--restore": restore(); return
     while True:
-        try: upload()
+        try:
+            check_repository_access()
+            upload()
         except Exception as e: print(f"Backup failed: {e}",flush=True)
         time.sleep(INTERVAL)
 if __name__=="__main__": main()
