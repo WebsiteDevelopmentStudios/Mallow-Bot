@@ -22,6 +22,19 @@ def api(method="GET",payload=None):
         detail=e.read().decode(errors="replace")
         if e.code==404 and method=="GET": return None
         raise RuntimeError(f"GitHub API HTTP {e.code}: {detail[:300]}")
+def check_repository_access():
+    url=f"https://api.github.com/repos/{REPO}"
+    req=urllib.request.Request(url,headers={"Authorization":f"Bearer {TOKEN}","Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28","User-Agent":"MCXboxBroadcast-Backup"})
+    try:
+        with urllib.request.urlopen(req,timeout=30) as r:
+            info=json.loads(r.read())
+        print(f"GitHub backup repository access confirmed: {info.get('full_name',REPO)}",flush=True)
+    except urllib.error.HTTPError as e:
+        detail=e.read().decode(errors="replace")
+        if e.code==404:
+            raise RuntimeError(f"GitHub token cannot see repository {REPO}. Check that the fine-grained PAT is owned by the WebsiteDevelopmentStudios organization, has this exact repository selected, and has Contents: Read and write. GitHub hides inaccessible private repositories as 404. Details: {detail[:200]}")
+        raise RuntimeError(f"GitHub repository access check failed with HTTP {e.code}: {detail[:250]}")
+
 def archive():
     b=io.BytesIO()
     with tarfile.open(fileobj=b,mode="w:gz") as t:
@@ -62,6 +75,7 @@ def upload():
 def main():
     if not TOKEN or not KEY: print("Encrypted backup disabled: set MCXB_BACKUP_TOKEN and MCXB_BACKUP_ENCRYPTION_KEY.",flush=True); return
     key_bytes()
+    check_repository_access()
     if len(sys.argv)>1 and sys.argv[1]=="--restore": restore(); return
     while True:
         try: upload()
