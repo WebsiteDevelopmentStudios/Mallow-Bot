@@ -10,8 +10,8 @@ RUN curl -fL --retry 5 --retry-delay 2 \
     https://github.com/MCXboxBroadcast/Broadcaster/releases/latest/download/MCXboxBroadcastStandalone.jar \
     -o MCXboxBroadcastStandalone.jar
 
-COPY entrypoint.sh /opt/mcxboxbroadcast/entrypoint.sh
-COPY health_server.py /opt/mcxboxbroadcast/health_server.py
+COPY mcxboxbroadcast-render/entrypoint.sh /opt/mcxboxbroadcast/entrypoint.sh
+COPY mcxboxbroadcast-render/health_server.py /opt/mcxboxbroadcast/health_server.py
 RUN chmod +x /opt/mcxboxbroadcast/entrypoint.sh
 
 ENV MCXB_SERVER_ADDRESS=bliss1.atbp.fun
