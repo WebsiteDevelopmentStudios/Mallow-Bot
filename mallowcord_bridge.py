@@ -174,6 +174,7 @@ class MallowCordBridge:
                 "avatar_url": str(message.author.display_avatar.url),
                 "content": content[:4000],
                 "timestamp": int(message.created_at.timestamp()),
+                "mentioned_user_ids": [str(member.id) for member in message.mentions],
             })
         except Exception as exc:
             log.warning("Could not mirror Discord message %s: %s", message.id, exc)
