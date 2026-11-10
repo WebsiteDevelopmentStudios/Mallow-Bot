@@ -14,11 +14,14 @@ from typing import Any
 
 import aiohttp
 import discord
+from dotenv import load_dotenv
+
+load_dotenv()
 
 log = logging.getLogger("mallowcord-bridge")
 API_BASE = os.getenv("MALLOWCORD_API_URL", "https://mallowcord-api.wowgrayhaha.workers.dev/api").rstrip("/")
 SERVICE_KEY = os.getenv("MALLOWCORD_SERVICE_KEY", "").strip()
-GUILD_ID = int(os.getenv("MALLOWCORD_DISCORD_GUILD_ID", "1560367587542433812"))
+GUILD_ID = int((os.getenv("MALLOWCORD_DISCORD_GUILD_ID", "1560367587542433812").strip() or "1560367587542433812"))
 HISTORY_LIMIT = max(0, min(100, int(os.getenv("MALLOWCORD_HISTORY_LIMIT", "50"))))
 POLL_SECONDS = max(2, int(os.getenv("MALLOWCORD_OUTBOX_POLL_SECONDS", "3")))
 
@@ -61,8 +64,11 @@ class MallowCordBridge:
         if self.poll_task is None or self.poll_task.done():
             self.poll_task = asyncio.create_task(self._poll_loop(), name="mallowcord-discord-outbox")
         if not self._synced:
-            await self.sync_guild()
-            self._synced = True
+            try:
+                await self.sync_guild()
+                self._synced = True
+            except Exception:
+                log.exception("Initial MallowCord synchronization failed; it will retry after reconnect.")
 
     async def sync_guild(self) -> None:
         if not self.enabled or self.bot is None:
@@ -76,7 +82,8 @@ class MallowCordBridge:
                     log.error("Cannot access configured MallowCord Discord guild %s: %s", GUILD_ID, exc)
                     return
 
-            # Text and announcement channels are mirrored; voice channels remain Discord-only.\n            channels = [
+            # Text and announcement channels are mirrored; voice channels remain Discord-only.
+            channels = [
                 {
                     "id": str(channel.id),
                     "name": channel.name,
@@ -126,7 +133,7 @@ class MallowCordBridge:
                         "guild_id": str(guild.id), "channels": [], "roles": [], "members": members,
                     })
                 log.info("MallowCord member directory synchronized.")
-            except (discord.Forbidden, discord.HTTPException, RuntimeError) as exc:
+            except Exception as exc:
                 log.warning(
                     "Could not import the full Discord member list. Enable the Server Members Intent "
                     "for the bot application and check its guild permissions: %s", exc,
