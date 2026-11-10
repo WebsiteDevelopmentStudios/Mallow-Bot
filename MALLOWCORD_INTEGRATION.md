@@ -18,3 +18,14 @@ Render environment variables:
 - MALLOWCORD_SERVICE_KEY=the same secret configured on the MallowCord Cloudflare Worker
 
 This repository contains the dashboard page and server-side API client. The existing dashboard API handler that implements /api/me and /api/developers is hosted outside the tracked Mallow-Bot source tree, so these proxy routes must be added to that API host before the MallowCord management page can perform live operations. Do not weaken owner checks to make the page work.
+
+
+## Render admin bridge
+The dedicated Render bridge is deployed as the mochi-bot service at:
+https://mochi-bot-57j2.onrender.com
+
+It runs in MALLOWCORD_ADMIN_ONLY mode (no Discord bot token is needed for this isolated management bridge). Its protected routes are:
+- GET/POST /owner/mallowcord/users
+- POST /owner/mallowcord/users/{user_id}/{action}
+
+The dashboard API host must validate the current Discord session and confirm the authenticated Discord ID is the configured Mallow-Bot owner before forwarding. Forward the request to the Render URL above and add the X-MallowCord-Admin-Secret header using the MALLOWCORD_ADMIN_SECRET Render environment value. Map the existing browser paths /api/mallowcord/users and /api/mallowcord/users/{id}/{action} to those Render routes. Do not expose the admin secret to browser JavaScript.
