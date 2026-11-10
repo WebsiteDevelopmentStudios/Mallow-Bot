@@ -22,12 +22,14 @@ from aiohttp import web
 import discord
 
 import main as movie_bot
+from mallowcord_admin import MallowCordAdminClient
 
 
 INTERNAL_MOVIE_URL = f"http://127.0.0.1:{os.getenv('MOVIE_PORT', '8080')}"
 BRIDGE_HOST = "0.0.0.0"
 BRIDGE_PORT = int(os.getenv("PORT", "10000"))
 WAKE_SECRET = os.getenv("WAKE_SECRET", "").strip()
+MALLOWCORD_ADMIN_SECRET = os.getenv("MALLOWCORD_ADMIN_SECRET", "").strip()
 
 
 class BridgeInteractionResponse:
@@ -138,6 +140,49 @@ async def owner_leave(request: web.Request) -> web.Response:
     return web.json_response({"ok": True})
 
 
+async def mallowcord_admin_authorized(request: web.Request) -> bool:
+    expected = MALLOWCORD_ADMIN_SECRET
+    supplied = request.headers.get("X-MallowCord-Admin-Secret", "").strip()
+    return bool(expected) and supplied == expected
+
+
+async def owner_mallowcord_users(request: web.Request) -> web.Response:
+    if not await mallowcord_admin_authorized(request):
+        return web.json_response({"error": "unauthorized"}, status=401)
+    client = MallowCordAdminClient()
+    try:
+        if request.method == "GET":
+            return web.json_response(await client.list_users())
+        payload = await request.json()
+        result = await client.create_full_user(
+            str(payload.get("username", "")),
+            str(payload.get("password", "")),
+        )
+        return web.json_response(result, status=201)
+    except (ValueError, aiohttp.ContentTypeError):
+        return web.json_response({"error": "invalid JSON"}, status=400)
+    except Exception as exc:
+        movie_bot.logger.exception("MallowCord user management request failed")
+        return web.json_response({"error": str(exc)}, status=502)
+
+
+async def owner_mallowcord_moderate(request: web.Request) -> web.Response:
+    if not await mallowcord_admin_authorized(request):
+        return web.json_response({"error": "unauthorized"}, status=401)
+    action = request.match_info.get("action", "")
+    if action not in {"timeout", "ban", "unban", "delete"}:
+        return web.json_response({"error": "unsupported action"}, status=400)
+    try:
+        payload = await request.json() if request.can_read_body else {}
+        seconds = int(payload.get("seconds", 600)) if isinstance(payload, dict) else 600
+        client = MallowCordAdminClient()
+        result = await client.moderate(request.match_info["user_id"], action, seconds)
+        return web.json_response(result)
+    except Exception as exc:
+        movie_bot.logger.exception("MallowCord moderation request failed")
+        return web.json_response({"error": str(exc)}, status=502)
+
+
 async def health(request: web.Request) -> web.Response:
     return web.json_response(
         {
@@ -202,6 +247,9 @@ async def start_bridge() -> None:
     app = web.Application(client_max_size=1024 * 1024 * 1024 * 2)
     app.router.add_get("/health", health)
     app.router.add_get("/owner/guilds", owner_guilds)
+    app.router.add_get("/owner/mallowcord/users", owner_mallowcord_users)
+    app.router.add_post("/owner/mallowcord/users", owner_mallowcord_users)
+    app.router.add_post("/owner/mallowcord/users/{user_id}/{action}", owner_mallowcord_moderate)
     app.router.add_post("/owner/leave", owner_leave)
     app.router.add_post("/discord/interactions", discord_interaction)
     app.router.add_route("*", "/movie/{tail:.*}", proxy_movie_server)
