@@ -30,6 +30,9 @@ POLL_SECONDS = max(2, int(os.getenv("MALLOWCORD_OUTBOX_POLL_SECONDS", "3")))
 
 class MallowCordBridge:
     def __init__(self) -> None:
+        # Expose the configured guild ID on the bridge instance because main.py
+        # uses mallowcord_bridge.GUILD_ID in Discord event handlers.
+        self.GUILD_ID = GUILD_ID
         self.session: aiohttp.ClientSession | None = None
         self.bot: discord.Client | None = None
         self.poll_task: asyncio.Task | None = None
