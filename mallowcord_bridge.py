@@ -1,0 +1,268 @@
+"""Two-way MallowCord <-> Discord bridge for the official Mallow Swamp server.
+
+The bridge uses the existing Mallow-Bot service key to authenticate with the
+MallowCord Worker. Discord messages are mirrored as read-only shadow profiles;
+MallowCord messages are delivered through a channel webhook so the sender's
+display name and avatar are preserved.
+"""
+from __future__ import annotations
+
+import asyncio
+import logging
+import os
+from typing import Any
+
+import aiohttp
+import discord
+
+log = logging.getLogger("mallowcord-bridge")
+API_BASE = os.getenv("MALLOWCORD_API_URL", "https://mallowcord-api.wowgrayhaha.workers.dev/api").rstrip("/")
+SERVICE_KEY = os.getenv("MALLOWCORD_SERVICE_KEY", "").strip()
+GUILD_ID = int(os.getenv("MALLOWCORD_DISCORD_GUILD_ID", "1560367587542433812"))
+HISTORY_LIMIT = max(0, min(100, int(os.getenv("MALLOWCORD_HISTORY_LIMIT", "50"))))
+POLL_SECONDS = max(2, int(os.getenv("MALLOWCORD_OUTBOX_POLL_SECONDS", "3")))
+
+
+class MallowCordBridge:
+    def __init__(self) -> None:
+        self.session: aiohttp.ClientSession | None = None
+        self.bot: discord.Client | None = None
+        self.poll_task: asyncio.Task | None = None
+        self.webhooks: dict[int, discord.Webhook] = {}
+        self._sync_lock = asyncio.Lock()
+        self._synced = False
+
+    @property
+    def enabled(self) -> bool:
+        return bool(API_BASE and SERVICE_KEY and GUILD_ID)
+
+    async def _http(self) -> aiohttp.ClientSession:
+        if self.session is None or self.session.closed:
+            timeout = aiohttp.ClientTimeout(total=20, connect=8)
+            self.session = aiohttp.ClientSession(
+                timeout=timeout,
+                headers={"X-MallowBot-Key": SERVICE_KEY, "User-Agent": "Mallow-Bot-MallowCord-Bridge/1.0"},
+            )
+        return self.session
+
+    async def _request(self, method: str, path: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+        session = await self._http()
+        async with session.request(method, API_BASE + path, json=payload) as response:
+            data = await response.json(content_type=None)
+            if response.status >= 400:
+                raise RuntimeError(f"MallowCord API {response.status}: {data.get('error', 'request failed')}")
+            return data if isinstance(data, dict) else {}
+
+    async def start(self, bot: discord.Client) -> None:
+        self.bot = bot
+        if not self.enabled:
+            log.info("MallowCord bridge disabled; set MALLOWCORD_SERVICE_KEY on the bot host.")
+            return
+        if self.poll_task is None or self.poll_task.done():
+            self.poll_task = asyncio.create_task(self._poll_loop(), name="mallowcord-discord-outbox")
+        if not self._synced:
+            await self.sync_guild()
+            self._synced = True
+
+    async def sync_guild(self) -> None:
+        if not self.enabled or self.bot is None:
+            return
+        async with self._sync_lock:
+            guild = self.bot.get_guild(GUILD_ID)
+            if guild is None:
+                try:
+                    guild = await self.bot.fetch_guild(GUILD_ID)
+                except (discord.HTTPException, discord.Forbidden) as exc:
+                    log.error("Cannot access configured MallowCord Discord guild %s: %s", GUILD_ID, exc)
+                    return
+
+            channels = [
+                {
+                    "id": str(channel.id),
+                    "name": channel.name,
+                    "position": channel.position,
+                    "category": channel.category.name if channel.category else "",
+                }
+                for channel in guild.text_channels
+                if not channel.is_news() if hasattr(channel, "is_news")
+            ]
+            # discord.py's TextChannel includes announcement channels; include both.
+            channels = [
+                {
+                    "id": str(channel.id),
+                    "name": channel.name,
+                    "position": channel.position,
+                    "category": channel.category.name if channel.category else "",
+                }
+                for channel in guild.text_channels
+            ]
+            roles = [
+                {"id": str(role.id), "name": role.name, "position": role.position}
+                for role in guild.roles if not role.is_default() and not role.managed
+            ]
+            result = await self._request("POST", "/integrations/mallowbot/discord/sync", {
+                "guild_id": str(guild.id),
+                "guild_name": guild.name,
+                "icon_url": str(guild.icon.url) if guild.icon else None,
+                "channels": channels,
+                "roles": roles,
+                "members": [],
+            })
+            log.info(
+                "MallowCord server sync ready: %s channels, %s roles.",
+                result.get("channels", 0), result.get("roles", 0),
+            )
+
+            # Fetch the complete member list when the privileged Members intent is enabled.
+            members: list[dict[str, Any]] = []
+            try:
+                async for member in guild.fetch_members(limit=None):
+                    if member.bot:
+                        continue
+                    members.append({
+                        "id": str(member.id),
+                        "username": member.name,
+                        "display_name": member.display_name,
+                        "avatar_url": str(member.display_avatar.url),
+                        "roles": [str(role.id) for role in member.roles if not role.is_default()],
+                        "bot": False,
+                    })
+                    if len(members) >= 200:
+                        await self._request("POST", "/integrations/mallowbot/discord/sync", {
+                            "guild_id": str(guild.id), "channels": [], "roles": [], "members": members,
+                        })
+                        members = []
+                if members:
+                    await self._request("POST", "/integrations/mallowbot/discord/sync", {
+                        "guild_id": str(guild.id), "channels": [], "roles": [], "members": members,
+                    })
+                log.info("MallowCord member directory synchronized.")
+            except (discord.Forbidden, discord.HTTPException, RuntimeError) as exc:
+                log.warning(
+                    "Could not import the full Discord member list. Enable the Server Members Intent "
+                    "for the bot application and check its guild permissions: %s", exc,
+                )
+
+            # Import the most recent history once per channel. Message IDs are deduplicated by the Worker.
+            if HISTORY_LIMIT:
+                for channel in guild.text_channels:
+                    try:
+                        history = [message async for message in channel.history(limit=HISTORY_LIMIT)]
+                        for message in reversed(history):
+                            await self.handle_discord_message(message)
+                    except (discord.Forbidden, discord.HTTPException) as exc:
+                        log.warning("Could not import history for #%s: %s", channel.name, exc)
+            log.info("MallowCord Discord bridge initialized for guild %s (%s).", guild.name, guild.id)
+
+    async def handle_discord_message(self, message: discord.Message) -> None:
+        if not self.enabled or message.guild is None or message.guild.id != GUILD_ID:
+            return
+        if message.author.bot or message.webhook_id is not None:
+            return
+        content = message.content or ""
+        if message.attachments:
+            links = "\n".join(item.url for item in message.attachments)
+            content = (content + "\n" + links).strip()
+        if not content:
+            # Do not create blank rows for embed-only system messages.
+            return
+        try:
+            await self._request("POST", "/integrations/mallowbot/discord/messages", {
+                "guild_id": str(message.guild.id),
+                "channel_id": str(message.channel.id),
+                "message_id": str(message.id),
+                "author_id": str(message.author.id),
+                "username": message.author.name,
+                "display_name": getattr(message.author, "display_name", message.author.name),
+                "avatar_url": str(message.author.display_avatar.url),
+                "content": content[:4000],
+                "timestamp": int(message.created_at.timestamp()),
+            })
+        except Exception as exc:
+            log.warning("Could not mirror Discord message %s: %s", message.id, exc)
+
+    async def _get_webhook(self, channel: discord.TextChannel) -> discord.Webhook | None:
+        cached = self.webhooks.get(channel.id)
+        if cached:
+            return cached
+        try:
+            hooks = await channel.webhooks()
+            hook = next((item for item in hooks if item.name == "MallowCord Bridge"), None)
+            if hook is None:
+                hook = await channel.create_webhook(name="MallowCord Bridge", reason="Mirror MallowCord chat messages")
+            self.webhooks[channel.id] = hook
+            return hook
+        except (discord.Forbidden, discord.HTTPException) as exc:
+            log.warning("Webhook unavailable in #%s; will use bot-message fallback: %s", channel.name, exc)
+            return None
+
+    async def _deliver(self, event: dict[str, Any]) -> None:
+        if self.bot is None:
+            return
+        try:
+            channel_id = int(event["discord_channel_id"])
+        except (KeyError, TypeError, ValueError):
+            return
+        channel = self.bot.get_channel(channel_id)
+        if channel is None:
+            try:
+                channel = await self.bot.fetch_channel(channel_id)
+            except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+                log.warning("Mapped Discord channel %s is unavailable.", channel_id)
+                return
+        if not isinstance(channel, discord.TextChannel):
+            return
+        content = str(event.get("content") or "")
+        username = str(event.get("username") or "MallowCord user")[:80]
+        avatar = event.get("avatar_url")
+        if not isinstance(avatar, str) or not avatar.startswith("https://"):
+            avatar = None
+        hook = await self._get_webhook(channel)
+        sent: discord.Message | None = None
+        chunks = [content[i:i + 1900] for i in range(0, len(content), 1900)] or [" "]
+        try:
+            if hook:
+                for chunk in chunks:
+                    sent = await hook.send(
+                        chunk, username=username, avatar_url=avatar,
+                        allowed_mentions=discord.AllowedMentions.none(), wait=True,
+                    )
+            else:
+                for chunk in chunks:
+                    sent = await channel.send(
+                        f"**{discord.utils.escape_markdown(username)}**: {chunk}",
+                        allowed_mentions=discord.AllowedMentions.none(),
+                    )
+            await self._request(
+                "POST", f"/integrations/mallowbot/discord/outbox/{event['id']}/ack",
+                {"discord_message_id": str(sent.id) if sent else ""},
+            )
+        except (discord.Forbidden, discord.HTTPException, RuntimeError) as exc:
+            log.warning("Could not deliver MallowCord message to #%s: %s", channel.name, exc)
+
+    async def _poll_loop(self) -> None:
+        while True:
+            try:
+                data = await self._request("GET", "/integrations/mallowbot/discord/outbox")
+                for event in data.get("events", []):
+                    await self._deliver(event)
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                log.warning("MallowCord outbox poll failed: %s", exc)
+            await asyncio.sleep(POLL_SECONDS)
+
+    async def close(self) -> None:
+        if self.poll_task:
+            self.poll_task.cancel()
+            try:
+                await self.poll_task
+            except asyncio.CancelledError:
+                pass
+            self.poll_task = None
+        if self.session and not self.session.closed:
+            await self.session.close()
+        self.session = None
+
+
+mallowcord_bridge = MallowCordBridge()
