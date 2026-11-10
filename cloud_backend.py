@@ -277,13 +277,19 @@ async def start_bridge() -> None:
 
 async def run() -> None:
     token = os.getenv("DISCORD_TOKEN", "").strip()
-    if not token:
-        raise SystemExit("DISCORD_TOKEN is missing.")
+    if token:
+        await asyncio.gather(
+            movie_bot.bot.start(token),
+            start_bridge(),
+        )
+        return
 
-    await asyncio.gather(
-        movie_bot.bot.start(token),
-        start_bridge(),
-    )
+    if os.getenv("MALLOWCORD_ADMIN_ONLY", "").strip().lower() == "true":
+        movie_bot.logger.info("Starting MallowCord admin-only bridge without Discord bot.")
+        await start_bridge()
+        return
+
+    raise SystemExit("DISCORD_TOKEN is missing. Set MALLOWCORD_ADMIN_ONLY=true only for the dedicated MallowCord admin bridge.")
 
 
 if __name__ == "__main__":
