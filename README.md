@@ -214,3 +214,24 @@ For prefix commands, enable **Message Content Intent** in the Discord Developer 
 - Discord invite links are deleted and the sender is timed out for 10 minutes by default. The bot needs **Manage Messages** and **Moderate Members**. Server managers can change the timeout with `-mb timeout-minutes 30` (1–10,080 minutes). Members with Manage Messages are exempt.
 - Virtual-currency games: `/balance`, `/daily`, `/gamble`; prefix alternatives include `-mb balance`, `-mb daily`, `-mb coinflip 10`, and `-mb slots 10`. These use fictional Mallow Coins only.
 - YouTube links are detected automatically and enriched with the video title and channel when YouTube's oEmbed endpoint is available; use `/youtube <URL>` for a manual lookup.
+
+
+## MallowCord Discord bridge
+
+Mallow-Bot can mirror the official Discord server `1560367587542433812` to the MallowCord **Mallow Swamp** server in both directions.
+
+- Discord text and announcement channels are mapped to MallowCord text channels.
+- Discord roles and member profiles are synchronized into the MallowCord member directory.
+- The latest 50 messages per Discord text channel are imported on first synchronization (configurable with `MALLOWCORD_HISTORY_LIMIT`).
+- New Discord messages appear in MallowCord; new MallowCord messages are delivered to Discord through a `MallowCord Bridge` webhook so the sender name and avatar are preserved.
+- Bridge-originated webhook messages are ignored by the inbound listener to prevent loops.
+
+Configure these environment variables on the **actual Mallow-Bot runtime**:
+
+- `MALLOWCORD_API_URL=https://mallowcord-api.wowgrayhaha.workers.dev/api`
+- `MALLOWCORD_SERVICE_KEY`: use the same secret value configured as `MALLOWBOT_SERVICE_KEY` on the MallowCord Cloudflare Worker. Never commit this value.
+- `MALLOWCORD_DISCORD_GUILD_ID=1560367587542433812`
+- `MALLOWCORD_HISTORY_LIMIT=50` (optional)
+- `MALLOWCORD_OUTBOX_POLL_SECONDS=3` (optional)
+
+The bot needs the Server Members Intent and Message Content Intent enabled in the Discord Developer Portal. It also needs View Channel, Read Message History, Send Messages, and Manage Webhooks in the mirrored channels. Manage Webhooks lets MallowCord messages appear with the original MallowCord username and profile picture; without it, the bridge falls back to a bot-authored `username: message` format.
