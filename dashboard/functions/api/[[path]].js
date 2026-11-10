@@ -118,7 +118,7 @@ async function ensureSwearWords(env){
       // Portuguese and Spanish regional variants
       "vai tomar no cu","vai tomar nocu","tomar no cu","carai","karalho","krl","f0da-se","fdp","vtnc","vsf","puta madre","hijo de puta","conchetumare","conchesumadre","culiado","wea","weon ql","maricon culiao","pinche pendejo","chingas a tu madre","vete a la mierda","me cago en",
       // Common bypass spellings and shorthand
-      "fu ck","fukc","phuk","phuq","fuxk","fcked","fkn","shyt","shiit","5h1t","b1tch","bi7ch","d!ck","a55","azzhole","assh0le","c0ck","c0nt","k y s","kys","ret4rd","r3tard","wh0re","skank","cumdump","jizz","t1ts","bo0bs","p0rn","kurw@","pizd@","j3bac","spierdal4j","zjeb","skurwiel","kutas","vaffancul0","c4zzo","str0nzo","put1n","fils de pute","kankerlijer","kankerhoer"
+      "fu ck","fukc","phuk","phuq","fuxk","fcked","fkn","shyt","shiit","5h1t","b1tch","bi7ch","d!ck","a55","azzhole","assh0le","c0ck","c0nt","k y s","kys","ret4rd","r3tard","wh0re","skank","cumdump","jizz","t1ts","bo0bs","p0rn","kurw@","pizd@","j3bac","spierdal4j","zjeb","skurwiel","kutas","vaffancul0","c4zzo","str0nzo","put1n","fils de pute","kankerlijer","kankerhoer",
       // Common spelling variants and censored forms
       "f*ck","f**k","fuсk","sh1t","sh!t","b!tch","a$hole","d1ck","bast@rd","fuk","fck","phuck","f u c k","s h i t","bull sh*t","motherf*cker"
     ];
