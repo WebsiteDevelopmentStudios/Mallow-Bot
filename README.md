@@ -234,4 +234,4 @@ Configure these environment variables on the **actual Mallow-Bot runtime**:
 - `MALLOWCORD_HISTORY_LIMIT=50` (optional)
 - `MALLOWCORD_OUTBOX_POLL_SECONDS=3` (optional)
 
-The bot needs the Server Members Intent and Message Content Intent enabled in the Discord Developer Portal. It also needs View Channel, Read Message History, Send Messages, and Manage Webhooks in the mirrored channels. Manage Webhooks lets MallowCord messages appear with the original MallowCord username and profile picture; without it, the bridge falls back to a bot-authored `username: message` format.
+The bot needs the Server Members Intent, Presence Intent, and Message Content Intent enabled in the Discord Developer Portal. It also needs View Channel, Read Message History, Send Messages, and Manage Webhooks in the mirrored channels. Manage Webhooks lets MallowCord messages appear with the original MallowCord username and profile picture; without it, the bridge falls back to a bot-authored `username: message` format.
