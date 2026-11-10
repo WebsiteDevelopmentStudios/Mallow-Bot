@@ -2187,6 +2187,7 @@ async def play_next(guild_id: int) -> bool:
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
+intents.presences = True
 
 
 class MallowBot(commands.Bot):
@@ -2436,6 +2437,12 @@ def _banned_guild_ids() -> set[int]:
             except (TypeError, ValueError):
                 pass
     return banned
+
+@bot.event
+async def on_presence_update(before: discord.Member, after: discord.Member) -> None:
+    if after.guild.id == mallowcord_bridge.GUILD_ID:
+        await mallowcord_bridge.handle_presence_update(after)
+
 
 @bot.event
 async def on_guild_join(guild: discord.Guild) -> None:
