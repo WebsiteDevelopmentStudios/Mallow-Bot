@@ -141,10 +141,8 @@ async def owner_leave(request: web.Request) -> web.Response:
 
 
 async def mallowcord_admin_authorized(request: web.Request) -> bool:
-    # Require both the server-side bot credential and the private bridge secret.
-    # The bridge secret alone must never grant owner-level account access.
-    if not await owner_authorized(request):
-        return False
+    # This endpoint is a server-to-server bridge. Never expose its secret to
+    # dashboard JavaScript; the authenticated dashboard must call its own API.
     expected = MALLOWCORD_ADMIN_SECRET
     supplied = request.headers.get("X-MallowCord-Admin-Secret", "").strip()
     return bool(expected) and supplied == expected
