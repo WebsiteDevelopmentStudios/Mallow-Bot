@@ -107,6 +107,10 @@ class MallowCordBridge:
                 "members": [],
             })
             log.info(
+                "MallowCord Discord sync completed: %s channels, %s roles; response=%s",
+                len(channels), len(roles), result,
+            )
+            log.info(
                 "MallowCord server sync ready: %s channels, %s roles.",
                 result.get("channels", 0), result.get("roles", 0),
             )
@@ -166,6 +170,11 @@ class MallowCordBridge:
                 image_name = item.filename.lower().endswith((".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif"))
                 links.append(f"![{item.filename}]({item.url})" if image_type or image_name else item.url)
             content = (content + "\n" + "\n".join(links)).strip()
+        # Some Discord image posts arrive as embeds rather than file attachments.
+        for embed in message.embeds:
+            image_url = getattr(getattr(embed, "image", None), "url", None) or getattr(getattr(embed, "thumbnail", None), "url", None)
+            if image_url and str(image_url) not in content:
+                content = (content + "\n" + f"![Discord image]({image_url})").strip()
         if not content:
             # Do not create blank rows for embed-only system messages.
             return
