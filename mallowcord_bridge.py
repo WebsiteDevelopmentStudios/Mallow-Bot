@@ -121,6 +121,7 @@ class MallowCordBridge:
                         "display_name": member.display_name,
                         "avatar_url": str(member.display_avatar.url),
                         "roles": [str(role.id) for role in member.roles if not role.is_default()],
+                        "status": str(member.status),
                         "bot": False,
                     })
                     if len(members) >= 200:
@@ -176,6 +177,18 @@ class MallowCordBridge:
             })
         except Exception as exc:
             log.warning("Could not mirror Discord message %s: %s", message.id, exc)
+
+    async def handle_presence_update(self, member: discord.Member) -> None:
+        if not self.enabled or member.guild.id != GUILD_ID or member.bot:
+            return
+        try:
+            await self._request("POST", "/integrations/mallowbot/discord/presence", {
+                "guild_id": str(member.guild.id),
+                "user_id": str(member.id),
+                "status": str(member.status),
+            })
+        except Exception as exc:
+            log.warning("Could not synchronize Discord presence for %s: %s", member.id, exc)
 
     async def _get_webhook(self, channel: discord.TextChannel) -> discord.Webhook | None:
         cached = self.webhooks.get(channel.id)
