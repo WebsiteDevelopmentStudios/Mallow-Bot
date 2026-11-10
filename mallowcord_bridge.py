@@ -10,6 +10,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
+from urllib.parse import urlsplit
 from typing import Any
 
 import aiohttp
@@ -158,8 +160,12 @@ class MallowCordBridge:
             return
         content = message.content or ""
         if message.attachments:
-            links = "\n".join(item.url for item in message.attachments)
-            content = (content + "\n" + links).strip()
+            links: list[str] = []
+            for item in message.attachments:
+                image_type = str(item.content_type or "").lower().startswith("image/")
+                image_name = item.filename.lower().endswith((".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif"))
+                links.append(f"![{item.filename}]({item.url})" if image_type or image_name else item.url)
+            content = (content + "\n" + "\n".join(links)).strip()
         if not content:
             # Do not create blank rows for embed-only system messages.
             return
@@ -227,20 +233,32 @@ class MallowCordBridge:
         avatar = event.get("avatar_url")
         if not isinstance(avatar, str) or not avatar.startswith("https://"):
             avatar = None
+        # Explicit embeds make image URLs render consistently in Discord webhooks.
+        image_urls: list[str] = []
+        for match in re.findall(r'https://[^\s<>"\']+', content):
+            image_url = match.rstrip(").,!?]")
+            if urlsplit(image_url).path.lower().endswith((".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif")) and image_url not in image_urls:
+                image_urls.append(image_url)
+        embeds = [discord.Embed().set_image(url=url) for url in image_urls[:10]]
+        for image_url in image_urls:
+            content = content.replace(image_url, "").strip()
+        content = re.sub(r'!\[[^\]]*\]\(\s*\)', "", content).strip()
         hook = await self._get_webhook(channel)
         sent: discord.Message | None = None
         chunks = [content[i:i + 1900] for i in range(0, len(content), 1900)] or [" "]
         try:
-            if hook:
-                for chunk in chunks:
+            for index, chunk in enumerate(chunks):
+                current_embeds = embeds if index == 0 else []
+                if hook:
                     sent = await hook.send(
                         chunk, username=username, avatar_url=avatar,
+                        embeds=current_embeds,
                         allowed_mentions=discord.AllowedMentions.none(), wait=True,
                     )
-            else:
-                for chunk in chunks:
+                else:
                     sent = await channel.send(
                         f"**{discord.utils.escape_markdown(username)}**: {chunk}",
+                        embeds=current_embeds,
                         allowed_mentions=discord.AllowedMentions.none(),
                     )
             await self._request(
