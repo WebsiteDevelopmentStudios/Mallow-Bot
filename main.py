@@ -20,6 +20,7 @@ from discord import app_commands
 from discord.ext import commands, tasks
 from discord.http import handle_message_parameters
 from dotenv import load_dotenv
+from mallowcord_bridge import mallowcord_bridge
 
 try:
     import wavelink
@@ -2189,6 +2190,10 @@ intents.members = True
 
 
 class MallowBot(commands.Bot):
+    async def close(self) -> None:
+        await mallowcord_bridge.close()
+        await super().close()
+
     async def setup_hook(self) -> None:
         # Expose the dashboard owner API and hosted media on the platform's web port.
         self.web_runner = await start_movie_web_server(self)
@@ -2412,6 +2417,7 @@ async def update_halloween_countdowns() -> None:
 
 @bot.event
 async def on_ready() -> None:
+    await mallowcord_bridge.start(bot)
     if not rotate_bot_status.is_running():
         rotate_bot_status.start()
     if not update_halloween_countdowns.is_running():
@@ -2803,6 +2809,8 @@ async def post_updates(channel) -> int:
 async def on_message(message: discord.Message) -> None:
     if message.author.bot:
         return
+    if message.guild is not None and message.guild.id == mallowcord_bridge.GUILD_ID:
+        await mallowcord_bridge.handle_discord_message(message)
     if await is_bot_access_banned(message.author.id):
         cfg_prefix = "-mb"
         if message.guild is not None:
