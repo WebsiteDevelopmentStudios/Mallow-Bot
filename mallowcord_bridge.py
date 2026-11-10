@@ -76,18 +76,7 @@ class MallowCordBridge:
                     log.error("Cannot access configured MallowCord Discord guild %s: %s", GUILD_ID, exc)
                     return
 
-            channels = [
-                {
-                    "id": str(channel.id),
-                    "name": channel.name,
-                    "position": channel.position,
-                    "category": channel.category.name if channel.category else "",
-                }
-                for channel in guild.text_channels
-                if not channel.is_news() if hasattr(channel, "is_news")
-            ]
-            # discord.py's TextChannel includes announcement channels; include both.
-            channels = [
+            # Text and announcement channels are mirrored; voice channels remain Discord-only.\n            channels = [
                 {
                     "id": str(channel.id),
                     "name": channel.name,
