@@ -46,7 +46,7 @@ class MallowCordBridge:
 
     async def _http(self) -> aiohttp.ClientSession:
         if self.session is None or self.session.closed:
-            timeout = aiohttp.ClientTimeout(total=20, connect=8)
+            timeout = aiohttp.ClientTimeout(total=90, connect=15, sock_read=75)
             self.session = aiohttp.ClientSession(
                 timeout=timeout,
                 headers={"X-MallowBot-Key": SERVICE_KEY, "User-Agent": "Mallow-Bot-MallowCord-Bridge/1.0"},
@@ -55,11 +55,35 @@ class MallowCordBridge:
 
     async def _request(self, method: str, path: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
         session = await self._http()
-        async with session.request(method, API_BASE + path, json=payload) as response:
-            data = await response.json(content_type=None)
-            if response.status >= 400:
-                raise RuntimeError(f"MallowCord API {response.status}: {data.get('error', 'request failed')}")
-            return data if isinstance(data, dict) else {}
+        for attempt in range(3):
+            try:
+                async with session.request(method, API_BASE + path, json=payload) as response:
+                    data = await response.json(content_type=None)
+                    if not isinstance(data, dict):
+                        data = {"error": str(data)[:500]}
+                    if response.status >= 500 and attempt < 2:
+                        log.warning(
+                            "MallowCord API returned HTTP %s for %s; retrying (%s/3).",
+                            response.status, path, attempt + 2,
+                        )
+                        await asyncio.sleep(1.5 * (attempt + 1))
+                        continue
+                    if response.status >= 400:
+                        detail = data.get("detail")
+                        message = str(data.get("error") or "request failed")
+                        if detail:
+                            message += f" — {detail}"
+                        raise RuntimeError(f"MallowCord API {response.status} on {path}: {message}")
+                    return data
+            except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+                if attempt >= 2:
+                    raise
+                log.warning(
+                    "MallowCord request %s %s failed (%s/3): %s; retrying.",
+                    method, path, attempt + 1, exc,
+                )
+                await asyncio.sleep(1.5 * (attempt + 1))
+        raise RuntimeError(f"MallowCord request failed after retries: {path}")
 
     async def start(self, bot: discord.Client) -> None:
         self.bot = bot
