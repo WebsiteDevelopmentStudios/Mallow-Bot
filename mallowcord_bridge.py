@@ -481,8 +481,9 @@ class MallowCordBridge:
             channel = self.bot.get_channel(channel_id)
             if channel is None:
                 channel = await self.bot.fetch_channel(channel_id)
-            if not isinstance(channel, discord.TextChannel):
-                raise RuntimeError("The linked Discord channel is not a text channel.")
+            if not isinstance(channel, (discord.TextChannel, discord.Thread)):
+                raise RuntimeError("The linked Discord channel is not a text channel or thread.")
+            permission_channel = channel.parent if isinstance(channel, discord.Thread) and channel.parent else channel
 
             outputs: list[str] = []
             sent_messages: list[discord.Message] = []
@@ -651,8 +652,8 @@ class MallowCordBridge:
                     channel_id=channel.id, client=self.bot, command=command,
                     response=response, followup=FollowupAdapter(), data={},
                     created_at=started, extras={}, namespace=SimpleNamespace(**values),
-                    permissions=channel.permissions_for(member),
-                    app_permissions=channel.permissions_for(self.bot.user),
+                    permissions=permission_channel.permissions_for(member),
+                    app_permissions=permission_channel.permissions_for(self.bot.user),
                     locale=discord.Locale.american_english,
                     guild_locale=discord.Locale.american_english,
                     command_failed=False,
