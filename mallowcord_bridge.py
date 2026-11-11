@@ -165,7 +165,7 @@ class MallowCordBridge:
                         "display_name": member.display_name,
                         "avatar_url": str(member.display_avatar.url),
                         "roles": [str(role.id) for role in member.roles if not role.is_default()],
-                        "status": str(member.status),
+                        "status": "offline" if str(member.status) == "offline" else "online",
                         "bot": False,
                     })
                     if len(members) >= 10:
@@ -255,7 +255,7 @@ class MallowCordBridge:
             await self._request("POST", "/integrations/mallowbot/discord/presence", {
                 "guild_id": str(member.guild.id),
                 "user_id": str(member.id),
-                "status": str(member.status),
+                "status": "offline" if str(member.status) == "offline" else "online",
             })
         except Exception as exc:
             log.warning("Could not synchronize Discord presence for %s: %s", member.id, exc)
