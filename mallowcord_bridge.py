@@ -24,7 +24,7 @@ log = logging.getLogger("mallowcord-bridge")
 API_BASE = os.getenv("MALLOWCORD_API_URL", "https://mallowcord-api.wowgrayhaha.workers.dev/api").rstrip("/")
 SERVICE_KEY = os.getenv("MALLOWCORD_SERVICE_KEY", "").strip()
 GUILD_ID = int((os.getenv("MALLOWCORD_DISCORD_GUILD_ID", "1560367587542433812").strip() or "1560367587542433812"))
-HISTORY_LIMIT = max(0, min(100, int(os.getenv("MALLOWCORD_HISTORY_LIMIT", "50"))))
+HISTORY_LIMIT = max(-1, min(1000000, int(os.getenv("MALLOWCORD_HISTORY_LIMIT", "0"))))
 POLL_SECONDS = max(2, int(os.getenv("MALLOWCORD_OUTBOX_POLL_SECONDS", "3")))
 
 
@@ -118,6 +118,16 @@ class MallowCordBridge:
                     "name": channel.name,
                     "position": channel.position,
                     "category": channel.category.name if channel.category else "",
+                    "locked": channel.name.casefold() in {"rules", "server-rules"},
+                    "overwrites": [
+                        {
+                            "id": str(target.id),
+                            "target_type": "role" if isinstance(target, discord.Role) else "user",
+                            "allow": [name for name, value in overwrite if value is True],
+                            "deny": [name for name, value in overwrite if value is False],
+                        }
+                        for target, overwrite in channel.overwrites.items()
+                    ],
                 }
                 for channel in guild.text_channels
             ]
@@ -132,6 +142,11 @@ class MallowCordBridge:
                 "channels": channels,
                 "roles": roles,
                 "members": [],
+                "everyone_role_id": str(guild.default_role.id),
+                "emojis": [
+                    {"id": str(emoji.id), "name": emoji.name, "image_url": str(emoji.url)}
+                    for emoji in guild.emojis
+                ],
             })
             log.info(
                 "MallowCord Discord structure sync completed: %s channels, %s roles.",
@@ -171,10 +186,11 @@ class MallowCordBridge:
                 )
 
             # Import the most recent history once per channel. Message IDs are deduplicated by the Worker.
-            if HISTORY_LIMIT:
+            if HISTORY_LIMIT >= 0:
                 for channel in guild.text_channels:
                     try:
-                        history = [message async for message in channel.history(limit=HISTORY_LIMIT)]
+                        # A value of 0 means import the full accessible channel history.
+                        history = [message async for message in channel.history(limit=HISTORY_LIMIT or None)]
                         for message in reversed(history):
                             await self.handle_discord_message(message)
                     except (discord.Forbidden, discord.HTTPException) as exc:
