@@ -2450,6 +2450,12 @@ async def on_presence_update(before: discord.Member, after: discord.Member) -> N
 
 
 @bot.event
+async def on_member_join(member: discord.Member) -> None:
+    if member.guild.id == mallowcord_bridge.GUILD_ID:
+        await mallowcord_bridge.handle_member_join(member)
+
+
+@bot.event
 async def on_guild_join(guild: discord.Guild) -> None:
     """Leave blacklisted guilds without exposing blacklist details publicly."""
     try:
