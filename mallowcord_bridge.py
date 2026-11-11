@@ -453,10 +453,15 @@ class MallowCordBridge:
             if str(event.get("command_style")) == "prefix":
                 command_text = str(event.get("command_text") or "")
                 fake_id = int(time.time() * 1_000_000)
+                mentioned_members = [guild.get_member(int(value)) for value in re.findall(r"<@!?(\d+)>", command_text)]
+                mentioned_roles = [guild.get_role(int(value)) for value in re.findall(r"<@&(\d+)>", command_text)]
+                mentioned_channels = [guild.get_channel(int(value)) for value in re.findall(r"<#(\d+)>", command_text)]
                 fake = SimpleNamespace(
                     id=fake_id, author=member, guild=guild, channel=channel,
                     content=command_text, created_at=started, webhook_id=None,
-                    attachments=[], embeds=[], mentions=[], role_mentions=[], channel_mentions=[],
+                    attachments=[], embeds=[], mentions=[item for item in mentioned_members if item],
+                    role_mentions=[item for item in mentioned_roles if item],
+                    channel_mentions=[item for item in mentioned_channels if item],
                     reference=None, mention_everyone=False, clean_content=command_text, _mallowcord_bridge=True,
                 )
 
