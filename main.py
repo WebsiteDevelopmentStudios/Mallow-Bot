@@ -2834,7 +2834,8 @@ async def on_message(message: discord.Message) -> None:
         return
     # Run dashboard-configured auto replies, XP, moderation and social handlers
     # before the legacy prefix-command dispatcher returns for ordinary messages.
-    await process_community_message(bot, message)
+    if not getattr(message, "_mallowcord_bridge", False):
+        await process_community_message(bot, message)
     guild_id = message.guild.id
     dashboard_config = await get_guild_config(guild_id)
     prefix = dashboard_config.get("prefix", "-mb")
