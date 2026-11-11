@@ -429,11 +429,15 @@ class MallowCordBridge:
                     outputs.append(self._format_embed(embed))
                 for item in embeds or []:
                     outputs.append(self._format_embed(item))
-                sent = await channel.send(
-                    content=content, embed=embed, embeds=embeds,
-                    view=kwargs.get("view"), file=kwargs.get("file"), files=kwargs.get("files"),
-                    allowed_mentions=discord.AllowedMentions.none(),
-                )
+                send_kwargs: dict[str, Any] = {"allowed_mentions": discord.AllowedMentions.none()}
+                if embed is not None:
+                    send_kwargs["embed"] = embed
+                if embeds is not None:
+                    send_kwargs["embeds"] = embeds
+                for key in ("view", "file", "files", "delete_after"):
+                    if kwargs.get(key) is not None:
+                        send_kwargs[key] = kwargs[key]
+                sent = await channel.send(content, **send_kwargs)
                 sent_messages.append(sent)
                 return sent
 
