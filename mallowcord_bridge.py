@@ -406,6 +406,7 @@ class MallowCordBridge:
                 raise RuntimeError("The linked Discord channel is not a text channel.")
 
             outputs: list[str] = []
+            sent_messages: list[discord.Message] = []
             started = discord.utils.utcnow()
 
             async def send_output(content: Any = None, *, embed: discord.Embed | None = None,
@@ -416,10 +417,13 @@ class MallowCordBridge:
                     outputs.append(self._format_embed(embed))
                 for item in embeds or []:
                     outputs.append(self._format_embed(item))
-                return await channel.send(
+                sent = await channel.send(
                     content=content, embed=embed, embeds=embeds,
+                    view=kwargs.get("view"), file=kwargs.get("file"), files=kwargs.get("files"),
                     allowed_mentions=discord.AllowedMentions.none(),
                 )
+                sent_messages.append(sent)
+                return sent
 
             if str(event.get("command_style")) == "prefix":
                 command_text = str(event.get("command_text") or "")
@@ -428,7 +432,7 @@ class MallowCordBridge:
                     id=fake_id, author=member, guild=guild, channel=channel,
                     content=command_text, created_at=started, webhook_id=None,
                     attachments=[], embeds=[], mentions=[], role_mentions=[],
-                    reference=None, mention_everyone=False,
+                    reference=None, mention_everyone=False, _mallowcord_bridge=True,
                 )
 
                 async def fake_reply(content: Any = None, **kwargs: Any) -> discord.Message:
@@ -448,11 +452,12 @@ class MallowCordBridge:
                 tokens = shlex.split(command_text[1:]) if command_text.startswith("/") else shlex.split(command_text)
                 if not tokens:
                     raise RuntimeError("Enter a slash command name.")
-                command = self.bot.tree.get_command(tokens.pop(0).replace("-", "_"))
+                command_name = tokens.pop(0)
+                command = self.bot.tree.get_command(command_name) or self.bot.tree.get_command(command_name.replace("-", "_"))
                 if command is None:
                     raise RuntimeError("That slash command is not registered with Mallow-Bot.")
                 if isinstance(command, app_commands.Group) and tokens:
-                    subcommand = command.get_command(tokens[0].replace("-", "_"))
+                    subcommand = command.get_command(tokens[0]) or command.get_command(tokens[0].replace("-", "_"))
                     if subcommand is not None:
                         tokens.pop(0)
                         command = subcommand
@@ -522,6 +527,18 @@ class MallowCordBridge:
                     async def send(self, content: Any = None, **kwargs: Any) -> Any:
                         return await send_output(content, embed=kwargs.get("embed"), embeds=kwargs.get("embeds"))
 
+                async def edit_original_response(content: Any = None, **kwargs: Any) -> Any:
+                    if sent_messages:
+                        return await sent_messages[-1].edit(content=content, embed=kwargs.get("embed"), view=kwargs.get("view"))
+                    return await send_output(content, embed=kwargs.get("embed"), embeds=kwargs.get("embeds"), view=kwargs.get("view"))
+
+                async def original_response() -> Any:
+                    return sent_messages[-1] if sent_messages else None
+
+                async def delete_original_response() -> None:
+                    if sent_messages:
+                        await sent_messages[-1].delete()
+
                 interaction = SimpleNamespace(
                     user=member, guild=guild, guild_id=guild.id, channel=channel,
                     channel_id=channel.id, client=self.bot, command=command,
@@ -532,6 +549,9 @@ class MallowCordBridge:
                     locale=discord.Locale.american_english,
                     guild_locale=discord.Locale.american_english,
                     command_failed=False,
+                    edit_original_response=edit_original_response,
+                    original_response=original_response,
+                    delete_original_response=delete_original_response,
                 )
 
                 tree_check = getattr(self.bot.tree, "interaction_check", None)
@@ -539,10 +559,14 @@ class MallowCordBridge:
                     if not outputs:
                         outputs.append("You do not have permission to run that command.")
                 else:
-                    callback = getattr(command, "callback", None)
-                    if callback is None:
-                        raise RuntimeError("That slash command cannot be invoked from MallowCord.")
-                    await callback(interaction, **values)
+                    local_check = getattr(command, "_check_can_run", None)
+                    if local_check and not await local_check(interaction):
+                        outputs.append("You do not meet this command's requirements.")
+                    else:
+                        callback = getattr(command, "callback", None)
+                        if callback is None:
+                            raise RuntimeError("That slash command cannot be invoked from MallowCord.")
+                        await callback(interaction, **values)
 
             # Capture bot-authored channel replies as well as explicit response calls.
             async for sent in channel.history(limit=20, after=started, oldest_first=True):
