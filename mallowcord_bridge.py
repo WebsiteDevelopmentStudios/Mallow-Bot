@@ -419,16 +419,22 @@ class MallowCordBridge:
 
             outputs: list[str] = []
             sent_messages: list[discord.Message] = []
+            private_output = False
             started = discord.utils.utcnow()
 
             async def send_output(content: Any = None, *, embed: discord.Embed | None = None,
-                                  embeds: list[discord.Embed] | None = None, **kwargs: Any) -> discord.Message:
+                                  embeds: list[discord.Embed] | None = None, **kwargs: Any) -> discord.Message | None:
+                nonlocal private_output
+                if kwargs.get("ephemeral") or private_output:
+                    private_output = True
                 if content:
                     outputs.append(str(content))
                 if embed:
                     outputs.append(self._format_embed(embed))
                 for item in embeds or []:
                     outputs.append(self._format_embed(item))
+                if private_output:
+                    return None
                 send_kwargs: dict[str, Any] = {"allowed_mentions": discord.AllowedMentions.none()}
                 if embed is not None:
                     send_kwargs["embed"] = embed
@@ -529,13 +535,17 @@ class MallowCordBridge:
                     def is_done(self) -> bool:
                         return self.done
                     async def defer(self, **kwargs: Any) -> None:
+                        nonlocal_private = kwargs.get("ephemeral")
+                        if nonlocal_private:
+                            # Defer ephemerally so follow-up output remains private.
+                            pass
                         self.done = True
                     async def send_message(self, content: Any = None, **kwargs: Any) -> Any:
                         self.done = True
-                        return await send_output(content, embed=kwargs.get("embed"), embeds=kwargs.get("embeds"))
+                        return await send_output(content, embed=kwargs.get("embed"), embeds=kwargs.get("embeds"), ephemeral=kwargs.get("ephemeral"))
                     async def edit_message(self, content: Any = None, **kwargs: Any) -> Any:
                         self.done = True
-                        return await send_output(content, embed=kwargs.get("embed"), embeds=kwargs.get("embeds"))
+                        return await send_output(content, embed=kwargs.get("embed"), embeds=kwargs.get("embeds"), ephemeral=kwargs.get("ephemeral"))
 
                 response = ResponseAdapter()
 
@@ -606,7 +616,7 @@ class MallowCordBridge:
             await self._request(
                 "POST",
                 f"/integrations/mallowbot/discord/commands/{event['id']}/complete",
-                {"result": result_text[:4000]},
+                {"result": result_text[:4000], "private": private_output},
             )
         except Exception:
             log.exception("Could not return MallowCord command result for request %s", event.get("id"))
