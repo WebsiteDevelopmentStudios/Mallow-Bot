@@ -447,8 +447,8 @@ class MallowCordBridge:
                 fake = SimpleNamespace(
                     id=fake_id, author=member, guild=guild, channel=channel,
                     content=command_text, created_at=started, webhook_id=None,
-                    attachments=[], embeds=[], mentions=[], role_mentions=[],
-                    reference=None, mention_everyone=False, _mallowcord_bridge=True,
+                    attachments=[], embeds=[], mentions=[], role_mentions=[], channel_mentions=[],
+                    reference=None, mention_everyone=False, clean_content=command_text, _mallowcord_bridge=True,
                 )
 
                 async def fake_reply(content: Any = None, **kwargs: Any) -> discord.Message:
@@ -565,6 +565,9 @@ class MallowCordBridge:
                     locale=discord.Locale.american_english,
                     guild_locale=discord.Locale.american_english,
                     command_failed=False,
+                    id=int(time.time() * 1_000_000),
+                    token="mallowcord-bridge",
+                    type=discord.InteractionType.application_command,
                     edit_original_response=edit_original_response,
                     original_response=original_response,
                     delete_original_response=delete_original_response,
@@ -585,13 +588,16 @@ class MallowCordBridge:
                         await callback(interaction, **values)
 
             # Capture bot-authored channel replies as well as explicit response calls.
-            async for sent in channel.history(limit=20, after=started, oldest_first=True):
-                if self.bot.user and sent.author.id == self.bot.user.id:
-                    rendered = sent.content or ""
-                    if sent.embeds:
-                        rendered += ("\n" if rendered else "") + "\n".join(self._format_embed(item) for item in sent.embeds)
-                    if rendered and rendered not in outputs:
-                        outputs.append(rendered)
+            try:
+                async for sent in channel.history(limit=20, after=started, oldest_first=True):
+                    if self.bot.user and sent.author.id == self.bot.user.id:
+                        rendered = sent.content or ""
+                        if sent.embeds:
+                            rendered += ("\n" if rendered else "") + "\n".join(self._format_embed(item) for item in sent.embeds)
+                        if rendered and rendered not in outputs:
+                            outputs.append(rendered)
+            except discord.HTTPException:
+                log.debug("Could not fetch follow-up messages after MallowCord command %s.", event.get("id"))
             result_text = "\n\n".join(outputs).strip() or "Command completed. Check the linked Discord channel for any additional output."
         except Exception as exc:
             log.exception("MallowCord command execution failed for request %s", event.get("id"))
