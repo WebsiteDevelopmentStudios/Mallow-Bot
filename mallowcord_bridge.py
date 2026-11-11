@@ -390,7 +390,12 @@ class MallowCordBridge:
         class MessageProxy:
             _mallowcord_proxy = True
             def __init__(self):
-                self.content = content if content.startswith("-mb ") else "-mb " + content.lstrip("/")
+                normalized = str(content).strip()
+                if normalized.casefold().startswith("/mb "):
+                    normalized = "-mb " + normalized[4:].lstrip()
+                elif not normalized.casefold().startswith("-mb "):
+                    normalized = "-mb " + normalized.lstrip("/")
+                self.content = normalized
                 self.author, self.guild = member, guild
                 self.channel = ChannelProxy(channel)
                 self.mentions, self.role_mentions, self.channel_mentions = [], [], []
