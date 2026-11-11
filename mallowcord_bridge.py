@@ -263,23 +263,44 @@ class MallowCordBridge:
                 }
                 for emoji in guild.emojis
             ]
-            result = await self._request("POST", "/integrations/mallowbot/discord/sync", {
+            sync_path = "/integrations/mallowbot/discord/sync"
+            guild_payload = {
                 "guild_id": str(guild.id),
                 "guild_name": guild.name,
                 "icon_url": str(guild.icon.url) if guild.icon else None,
-                "categories": categories,
-                "channels": channels,
-                "roles": roles,
-                "emojis": emojis,
+            }
+            result = await self._request("POST", sync_path, {
+                **guild_payload,
+                "categories": categories[:50],
+                "channels": [],
+                "roles": roles[:50],
+                "emojis": emojis[:100],
                 "members": [],
             })
+            # Keep each Worker request small enough for D1's per-request work limits.
+            for start in range(50, len(categories), 50):
+                result = await self._request("POST", sync_path, {
+                    "guild_id": str(guild.id), "categories": categories[start:start + 50],
+                })
+            for start in range(50, len(roles), 50):
+                result = await self._request("POST", sync_path, {
+                    "guild_id": str(guild.id), "roles": roles[start:start + 50],
+                })
+            for start in range(100, len(emojis), 100):
+                result = await self._request("POST", sync_path, {
+                    "guild_id": str(guild.id), "emojis": emojis[start:start + 100],
+                })
+            for start in range(0, len(channels), 50):
+                result = await self._request("POST", sync_path, {
+                    "guild_id": str(guild.id), "channels": channels[start:start + 50],
+                })
             log.info(
-                "MallowCord Discord sync completed: %s channels, %s roles; response=%s",
-                len(channels), len(roles), result,
+                "MallowCord Discord sync completed: %s channels, %s roles, %s categories and %s emojis.",
+                len(channels), len(roles), len(categories), len(emojis),
             )
             log.info(
                 "MallowCord server sync ready: %s channels, %s roles.",
-                result.get("channels", 0), result.get("roles", 0),
+                len(channels), len(roles),
             )
 
             # Fetch the complete member list when the privileged Members intent is enabled.
