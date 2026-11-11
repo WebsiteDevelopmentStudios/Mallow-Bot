@@ -331,12 +331,115 @@ class MallowCordBridge:
         except (discord.Forbidden, discord.HTTPException, RuntimeError) as exc:
             log.warning("Could not deliver MallowCord message to #%s: %s", channel.name, exc)
 
+
+    async def handle_link_command(self, message: discord.Message) -> bool:
+        if message.guild is None or message.guild.id != GUILD_ID:
+            return False
+        match = re.fullmatch(r"-mb\s+link\s+([A-Za-z0-9-]{8,16})", message.content.strip(), re.I)
+        if not match:
+            return False
+        try:
+            result = await self._request("POST", "/integrations/mallowbot/discord/link/claim", {
+                "code": match.group(1), "discord_user_id": str(message.author.id),
+            })
+            await message.reply("Your Discord account is now linked to MallowCord. You can run Mallow-Bot commands from MallowCord.", mention_author=False)
+            return bool(result.get("linked"))
+        except Exception as exc:
+            await message.reply(f"Could not link your account: {exc}", mention_author=False)
+            return True
+
+    @staticmethod
+    def _render_command_output(content: Any = None, embed: Any = None, embeds: Any = None) -> str:
+        parts = [str(content)] if content else []
+        items = list(embeds or [])
+        if embed is not None:
+            items.append(embed)
+        for item in items:
+            try:
+                data = item.to_dict()
+                if data.get("title"): parts.append("**" + str(data["title"]) + "**")
+                if data.get("description"): parts.append(str(data["description"]))
+                for field in data.get("fields", []):
+                    parts.append("**" + str(field.get("name", "")) + "**\n" + str(field.get("value", "")))
+                if data.get("footer", {}).get("text"): parts.append("_" + str(data["footer"]["text"]) + "_")
+            except Exception:
+                parts.append(str(item))
+        return "\n\n".join(part for part in parts if part).strip()[:3900]
+
+    async def _run_command_as_member(self, guild: discord.Guild, channel: discord.TextChannel,
+                                    member: discord.Member, content: str) -> str:
+        bridge = self
+        output: list[str] = []
+        class ChannelProxy:
+            def __init__(self, wrapped): self._wrapped = wrapped
+            def __getattr__(self, name): return getattr(self._wrapped, name)
+            async def send(self, content=None, **kwargs):
+                rendered = bridge._render_command_output(content, kwargs.get("embed"), kwargs.get("embeds"))
+                if rendered: output.append(rendered)
+                return None
+        class MessageProxy:
+            _mallowcord_proxy = True
+            def __init__(self):
+                self.content = content if content.startswith("-mb ") else "-mb " + content.lstrip("/")
+                self.author, self.guild = member, guild
+                self.channel = ChannelProxy(channel)
+                self.mentions, self.role_mentions, self.channel_mentions = [], [], []
+                self.attachments, self.embeds = [], []
+                self.webhook_id, self.reference, self.id = None, None, 0
+                self.created_at = discord.utils.utcnow()
+            def __getattr__(self, name): return getattr(channel, name)
+            async def reply(self, content=None, **kwargs):
+                rendered = bridge._render_command_output(content, kwargs.get("embed"), kwargs.get("embeds"))
+                if rendered: output.append(rendered)
+                return None
+        await self.bot.on_message(MessageProxy())
+        return "\n\n".join(output)[-3900:] if output else "Command completed."
+
+    async def _run_queued_command(self, job: dict[str, Any]) -> None:
+        if self.bot is None: return
+        result = ""
+        try:
+            guild = self.bot.get_guild(GUILD_ID) or await self.bot.fetch_guild(GUILD_ID)
+            member = guild.get_member(int(job["discord_user_id"]))
+            if member is None: member = await guild.fetch_member(int(job["discord_user_id"]))
+            channel = self.bot.get_channel(int(job["discord_channel_id"]))
+            if channel is None: channel = await self.bot.fetch_channel(int(job["discord_channel_id"]))
+            if not isinstance(channel, discord.TextChannel): raise RuntimeError("The linked Discord channel is not a text channel.")
+            permissions = channel.permissions_for(member)
+            if not permissions.view_channel or not permissions.send_messages:
+                raise RuntimeError("Your linked Discord account cannot view and send messages in this channel.")
+            result = await self._run_command_as_member(guild, channel, member, str(job["content"]))
+        except Exception as exc:
+            log.warning("MallowCord command %s failed: %s", job.get("id"), exc)
+            result = "Command failed: " + str(exc)
+        try:
+            await self._request("POST", "/integrations/mallowbot/discord/commands/result", {"id": str(job["id"]), "content": result})
+        except Exception:
+            log.exception("Could not post MallowCord command result for job %s.", job.get("id"))
+
+    async def dispatch_slash(self, interaction: discord.Interaction, command: str) -> None:
+        if interaction.guild_id != GUILD_ID or not isinstance(interaction.user, discord.Member) or not isinstance(interaction.channel, discord.TextChannel):
+            await interaction.response.send_message("This command is only available in the official Mallow Swamp server's text channels.", ephemeral=True)
+            return
+        if not interaction.response.is_done(): await interaction.response.defer()
+        try:
+            permissions = interaction.channel.permissions_for(interaction.user)
+            if not permissions.view_channel or not permissions.send_messages:
+                raise RuntimeError("You cannot view and send messages in this channel.")
+            result = await self._run_command_as_member(interaction.guild, interaction.channel, interaction.user, command)
+            await interaction.followup.send(result[:1900], ephemeral=True)
+        except Exception as exc:
+            await interaction.followup.send("Command failed: " + str(exc), ephemeral=True)
+
     async def _poll_loop(self) -> None:
         while True:
             try:
                 data = await self._request("GET", "/integrations/mallowbot/discord/outbox")
                 for event in data.get("events", []):
                     await self._deliver(event)
+                commands = await self._request("GET", "/integrations/mallowbot/discord/commands/next")
+                for job in commands.get("jobs", []):
+                    await self._run_queued_command(job)
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
