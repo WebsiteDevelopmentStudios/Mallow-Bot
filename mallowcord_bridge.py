@@ -534,6 +534,13 @@ class MallowCordBridge:
                         if target_role is None:
                             raise RuntimeError(f"Could not find Discord role: {raw}.")
                         values[parameter.name] = target_role
+                    elif option_type == 9:
+                        cleaned = re.sub(r"[<@&!>]", "", raw)
+                        target_member = guild.get_member(int(cleaned)) if cleaned.isdecimal() else None
+                        target_role = guild.get_role(int(cleaned)) if cleaned.isdecimal() else None
+                        if target_member is None and target_role is None:
+                            raise RuntimeError(f"Could not find Discord member or role: {raw}.")
+                        values[parameter.name] = target_member or target_role
                     else:
                         values[parameter.name] = raw
 
