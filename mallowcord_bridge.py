@@ -293,6 +293,27 @@ class MallowCordBridge:
             log.warning("Could not mirror Discord message %s: %s", message.id, exc)
             return False
 
+    async def handle_member_join(self, member: discord.Member) -> None:
+        if not self.enabled or member.guild.id != GUILD_ID or member.bot:
+            return
+        try:
+            await self._request("POST", "/integrations/mallowbot/discord/sync", {
+                "guild_id": str(member.guild.id),
+                "channels": [],
+                "roles": [],
+                "members": [{
+                    "id": str(member.id),
+                    "username": member.name,
+                    "display_name": member.display_name,
+                    "avatar_url": str(member.display_avatar.url),
+                    "roles": [str(role.id) for role in member.roles if not role.is_default()],
+                    "status": "offline" if str(member.status) == "offline" else "online",
+                    "bot": False,
+                }],
+            })
+        except Exception as exc:
+            log.warning("Could not add joining Discord member %s to MallowCord: %s", member.id, exc)
+
     async def handle_presence_update(self, member: discord.Member) -> None:
         if not self.enabled or member.guild.id != GUILD_ID or member.bot:
             return
