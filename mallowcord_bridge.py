@@ -115,6 +115,21 @@ class MallowCordBridge:
                     log.error("Cannot access configured MallowCord Discord guild %s: %s", GUILD_ID, exc)
                     return
 
+            # Lock only Mallow Swamp's rules channel. Keep it readable while
+            # denying @everyone the ability to send messages.
+            rules_channel = discord.utils.get(guild.text_channels, name="rules")
+            if rules_channel is not None:
+                try:
+                    rules_overwrite = rules_channel.overwrites_for(guild.default_role)
+                    rules_overwrite.send_messages = False
+                    await rules_channel.set_permissions(
+                        guild.default_role,
+                        overwrite=rules_overwrite,
+                        reason="Keep the Mallow Swamp rules channel read-only",
+                    )
+                except (discord.Forbidden, discord.HTTPException) as exc:
+                    log.warning("Could not lock Mallow Swamp #rules: %s", exc)
+
             # Mirror every supported guild channel and its Discord metadata.
             categories = [
                 {"id": str(category.id), "name": category.name, "position": category.position}
@@ -469,6 +484,7 @@ class MallowCordBridge:
         if self.bot is None:
             return
         result_text = ""
+        private_output = False
         try:
             guild = self.bot.get_guild(GUILD_ID)
             if guild is None:
@@ -633,7 +649,7 @@ class MallowCordBridge:
 
                 class FollowupAdapter:
                     async def send(self, content: Any = None, **kwargs: Any) -> Any:
-                        return await send_output(content, embed=kwargs.get("embed"), embeds=kwargs.get("embeds"))
+                        return await send_output(content, embed=kwargs.get("embed"), embeds=kwargs.get("embeds"), ephemeral=kwargs.get("ephemeral"))
 
                 async def edit_original_response(content: Any = None, **kwargs: Any) -> Any:
                     if sent_messages:
