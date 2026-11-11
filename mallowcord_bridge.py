@@ -137,7 +137,7 @@ class MallowCordBridge:
                     overwrites.append({
                         "target_type": "role" if isinstance(target, discord.Role) else "user",
                         "target_discord_id": str(target.id),
-                        "target_name": getattr(target, "name", getattr(target, "display_name", str(target))),
+                        "target_name": "@everyone" if isinstance(target, discord.Role) and target.is_default() else getattr(target, "name", getattr(target, "display_name", str(target))),
                         "allow": allow,
                         "deny": deny,
                     })
