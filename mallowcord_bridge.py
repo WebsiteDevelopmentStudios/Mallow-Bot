@@ -39,6 +39,9 @@ class MallowCordBridge:
         self.webhooks: dict[int, discord.Webhook] = {}
         self._sync_lock = asyncio.Lock()
         self._synced = False
+        self.sync_task: asyncio.Task | None = None
+        self._members_synced = False
+        self._history_synced = False
 
     @property
     def enabled(self) -> bool:
@@ -92,12 +95,25 @@ class MallowCordBridge:
             return
         if self.poll_task is None or self.poll_task.done():
             self.poll_task = asyncio.create_task(self._poll_loop(), name="mallowcord-discord-outbox")
-        if not self._synced:
+        if not self._synced and (self.sync_task is None or self.sync_task.done()):
+            # Keep the Discord ready handler responsive while the initial import runs.
+            self.sync_task = asyncio.create_task(
+                self._sync_until_complete(), name="mallowcord-initial-sync"
+            )
+
+    async def _sync_until_complete(self) -> None:
+        delay = 5
+        while self.enabled and not self._synced:
             try:
                 await self.sync_guild()
                 self._synced = True
+                log.info("MallowCord initial import completed successfully.")
+            except asyncio.CancelledError:
+                raise
             except Exception:
-                log.exception("Initial MallowCord synchronization failed; it will retry after reconnect.")
+                log.exception("MallowCord import did not finish; retrying in %s seconds.", delay)
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, 60)
 
     async def sync_guild(self) -> None:
         if not self.enabled or self.bot is None:
@@ -109,7 +125,7 @@ class MallowCordBridge:
                     guild = await self.bot.fetch_guild(GUILD_ID)
                 except (discord.HTTPException, discord.Forbidden) as exc:
                     log.error("Cannot access configured MallowCord Discord guild %s: %s", GUILD_ID, exc)
-                    return
+                    raise
 
             # Text and announcement channels are mirrored; voice channels remain Discord-only.
             channels = [
@@ -153,37 +169,44 @@ class MallowCordBridge:
                 result.get("channels", len(channels)), result.get("roles", len(roles)),
             )
 
-            # Fetch the complete member list when the privileged Members intent is enabled.
-            members: list[dict[str, Any]] = []
-            try:
-                async for member in guild.fetch_members(limit=None):
-                    if member.bot:
-                        continue
-                    members.append({
-                        "id": str(member.id),
-                        "username": member.name,
-                        "display_name": member.display_name,
-                        "avatar_url": str(member.display_avatar.url),
-                        "roles": [str(role.id) for role in member.roles if not role.is_default()],
-                        "status": "offline" if str(member.status) == "offline" else "online",
-                        "bot": False,
-                    })
-                    if len(members) >= 10:
-                        batch = members
-                        members = []
-                        await self._request("POST", "/integrations/mallowbot/discord/sync", {
-                            "guild_id": str(guild.id), "channels": [], "roles": [], "members": batch,
+            if not self._members_synced:
+                try:
+                    # Fetch every human member and send batches concurrently. A failed batch
+                    # aborts this pass so the retry loop can safely resume (the API upserts).
+                    member_batches: list[list[dict[str, Any]]] = []
+                    batch: list[dict[str, Any]] = []
+                    async for member in guild.fetch_members(limit=None):
+                        if member.bot:
+                            continue
+                        batch.append({
+                            "id": str(member.id),
+                            "username": member.name,
+                            "display_name": member.display_name,
+                            "avatar_url": str(member.display_avatar.url),
+                            "roles": [str(role.id) for role in member.roles if not role.is_default()],
+                            "status": "offline" if str(member.status) == "offline" else "online",
+                            "bot": False,
                         })
-                        log.debug("Synchronized a MallowCord Discord member batch (%s members).", len(batch))
-                if members:
-                    await self._request("POST", "/integrations/mallowbot/discord/sync", {
-                        "guild_id": str(guild.id), "channels": [], "roles": [], "members": members,
-                    })
-                log.info("MallowCord member directory synchronized successfully.")
-            except Exception as exc:
-                log.warning(
-                    "Could not import the full Discord member list; the member sync batch failed: %s", exc,
-                )
+                        if len(batch) >= 100:
+                            member_batches.append(batch)
+                            batch = []
+                    if batch:
+                        member_batches.append(batch)
+        
+                    member_sem = asyncio.Semaphore(5)
+                    async def send_member_batch(items: list[dict[str, Any]]) -> None:
+                        async with member_sem:
+                            await self._request("POST", "/integrations/mallowbot/discord/sync", {
+                                "guild_id": str(guild.id), "channels": [], "roles": [], "members": items,
+                            })
+                    await asyncio.gather(*(send_member_batch(items) for items in member_batches))
+                    log.info("MallowCord member directory synchronized: %s members in %s batches.",
+                             sum(map(len, member_batches)), len(member_batches))
+    
+    
+                    self._members_synced = True
+                except Exception as exc:
+                    log.warning("MallowCord member import is not complete yet: %s", exc)
 
             # Re-send channel overwrites after member batches so user-specific Discord
             # overwrites can resolve to their imported MallowCord shadow accounts.
@@ -199,23 +222,55 @@ class MallowCordBridge:
             except Exception as exc:
                 log.warning("Could not apply Discord channel permission overwrites: %s", exc)
 
-            # Import the most recent history once per channel. Message IDs are deduplicated by the Worker.
-            if HISTORY_LIMIT >= 0:
-                for channel in guild.text_channels:
-                    try:
-                        # A value of 0 means import the full accessible channel history.
-                        history = [message async for message in channel.history(limit=HISTORY_LIMIT or None)]
-                        for message in reversed(history):
-                            await self.handle_discord_message(message)
-                    except (discord.Forbidden, discord.HTTPException) as exc:
-                        log.warning("Could not import history for #%s: %s", channel.name, exc)
+            if not self._history_synced:
+                # Import channel history concurrently with bounded API pressure. Stream
+                # messages instead of holding the entire history in memory.
+                if HISTORY_LIMIT >= 0:
+                    history_sem = asyncio.Semaphore(8)
+                    async def import_channel(channel: discord.TextChannel) -> int:
+                        count = 0
+                        pending: list[asyncio.Task] = []
+                        async for message in channel.history(limit=HISTORY_LIMIT or None, oldest_first=True):
+                            if message.author.bot or message.webhook_id is not None:
+                                continue
+                            async def send_one(item: discord.Message) -> bool:
+                                async with history_sem:
+                                    return await self.handle_discord_message(item, raise_errors=True)
+                            pending.append(asyncio.create_task(send_one(message)))
+                            if len(pending) >= 32:
+                                results = await asyncio.gather(*pending)
+                                count += sum(bool(value) for value in results)
+                                pending.clear()
+                        if pending:
+                            results = await asyncio.gather(*pending)
+                            count += sum(bool(value) for value in results)
+                        return count
+    
+                    channel_results = await asyncio.gather(
+                        *(import_channel(channel) for channel in guild.text_channels),
+                        return_exceptions=True,
+                    )
+                    failures = [(guild.text_channels[i].name, result)
+                                for i, result in enumerate(channel_results)
+                                if isinstance(result, BaseException)]
+                    imported = sum(result for result in channel_results if isinstance(result, int))
+                    if failures:
+                        for channel_name, error in failures:
+                            log.error("History import failed for #%s: %s", channel_name, error)
+                        raise RuntimeError(f"History import failed in {len(failures)} channel(s).")
+                    log.info("MallowCord history import completed: %s messages across %s channels.",
+                             imported, len(guild.text_channels))
+    
+                self._history_synced = True
+            if not self._members_synced:
+                raise RuntimeError("Discord member import is still incomplete; check the bot's Server Members Intent.")
             log.info("MallowCord Discord bridge initialized for guild %s (%s).", guild.name, guild.id)
 
-    async def handle_discord_message(self, message: discord.Message) -> None:
+    async def handle_discord_message(self, message: discord.Message, *, raise_errors: bool = False) -> bool:
         if not self.enabled or message.guild is None or message.guild.id != GUILD_ID:
-            return
+            return False
         if message.author.bot or message.webhook_id is not None:
-            return
+            return False
         content = message.content or ""
         if message.attachments:
             links: list[str] = []
@@ -231,7 +286,7 @@ class MallowCordBridge:
                 content = (content + "\n" + f"![Discord image]({image_url})").strip()
         if not content:
             # Do not create blank rows for embed-only system messages.
-            return
+            return False
         try:
             await self._request("POST", "/integrations/mallowbot/discord/messages", {
                 "guild_id": str(message.guild.id),
@@ -245,8 +300,33 @@ class MallowCordBridge:
                 "timestamp": int(message.created_at.timestamp()),
                 "mentioned_user_ids": [str(member.id) for member in message.mentions],
             })
+            return True
         except Exception as exc:
+            if raise_errors:
+                raise
             log.warning("Could not mirror Discord message %s: %s", message.id, exc)
+            return False
+
+    async def handle_member_join(self, member: discord.Member) -> None:
+        if not self.enabled or member.guild.id != GUILD_ID or member.bot:
+            return
+        try:
+            await self._request("POST", "/integrations/mallowbot/discord/sync", {
+                "guild_id": str(member.guild.id),
+                "channels": [],
+                "roles": [],
+                "members": [{
+                    "id": str(member.id),
+                    "username": member.name,
+                    "display_name": member.display_name,
+                    "avatar_url": str(member.display_avatar.url),
+                    "roles": [str(role.id) for role in member.roles if not role.is_default()],
+                    "status": "offline" if str(member.status) == "offline" else "online",
+                    "bot": False,
+                }],
+            })
+        except Exception as exc:
+            log.warning("Could not add joining Discord member %s to MallowCord: %s", member.id, exc)
 
     async def handle_presence_update(self, member: discord.Member) -> None:
         if not self.enabled or member.guild.id != GUILD_ID or member.bot:

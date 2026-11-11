@@ -531,6 +531,21 @@ async function route(request, env) {
  await env.MALLOW_DB.prepare("CREATE TABLE IF NOT EXISTS settings (id INTEGER PRIMARY KEY CHECK (id=1), prefix TEXT NOT NULL, greeting TEXT NOT NULL, greetings INTEGER NOT NULL, mention_only INTEGER NOT NULL, updated_at TEXT NOT NULL)").run();
  await env.MALLOW_DB.prepare("INSERT INTO settings (id,prefix,greeting,greetings,mention_only,updated_at) VALUES (1,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET prefix=excluded.prefix,greeting=excluded.greeting,greetings=excluded.greetings,mention_only=excluded.mention_only,updated_at=excluded.updated_at").bind(prefix,greeting,body.greetings?1:0,body.mention_only?1:0,new Date().toISOString()).run();return json({ok:true,settings:await settings(env)});}
 
+ if(path==="storage-usage"&&request.method==="GET"){
+   const s=await session(request,env);if(!s)return json({error:"Sign in required."},401);
+   if(s.user.id!==String(env.BOT_OWNER_ID))return json({error:"Only the bot owner can view storage usage."},403);
+   const token=String(env.CF_API_TOKEN||env.CLOUDFLARE_API_TOKEN||"");
+   const account=String(env.CF_ACCOUNT_ID||env.CLOUDFLARE_ACCOUNT_ID||"");
+   const database=String(env.MALLOW_D1_DATABASE_ID||env.D1_DATABASE_ID||"");
+   const limit=Math.max(1,Number(env.D1_STORAGE_LIMIT_BYTES)||524288000);
+   if(!token||!account||!database)return json({configured:false,used_bytes:null,limit_bytes:limit,percentage:null,setup_required:true});
+   const response=await fetch("https://api.cloudflare.com/client/v4/accounts/"+encodeURIComponent(account)+"/d1/database/"+encodeURIComponent(database),{headers:{authorization:"Bearer "+token}});
+   const data=await response.json().catch(()=>({}));
+   if(!response.ok||data.success===false)return json({error:"Cloudflare could not return D1 storage usage. Check the API token's D1 Read permission and the account/database IDs."},502);
+   const used=Number(data.result?.file_size);
+   if(!Number.isFinite(used)||used<0)return json({error:"Cloudflare did not return a valid D1 database size."},502);
+   return json({configured:true,used_bytes:used,limit_bytes:limit,remaining_bytes:Math.max(0,limit-used),percentage:Math.min(100,used/limit*100),database_name:data.result?.name||"Mallow Bot database",updated_at:new Date().toISOString()});
+  }
  if(path==="developer-guilds"&&request.method==="GET"){
    const s=await session(request,env);if(!s)return json({error:"Sign in required."},401);
    if(s.user.id!==String(env.BOT_OWNER_ID))return json({error:"Only the bot owner can view the bot's server list."},403);
