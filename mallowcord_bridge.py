@@ -128,7 +128,11 @@ class MallowCordBridge:
                         reason="Keep the Mallow Swamp rules channel read-only",
                     )
                     for staff_role in guild.roles:
-                        if staff_role.is_default() or not (staff_role.permissions.administrator or staff_role.permissions.manage_messages):
+                        if staff_role.is_default() or not (
+                            staff_role.permissions.administrator
+                            or staff_role.permissions.manage_messages
+                            or re.search(r"staff|moderator|moderation|admin|helper|(^|[^a-z])mod([^a-z]|$)", staff_role.name, re.IGNORECASE)
+                        ):
                             continue
                         staff_overwrite = rules_channel.overwrites_for(staff_role)
                         staff_overwrite.send_messages = True
