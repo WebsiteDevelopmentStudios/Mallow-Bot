@@ -535,9 +535,8 @@ class MallowCordBridge:
                     def is_done(self) -> bool:
                         return self.done
                     async def defer(self, **kwargs: Any) -> None:
-                        nonlocal private_output
                         if kwargs.get("ephemeral"):
-                            private_output = True
+                            mark_private()
                         self.done = True
                     async def send_message(self, content: Any = None, **kwargs: Any) -> Any:
                         self.done = True
@@ -545,6 +544,10 @@ class MallowCordBridge:
                     async def edit_message(self, content: Any = None, **kwargs: Any) -> Any:
                         self.done = True
                         return await send_output(content, embed=kwargs.get("embed"), embeds=kwargs.get("embeds"), ephemeral=kwargs.get("ephemeral"))
+
+                def mark_private() -> None:
+                    nonlocal private_output
+                    private_output = True
 
                 response = ResponseAdapter()
 
