@@ -2446,13 +2446,13 @@ def _banned_guild_ids() -> set[int]:
 @bot.event
 async def on_presence_update(before: discord.Member, after: discord.Member) -> None:
     if after.guild.id == mallowcord_bridge.GUILD_ID:
-        await mallowcord_bridge.handle_presence_update(after)
+        asyncio.create_task(mallowcord_bridge.handle_presence_update(after), name="mallowcord-presence-update")
 
 
 @bot.event
 async def on_member_join(member: discord.Member) -> None:
     if member.guild.id == mallowcord_bridge.GUILD_ID:
-        await mallowcord_bridge.handle_member_join(member)
+        asyncio.create_task(mallowcord_bridge.handle_member_join(member), name="mallowcord-member-join")
 
 
 @bot.event
@@ -2830,7 +2830,7 @@ async def on_message(message: discord.Message) -> None:
     if await mallowcord_bridge.handle_link_command(message):
         return
     if message.guild is not None and message.guild.id == mallowcord_bridge.GUILD_ID:
-        await mallowcord_bridge.handle_discord_message(message)
+        asyncio.create_task(mallowcord_bridge.handle_discord_message(message), name="mallowcord-message-mirror")
     if await is_bot_access_banned(message.author.id):
         cfg_prefix = "-mb"
         if message.guild is not None:
