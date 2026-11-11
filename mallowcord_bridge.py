@@ -263,6 +263,9 @@ class MallowCordBridge:
         if message.author.bot or message.webhook_id is not None:
             return
         content = message.content or ""
+        # Never mirror the one-time account-link code into a shared MallowCord channel.
+        if re.match(r"^\s*-mb\s+(?:link|connect)\b", content, re.IGNORECASE):
+            return
         if message.attachments:
             links: list[str] = []
             for item in message.attachments:
