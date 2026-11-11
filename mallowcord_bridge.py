@@ -117,7 +117,7 @@ class MallowCordBridge:
 
             # Lock only Mallow Swamp's rules channel. Keep it readable while
             # denying @everyone the ability to send messages.
-            rules_channel = discord.utils.get(guild.text_channels, name="rules")
+            rules_channel = next((channel for channel in guild.text_channels if "rules" in channel.name.casefold()), None)
             if rules_channel is not None:
                 try:
                     rules_overwrite = rules_channel.overwrites_for(guild.default_role)
