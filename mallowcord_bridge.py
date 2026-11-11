@@ -458,7 +458,7 @@ class MallowCordBridge:
                 )
 
                 async def fake_reply(content: Any = None, **kwargs: Any) -> discord.Message:
-                    return await send_output(content, embed=kwargs.get("embed"), embeds=kwargs.get("embeds"))
+                    return await send_output(content, embed=kwargs.get("embed"), embeds=kwargs.get("embeds"), ephemeral=kwargs.get("ephemeral"))
 
                 async def fake_delete(*args: Any, **kwargs: Any) -> None:
                     return None
