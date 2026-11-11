@@ -11,6 +11,9 @@ import asyncio
 import logging
 import os
 import re
+import shlex
+import time
+from types import SimpleNamespace
 from urllib.parse import urlsplit
 from typing import Any
 
@@ -361,12 +364,218 @@ class MallowCordBridge:
         except (discord.Forbidden, discord.HTTPException, RuntimeError) as exc:
             log.warning("Could not deliver MallowCord message to #%s: %s", channel.name, exc)
 
+    async def complete_account_link(self, discord_user_id: int, code: str, guild_id: int) -> bool:
+        if not self.enabled or int(guild_id) != GUILD_ID:
+            return False
+        result = await self._request("POST", "/integrations/mallowbot/discord/link/complete", {
+            "guild_id": str(guild_id),
+            "discord_user_id": str(discord_user_id),
+            "code": str(code).strip().replace("-", "").upper(),
+        })
+        return bool(result.get("linked"))
+
+    @staticmethod
+    def _format_embed(embed: discord.Embed) -> str:
+        parts = []
+        if embed.title:
+            parts.append(str(embed.title))
+        if embed.description:
+            parts.append(str(embed.description))
+        for field in embed.fields:
+            parts.append(f"{field.name}: {field.value}")
+        return "\n".join(parts)[:3500]
+
+    async def _execute_command(self, event: dict[str, Any]) -> None:
+        if self.bot is None:
+            return
+        result_text = ""
+        try:
+            guild = self.bot.get_guild(GUILD_ID)
+            if guild is None:
+                raise RuntimeError("The official Mallow Swamp Discord server is unavailable.")
+            member_id = int(event["discord_user_id"])
+            member = guild.get_member(member_id)
+            if member is None:
+                member = await guild.fetch_member(member_id)
+            channel_id = int(event["discord_channel_id"])
+            channel = self.bot.get_channel(channel_id)
+            if channel is None:
+                channel = await self.bot.fetch_channel(channel_id)
+            if not isinstance(channel, discord.TextChannel):
+                raise RuntimeError("The linked Discord channel is not a text channel.")
+
+            outputs: list[str] = []
+            started = discord.utils.utcnow()
+
+            async def send_output(content: Any = None, *, embed: discord.Embed | None = None,
+                                  embeds: list[discord.Embed] | None = None, **kwargs: Any) -> discord.Message:
+                if content:
+                    outputs.append(str(content))
+                if embed:
+                    outputs.append(self._format_embed(embed))
+                for item in embeds or []:
+                    outputs.append(self._format_embed(item))
+                return await channel.send(
+                    content=content, embed=embed, embeds=embeds,
+                    allowed_mentions=discord.AllowedMentions.none(),
+                )
+
+            if str(event.get("command_style")) == "prefix":
+                command_text = str(event.get("command_text") or "")
+                fake_id = int(time.time() * 1_000_000)
+                fake = SimpleNamespace(
+                    id=fake_id, author=member, guild=guild, channel=channel,
+                    content=command_text, created_at=started, webhook_id=None,
+                    attachments=[], embeds=[], mentions=[], role_mentions=[],
+                    reference=None, mention_everyone=False,
+                )
+
+                async def fake_reply(content: Any = None, **kwargs: Any) -> discord.Message:
+                    return await send_output(content, embed=kwargs.get("embed"), embeds=kwargs.get("embeds"))
+
+                async def fake_delete(*args: Any, **kwargs: Any) -> None:
+                    return None
+
+                fake.reply = fake_reply
+                fake.delete = fake_delete
+                handler = getattr(self.bot, "on_message", None)
+                if handler is None:
+                    raise RuntimeError("Mallow-Bot's message command handler is unavailable.")
+                await handler(fake)
+            else:
+                command_text = str(event.get("command_text") or "").strip()
+                tokens = shlex.split(command_text[1:]) if command_text.startswith("/") else shlex.split(command_text)
+                if not tokens:
+                    raise RuntimeError("Enter a slash command name.")
+                command = self.bot.tree.get_command(tokens.pop(0).replace("-", "_"))
+                if command is None:
+                    raise RuntimeError("That slash command is not registered with Mallow-Bot.")
+                if isinstance(command, app_commands.Group) and tokens:
+                    subcommand = command.get_command(tokens[0].replace("-", "_"))
+                    if subcommand is not None:
+                        tokens.pop(0)
+                        command = subcommand
+                parameters = list(getattr(command, "parameters", []))
+                values: dict[str, Any] = {}
+                for index, parameter in enumerate(parameters):
+                    if not tokens:
+                        if getattr(parameter, "required", False):
+                            raise RuntimeError(f"Missing required option: {parameter.name}.")
+                        continue
+                    option_type = getattr(getattr(parameter, "type", None), "value", None)
+                    take_rest = index == len(parameters) - 1 and option_type == 3
+                    raw = " ".join(tokens) if take_rest else tokens.pop(0)
+                    if take_rest:
+                        tokens.clear()
+                    if option_type == 4:
+                        values[parameter.name] = int(raw)
+                    elif option_type == 10:
+                        values[parameter.name] = float(raw)
+                    elif option_type == 5:
+                        values[parameter.name] = raw.casefold() in {"true", "yes", "1", "on"}
+                    elif option_type == 6:
+                        cleaned = re.sub(r"[<@!>]", "", raw)
+                        target = guild.get_member(int(cleaned)) if cleaned.isdecimal() else discord.utils.find(
+                            lambda item: item.name.casefold() == raw.casefold()
+                            or item.display_name.casefold() == raw.casefold(), guild.members
+                        )
+                        if target is None:
+                            raise RuntimeError(f"Could not find Discord member: {raw}.")
+                        values[parameter.name] = target
+                    elif option_type == 7:
+                        cleaned = re.sub(r"[<#>]", "", raw)
+                        target_channel = guild.get_channel(int(cleaned)) if cleaned.isdecimal() else discord.utils.find(
+                            lambda item: item.name.casefold() == raw.casefold(), guild.channels
+                        )
+                        if target_channel is None:
+                            raise RuntimeError(f"Could not find Discord channel: {raw}.")
+                        values[parameter.name] = target_channel
+                    elif option_type == 8:
+                        cleaned = re.sub(r"[<@&>]", "", raw)
+                        target_role = guild.get_role(int(cleaned)) if cleaned.isdecimal() else discord.utils.find(
+                            lambda item: item.name.casefold() == raw.casefold(), guild.roles
+                        )
+                        if target_role is None:
+                            raise RuntimeError(f"Could not find Discord role: {raw}.")
+                        values[parameter.name] = target_role
+                    else:
+                        values[parameter.name] = raw
+
+                class ResponseAdapter:
+                    def __init__(self) -> None:
+                        self.done = False
+                    def is_done(self) -> bool:
+                        return self.done
+                    async def defer(self, **kwargs: Any) -> None:
+                        self.done = True
+                    async def send_message(self, content: Any = None, **kwargs: Any) -> Any:
+                        self.done = True
+                        return await send_output(content, embed=kwargs.get("embed"), embeds=kwargs.get("embeds"))
+                    async def edit_message(self, content: Any = None, **kwargs: Any) -> Any:
+                        self.done = True
+                        return await send_output(content, embed=kwargs.get("embed"), embeds=kwargs.get("embeds"))
+
+                response = ResponseAdapter()
+
+                class FollowupAdapter:
+                    async def send(self, content: Any = None, **kwargs: Any) -> Any:
+                        return await send_output(content, embed=kwargs.get("embed"), embeds=kwargs.get("embeds"))
+
+                interaction = SimpleNamespace(
+                    user=member, guild=guild, guild_id=guild.id, channel=channel,
+                    channel_id=channel.id, client=self.bot, command=command,
+                    response=response, followup=FollowupAdapter(), data={},
+                    created_at=started, extras={}, namespace=SimpleNamespace(**values),
+                    permissions=channel.permissions_for(member),
+                    app_permissions=channel.permissions_for(self.bot.user),
+                    locale=discord.Locale.american_english,
+                    guild_locale=discord.Locale.american_english,
+                    command_failed=False,
+                )
+
+                tree_check = getattr(self.bot.tree, "interaction_check", None)
+                if tree_check and not await tree_check(interaction):
+                    if not outputs:
+                        outputs.append("You do not have permission to run that command.")
+                else:
+                    callback = getattr(command, "callback", None)
+                    if callback is None:
+                        raise RuntimeError("That slash command cannot be invoked from MallowCord.")
+                    await callback(interaction, **values)
+
+            # Capture bot-authored channel replies as well as explicit response calls.
+            async for sent in channel.history(limit=20, after=started, oldest_first=True):
+                if self.bot.user and sent.author.id == self.bot.user.id:
+                    rendered = sent.content or ""
+                    if sent.embeds:
+                        rendered += ("\n" if rendered else "") + "\n".join(self._format_embed(item) for item in sent.embeds)
+                    if rendered and rendered not in outputs:
+                        outputs.append(rendered)
+            result_text = "\n\n".join(outputs).strip() or "Command completed. Check the linked Discord channel for any additional output."
+        except Exception as exc:
+            log.exception("MallowCord command execution failed for request %s", event.get("id"))
+            result_text = f"Command failed: {exc}"
+        try:
+            await self._request(
+                "POST",
+                f"/integrations/mallowbot/discord/commands/{event['id']}/complete",
+                {"result": result_text[:4000]},
+            )
+        except Exception:
+            log.exception("Could not return MallowCord command result for request %s", event.get("id"))
+
+    async def _poll_commands(self) -> None:
+        data = await self._request("GET", "/integrations/mallowbot/discord/commands")
+        for event in data.get("commands", []):
+            await self._execute_command(event)
+
     async def _poll_loop(self) -> None:
         while True:
             try:
                 data = await self._request("GET", "/integrations/mallowbot/discord/outbox")
                 for event in data.get("events", []):
                     await self._deliver(event)
+                await self._poll_commands()
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
