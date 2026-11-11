@@ -127,6 +127,15 @@ class MallowCordBridge:
                         overwrite=rules_overwrite,
                         reason="Keep the Mallow Swamp rules channel read-only",
                     )
+                    for staff_role in guild.roles:
+                        if staff_role.is_default() or not (staff_role.permissions.administrator or staff_role.permissions.manage_messages):
+                            continue
+                        staff_overwrite = rules_channel.overwrites_for(staff_role)
+                        staff_overwrite.send_messages = True
+                        await rules_channel.set_permissions(
+                            staff_role, overwrite=staff_overwrite,
+                            reason="Allow moderators to post in Mallow Swamp rules",
+                        )
                 except (discord.Forbidden, discord.HTTPException) as exc:
                     log.warning("Could not lock Mallow Swamp #rules: %s", exc)
 
@@ -438,7 +447,7 @@ class MallowCordBridge:
             except (discord.NotFound, discord.Forbidden, discord.HTTPException):
                 log.warning("Mapped Discord channel %s is unavailable.", channel_id)
                 return
-        if not isinstance(channel, discord.TextChannel):
+        if not isinstance(channel, (discord.TextChannel, discord.Thread)):
             return
         content = str(event.get("content") or "")
         username = str(event.get("username") or "MallowCord user")[:80]
@@ -455,7 +464,7 @@ class MallowCordBridge:
         for image_url in image_urls:
             content = content.replace(image_url, "").strip()
         content = re.sub(r'!\[[^\]]*\]\(\s*\)', "", content).strip()
-        hook = await self._get_webhook(channel)
+        hook = await self._get_webhook(channel) if isinstance(channel, discord.TextChannel) else None
         sent: discord.Message | None = None
         chunks = [content[i:i + 1900] for i in range(0, len(content), 1900)] or [" "]
         try:
