@@ -288,7 +288,7 @@ class MallowCordBridge:
             # Do not create blank rows for embed-only system messages.
             return False
         try:
-            await self._request("POST", "/integrations/mallowbot/discord/messages",
+            await self._request("POST", "/integrations/mallowbot/discord/messages", {
                 "guild_id": str(message.guild.id),
                 "channel_id": str(message.channel.id),
                 "message_id": str(message.id),
