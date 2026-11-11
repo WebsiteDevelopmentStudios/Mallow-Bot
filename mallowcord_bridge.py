@@ -152,6 +152,16 @@ class MallowCordBridge:
                     "topic": getattr(channel, "topic", None) or "",
                     "nsfw": bool(getattr(channel, "nsfw", False)),
                     "slowmode": int(getattr(channel, "slowmode_delay", 0) or 0),
+                    "extra_settings": {
+                        "bitrate": getattr(channel, "bitrate", None),
+                        "user_limit": getattr(channel, "user_limit", None),
+                        "rtc_region": str(getattr(channel, "rtc_region", None)) if getattr(channel, "rtc_region", None) else None,
+                        "video_quality_mode": int(channel.video_quality_mode.value) if getattr(channel, "video_quality_mode", None) else None,
+                        "default_auto_archive_duration": getattr(channel, "default_auto_archive_duration", None),
+                        "default_thread_slowmode_delay": getattr(channel, "default_thread_slowmode_delay", None),
+                        "default_sort_order": str(getattr(channel, "default_sort_order", None)) if getattr(channel, "default_sort_order", None) else None,
+                        "default_forum_layout": str(getattr(channel, "default_forum_layout", None)) if getattr(channel, "default_forum_layout", None) else None,
+                    },
                     "permission_overwrites": overwrites,
                 })
             roles = [
@@ -164,6 +174,8 @@ class MallowCordBridge:
                     "hoist": role.hoist,
                     "mentionable": role.mentionable,
                     "managed": role.managed,
+                    "icon_url": str(role.icon.url) if role.icon else None,
+                    "unicode_emoji": role.unicode_emoji,
                 }
                 for role in guild.roles if not role.is_default()
             ]
