@@ -46,7 +46,7 @@ class MallowCordBridge:
 
     async def _http(self) -> aiohttp.ClientSession:
         if self.session is None or self.session.closed:
-            timeout = aiohttp.ClientTimeout(total=90, connect=15, sock_read=75)
+            timeout = aiohttp.ClientTimeout(total=210, connect=20, sock_read=180)
             self.session = aiohttp.ClientSession(
                 timeout=timeout,
                 headers={"X-MallowBot-Key": SERVICE_KEY, "User-Agent": "Mallow-Bot-MallowCord-Bridge/1.0"},
@@ -134,12 +134,8 @@ class MallowCordBridge:
                 "members": [],
             })
             log.info(
-                "MallowCord Discord sync completed: %s channels, %s roles; response=%s",
-                len(channels), len(roles), result,
-            )
-            log.info(
-                "MallowCord server sync ready: %s channels, %s roles.",
-                result.get("channels", 0), result.get("roles", 0),
+                "MallowCord Discord structure sync completed: %s channels, %s roles.",
+                result.get("channels", len(channels)), result.get("roles", len(roles)),
             )
 
             # Fetch the complete member list when the privileged Members intent is enabled.
@@ -157,16 +153,18 @@ class MallowCordBridge:
                         "status": str(member.status),
                         "bot": False,
                     })
-                    if len(members) >= 25:
-                        await self._request("POST", "/integrations/mallowbot/discord/sync", {
-                            "guild_id": str(guild.id), "channels": [], "roles": [], "members": members,
-                        })
+                    if len(members) >= 10:
+                        batch = members
                         members = []
+                        await self._request("POST", "/integrations/mallowbot/discord/sync", {
+                            "guild_id": str(guild.id), "channels": [], "roles": [], "members": batch,
+                        })
+                        log.debug("Synchronized a MallowCord Discord member batch (%s members).", len(batch))
                 if members:
                     await self._request("POST", "/integrations/mallowbot/discord/sync", {
                         "guild_id": str(guild.id), "channels": [], "roles": [], "members": members,
                     })
-                log.info("MallowCord member directory synchronized.")
+                log.info("MallowCord member directory synchronized successfully.")
             except Exception as exc:
                 log.warning(
                     "Could not import the full Discord member list; the member sync batch failed: %s", exc,
