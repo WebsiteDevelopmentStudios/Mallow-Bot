@@ -333,12 +333,22 @@ class MallowCordBridge:
 
 
     async def handle_link_command(self, message: discord.Message) -> bool:
-        if message.guild is None or message.guild.id != GUILD_ID:
-            return False
         match = re.fullmatch(r"-mb\s+link\s+([A-Za-z0-9-]{8,16})", message.content.strip(), re.I)
         if not match:
             return False
+        if message.guild is not None and message.guild.id != GUILD_ID:
+            return False
         try:
+            if message.guild is None:
+                guild = self.bot.get_guild(GUILD_ID) if self.bot else None
+                if guild is None and self.bot:
+                    guild = await self.bot.fetch_guild(GUILD_ID)
+                if guild is None:
+                    raise RuntimeError("The official Mallow Swamp server is unavailable.")
+                try:
+                    await guild.fetch_member(message.author.id)
+                except (discord.NotFound, discord.Forbidden):
+                    raise RuntimeError("Join the official Mallow Swamp Discord server before linking.")
             result = await self._request("POST", "/integrations/mallowbot/discord/link/claim", {
                 "code": match.group(1), "discord_user_id": str(message.author.id),
             })
