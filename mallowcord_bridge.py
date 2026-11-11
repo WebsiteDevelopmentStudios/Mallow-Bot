@@ -185,6 +185,20 @@ class MallowCordBridge:
                     "Could not import the full Discord member list; the member sync batch failed: %s", exc,
                 )
 
+            # Re-send channel overwrites after member batches so user-specific Discord
+            # overwrites can resolve to their imported MallowCord shadow accounts.
+            try:
+                await self._request("POST", "/integrations/mallowbot/discord/sync", {
+                    "guild_id": str(guild.id),
+                    "channels": channels,
+                    "roles": roles,
+                    "members": [],
+                    "everyone_role_id": str(guild.default_role.id),
+                    "emojis": [],
+                })
+            except Exception as exc:
+                log.warning("Could not apply Discord channel permission overwrites: %s", exc)
+
             # Import the most recent history once per channel. Message IDs are deduplicated by the Worker.
             if HISTORY_LIMIT >= 0:
                 for channel in guild.text_channels:
