@@ -2850,6 +2850,21 @@ async def on_message(message: discord.Message) -> None:
     command_name = parts[0].lower()
     argument = parts[1].strip() if len(parts) > 1 else ""
 
+    if command_name in {"link", "connect"}:
+        if guild_id != mallowcord_bridge.GUILD_ID:
+            await message.reply("Account linking is only available in the official Mallow Swamp server.", mention_author=False)
+            return
+        if not argument:
+            await message.reply("Copy the one-time code from MallowCord, then run -mb link YOUR-CODE here.", mention_author=False)
+            return
+        try:
+            linked = await mallowcord_bridge.complete_account_link(message.author.id, argument.split()[0], guild_id)
+            await message.reply("Your MallowCord account is now linked to Discord." if linked else "That MallowCord link code is invalid or expired.", mention_author=False)
+        except Exception as exc:
+            logger.warning("MallowCord account linking failed: %s", exc)
+            await message.reply("I could not complete the MallowCord link right now. Try again in a moment.", mention_author=False)
+        return
+
     if command_name in {"tos", "terms", "terms-of-service"}:
         await message.reply(embed=_tos_embed(), mention_author=False)
         return
