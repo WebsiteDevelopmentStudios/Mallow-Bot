@@ -165,7 +165,7 @@ async def process_message(bot, message):
                 except discord.HTTPException:
                     pass
                 break
-    if dashboard_config.get("features", {}).get("moderation", True) and INVITE_RE.search(content) and not message.author.guild_permissions.manage_messages:
+    if not getattr(message, "_mallowcord_bridge", False) and dashboard_config.get("features", {}).get("moderation", True) and INVITE_RE.search(content) and not message.author.guild_permissions.manage_messages:
         minutes = int(data["timeout_minutes"].get(str(guild.id), 10))
         try:
             await message.delete()
@@ -1238,6 +1238,8 @@ def setup(bot):
         if not raw: return
         parts=raw.split(maxsplit=1)
         command_name=parts[0].lower()
+        if command_name in {"link", "connect"}:
+            return
         if command_name in set(cfg.get("disabled_commands", [])):
             await message.reply("The " + command_prefix + command_name + " command is disabled in this server.", mention_author=False)
             return
