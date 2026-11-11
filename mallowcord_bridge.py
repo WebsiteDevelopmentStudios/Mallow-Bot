@@ -122,7 +122,7 @@ class MallowCordBridge:
                 for channel in guild.text_channels
             ]
             roles = [
-                {"id": str(role.id), "name": role.name, "position": role.position}
+                {"id": str(role.id), "name": role.name, "position": role.position, "color": f"#{role.color.value:06x}"}
                 for role in guild.roles if not role.is_default() and not role.managed
             ]
             result = await self._request("POST", "/integrations/mallowbot/discord/sync", {
@@ -157,7 +157,7 @@ class MallowCordBridge:
                         "status": str(member.status),
                         "bot": False,
                     })
-                    if len(members) >= 200:
+                    if len(members) >= 25:
                         await self._request("POST", "/integrations/mallowbot/discord/sync", {
                             "guild_id": str(guild.id), "channels": [], "roles": [], "members": members,
                         })
@@ -169,8 +169,7 @@ class MallowCordBridge:
                 log.info("MallowCord member directory synchronized.")
             except Exception as exc:
                 log.warning(
-                    "Could not import the full Discord member list. Enable the Server Members Intent "
-                    "for the bot application and check its guild permissions: %s", exc,
+                    "Could not import the full Discord member list; the member sync batch failed: %s", exc,
                 )
 
             # Import the most recent history once per channel. Message IDs are deduplicated by the Worker.
