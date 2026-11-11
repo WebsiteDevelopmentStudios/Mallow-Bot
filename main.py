@@ -2821,9 +2821,9 @@ async def post_updates(channel) -> int:
 async def on_message(message: discord.Message) -> None:
     if message.author.bot:
         return
+    if await mallowcord_bridge.handle_link_command(message):
+        return
     if message.guild is not None and message.guild.id == mallowcord_bridge.GUILD_ID:
-        if await mallowcord_bridge.handle_link_command(message):
-            return
         await mallowcord_bridge.handle_discord_message(message)
     if await is_bot_access_banned(message.author.id):
         cfg_prefix = "-mb"
