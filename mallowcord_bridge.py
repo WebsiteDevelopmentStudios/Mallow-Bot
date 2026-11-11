@@ -24,7 +24,7 @@ log = logging.getLogger("mallowcord-bridge")
 API_BASE = os.getenv("MALLOWCORD_API_URL", "https://mallowcord-api.wowgrayhaha.workers.dev/api").rstrip("/")
 SERVICE_KEY = os.getenv("MALLOWCORD_SERVICE_KEY", "").strip()
 GUILD_ID = int((os.getenv("MALLOWCORD_DISCORD_GUILD_ID", "1560367587542433812").strip() or "1560367587542433812"))
-HISTORY_LIMIT = max(0, min(100, int(os.getenv("MALLOWCORD_HISTORY_LIMIT", "50"))))
+HISTORY_LIMIT = max(0, min(1000000, int(os.getenv("MALLOWCORD_HISTORY_LIMIT", "0"))))  # 0 imports the full available channel history
 POLL_SECONDS = max(2, int(os.getenv("MALLOWCORD_OUTBOX_POLL_SECONDS", "3")))
 
 
@@ -111,26 +111,77 @@ class MallowCordBridge:
                     log.error("Cannot access configured MallowCord Discord guild %s: %s", GUILD_ID, exc)
                     return
 
-            # Text and announcement channels are mirrored; voice channels remain Discord-only.
-            channels = [
-                {
+            # Mirror every supported guild channel and its Discord metadata.
+            categories = [
+                {"id": str(category.id), "name": category.name, "position": category.position}
+                for category in guild.categories
+            ]
+            channels: list[dict[str, Any]] = []
+            for channel in guild.channels:
+                if isinstance(channel, discord.CategoryChannel):
+                    continue
+                kind = "voice" if channel.type in {discord.ChannelType.voice, discord.ChannelType.stage_voice} else "text"
+                overwrites: list[dict[str, Any]] = []
+                for target, overwrite in channel.overwrites.items():
+                    allow: list[str] = []
+                    deny: list[str] = []
+                    for permission, value in overwrite:
+                        if value is True:
+                            allow.append(permission)
+                        elif value is False:
+                            deny.append(permission)
+                    overwrites.append({
+                        "target_type": "role" if isinstance(target, discord.Role) else "user",
+                        "target_discord_id": str(target.id),
+                        "target_name": getattr(target, "name", getattr(target, "display_name", str(target))),
+                        "allow": allow,
+                        "deny": deny,
+                    })
+                channels.append({
                     "id": str(channel.id),
                     "name": channel.name,
-                    "position": channel.position,
-                    "category": channel.category.name if channel.category else "",
-                }
-                for channel in guild.text_channels
-            ]
+                    "position": getattr(channel, "position", 0),
+                    "kind": kind,
+                    "discord_type": int(channel.type.value),
+                    "category_id": str(channel.category_id) if getattr(channel, "category_id", None) else None,
+                    "category_name": channel.category.name if getattr(channel, "category", None) else "",
+                    "topic": getattr(channel, "topic", None) or "",
+                    "nsfw": bool(getattr(channel, "nsfw", False)),
+                    "slowmode": int(getattr(channel, "slowmode_delay", 0) or 0),
+                    "permission_overwrites": overwrites,
+                })
             roles = [
-                {"id": str(role.id), "name": role.name, "position": role.position}
-                for role in guild.roles if not role.is_default() and not role.managed
+                {
+                    "id": str(role.id),
+                    "name": role.name,
+                    "position": role.position,
+                    "color": f"#{role.color.value:06x}" if role.color.value else "",
+                    "permissions": str(role.permissions.value),
+                    "hoist": role.hoist,
+                    "mentionable": role.mentionable,
+                    "managed": role.managed,
+                }
+                for role in guild.roles if not role.is_default()
+            ]
+            emojis = [
+                {
+                    "id": str(emoji.id),
+                    "name": emoji.name,
+                    "image_url": str(emoji.url),
+                    "animated": emoji.animated,
+                    "available": emoji.available,
+                    "roles": [str(role.id) for role in emoji.roles],
+                }
+                for emoji in guild.emojis
             ]
             result = await self._request("POST", "/integrations/mallowbot/discord/sync", {
                 "guild_id": str(guild.id),
                 "guild_name": guild.name,
                 "icon_url": str(guild.icon.url) if guild.icon else None,
+                "categories": categories,
                 "channels": channels,
                 "roles": roles,
+                "emojis": emojis,
                 "members": [],
             })
             log.info(
@@ -173,15 +224,21 @@ class MallowCordBridge:
                     "for the bot application and check its guild permissions: %s", exc,
                 )
 
-            # Import the most recent history once per channel. Message IDs are deduplicated by the Worker.
-            if HISTORY_LIMIT:
-                for channel in guild.text_channels:
-                    try:
-                        history = [message async for message in channel.history(limit=HISTORY_LIMIT)]
-                        for message in reversed(history):
-                            await self.handle_discord_message(message)
-                    except (discord.Forbidden, discord.HTTPException) as exc:
-                        log.warning("Could not import history for #%s: %s", channel.name, exc)
+            # Import as much available text-channel history as configured (0 = unlimited).
+            for channel in guild.text_channels:
+                try:
+                    batch: list[discord.Message] = []
+                    async for message in channel.history(limit=HISTORY_LIMIT or None, oldest_first=True):
+                        if message.author.bot or message.webhook_id is not None:
+                            continue
+                        batch.append(message)
+                        if len(batch) >= 20:
+                            await asyncio.gather(*(self.handle_discord_message(item) for item in batch))
+                            batch.clear()
+                    if batch:
+                        await asyncio.gather(*(self.handle_discord_message(item) for item in batch))
+                except (discord.Forbidden, discord.HTTPException) as exc:
+                    log.warning("Could not import history for #%s: %s", channel.name, exc)
             log.info("MallowCord Discord bridge initialized for guild %s (%s).", guild.name, guild.id)
 
     async def handle_discord_message(self, message: discord.Message) -> None:
