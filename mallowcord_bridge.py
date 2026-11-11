@@ -535,10 +535,9 @@ class MallowCordBridge:
                     def is_done(self) -> bool:
                         return self.done
                     async def defer(self, **kwargs: Any) -> None:
-                        nonlocal_private = kwargs.get("ephemeral")
-                        if nonlocal_private:
-                            # Defer ephemerally so follow-up output remains private.
-                            pass
+                        nonlocal private_output
+                        if kwargs.get("ephemeral"):
+                            private_output = True
                         self.done = True
                     async def send_message(self, content: Any = None, **kwargs: Any) -> Any:
                         self.done = True
