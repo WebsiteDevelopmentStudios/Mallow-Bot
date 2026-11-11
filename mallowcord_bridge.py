@@ -171,37 +171,37 @@ class MallowCordBridge:
 
             if not self._members_synced:
                 try:
-                # Fetch every human member and send batches concurrently. A failed batch
-                # aborts this pass so the retry loop can safely resume (the API upserts).
-                member_batches: list[list[dict[str, Any]]] = []
-                batch: list[dict[str, Any]] = []
-                async for member in guild.fetch_members(limit=None):
-                    if member.bot:
-                        continue
-                    batch.append({
-                        "id": str(member.id),
-                        "username": member.name,
-                        "display_name": member.display_name,
-                        "avatar_url": str(member.display_avatar.url),
-                        "roles": [str(role.id) for role in member.roles if not role.is_default()],
-                        "status": "offline" if str(member.status) == "offline" else "online",
-                        "bot": False,
-                    })
-                    if len(batch) >= 100:
-                        member_batches.append(batch)
-                        batch = []
-                if batch:
-                    member_batches.append(batch)
-    
-                member_sem = asyncio.Semaphore(5)
-                async def send_member_batch(items: list[dict[str, Any]]) -> None:
-                    async with member_sem:
-                        await self._request("POST", "/integrations/mallowbot/discord/sync", {
-                            "guild_id": str(guild.id), "channels": [], "roles": [], "members": items,
+                    # Fetch every human member and send batches concurrently. A failed batch
+                    # aborts this pass so the retry loop can safely resume (the API upserts).
+                    member_batches: list[list[dict[str, Any]]] = []
+                    batch: list[dict[str, Any]] = []
+                    async for member in guild.fetch_members(limit=None):
+                        if member.bot:
+                            continue
+                        batch.append({
+                            "id": str(member.id),
+                            "username": member.name,
+                            "display_name": member.display_name,
+                            "avatar_url": str(member.display_avatar.url),
+                            "roles": [str(role.id) for role in member.roles if not role.is_default()],
+                            "status": "offline" if str(member.status) == "offline" else "online",
+                            "bot": False,
                         })
-                await asyncio.gather(*(send_member_batch(items) for items in member_batches))
-                log.info("MallowCord member directory synchronized: %s members in %s batches.",
-                         sum(map(len, member_batches)), len(member_batches))
+                        if len(batch) >= 100:
+                            member_batches.append(batch)
+                            batch = []
+                    if batch:
+                        member_batches.append(batch)
+        
+                    member_sem = asyncio.Semaphore(5)
+                    async def send_member_batch(items: list[dict[str, Any]]) -> None:
+                        async with member_sem:
+                            await self._request("POST", "/integrations/mallowbot/discord/sync", {
+                                "guild_id": str(guild.id), "channels": [], "roles": [], "members": items,
+                            })
+                    await asyncio.gather(*(send_member_batch(items) for items in member_batches))
+                    log.info("MallowCord member directory synchronized: %s members in %s batches.",
+                             sum(map(len, member_batches)), len(member_batches))
     
     
                     self._members_synced = True
