@@ -2214,6 +2214,11 @@ class MallowBot(commands.Bot):
 
 bot = MallowBot(command_prefix=commands.when_mentioned, intents=intents)
 
+@bot.tree.command(name="mallowcord", description="Run a Mallow-Bot command with your Discord permissions")
+@app_commands.describe(command="Command and arguments, for example: help or purge 5")
+async def mallowcord_slash(interaction: discord.Interaction, command: str) -> None:
+    await mallowcord_bridge.dispatch_slash(interaction, command)
+
 # Register optional community features before the global slash-command sync.
 from community_features import process_message as process_community_message, setup as setup_community_features
 setup_community_features(bot)
@@ -2816,6 +2821,8 @@ async def post_updates(channel) -> int:
 async def on_message(message: discord.Message) -> None:
     if message.author.bot:
         return
+    if await mallowcord_bridge.handle_link_command(message):
+        return
     if message.guild is not None and message.guild.id == mallowcord_bridge.GUILD_ID:
         await mallowcord_bridge.handle_discord_message(message)
     if await is_bot_access_banned(message.author.id):
@@ -2834,7 +2841,8 @@ async def on_message(message: discord.Message) -> None:
         return
     # Run dashboard-configured auto replies, XP, moderation and social handlers
     # before the legacy prefix-command dispatcher returns for ordinary messages.
-    await process_community_message(bot, message)
+    if not getattr(message, "_mallowcord_proxy", False):
+        await process_community_message(bot, message)
     guild_id = message.guild.id
     dashboard_config = await get_guild_config(guild_id)
     prefix = dashboard_config.get("prefix", "-mb")
