@@ -164,6 +164,64 @@ class MallowCordBridge:
                     },
                     "permission_overwrites": overwrites,
                 })
+            # Import active and accessible archived threads as individual text rooms.
+            thread_channels: dict[int, discord.Thread] = {thread.id: thread for thread in guild.threads}
+            for parent in guild.channels:
+                archived_threads = getattr(parent, "archived_threads", None)
+                if archived_threads is None:
+                    continue
+                try:
+                    async for thread in archived_threads(limit=None, private=False):
+                        thread_channels[thread.id] = thread
+                except (discord.Forbidden, discord.HTTPException) as exc:
+                    log.debug("Could not enumerate public archived threads for %s: %s", parent.name, exc)
+                if guild.me and guild.me.guild_permissions.manage_threads:
+                    try:
+                        async for thread in archived_threads(limit=None, private=True):
+                            thread_channels[thread.id] = thread
+                    except (discord.Forbidden, discord.HTTPException) as exc:
+                        log.debug("Could not enumerate private archived threads for %s: %s", parent.name, exc)
+            for thread in thread_channels.values():
+                parent = thread.parent or guild.get_channel(thread.parent_id)
+                if parent is None:
+                    continue
+                inherited_overwrites: list[dict[str, Any]] = []
+                for target, overwrite in parent.overwrites.items():
+                    allow: list[str] = []
+                    deny: list[str] = []
+                    for permission, value in overwrite:
+                        if value is True:
+                            allow.append(permission)
+                        elif value is False:
+                            deny.append(permission)
+                    inherited_overwrites.append({
+                        "target_type": "role" if isinstance(target, discord.Role) else "user",
+                        "target_discord_id": str(target.id),
+                        "target_name": "@everyone" if isinstance(target, discord.Role) and target.is_default() else getattr(target, "name", getattr(target, "display_name", str(target))),
+                        "allow": allow,
+                        "deny": deny,
+                    })
+                channels.append({
+                    "id": str(thread.id),
+                    "name": "thread-" + thread.name,
+                    "position": getattr(parent, "position", 0),
+                    "kind": "text",
+                    "discord_type": int(thread.type.value),
+                    "category_id": str(parent.category_id) if getattr(parent, "category_id", None) else None,
+                    "category_name": parent.category.name if getattr(parent, "category", None) else "",
+                    "topic": ("Thread in #" + parent.name)[:1024],
+                    "nsfw": bool(getattr(parent, "nsfw", False)),
+                    "slowmode": int(getattr(thread, "slowmode_delay", 0) or 0),
+                    "extra_settings": {
+                        "thread": True,
+                        "parent_channel_id": str(parent.id),
+                        "archived": bool(thread.archived),
+                        "locked": bool(thread.locked),
+                        "auto_archive_duration": int(thread.auto_archive_duration),
+                        "owner_id": str(thread.owner_id) if thread.owner_id else None,
+                    },
+                    "permission_overwrites": inherited_overwrites,
+                })
             roles = [
                 {
                     "id": str(role.id),
@@ -241,7 +299,13 @@ class MallowCordBridge:
                 )
 
             # Import as much available text-channel history as configured (0 = unlimited).
-            for channel in guild.text_channels:
+            channel_ids = {str(item["id"]) for item in channels[:1000]}
+            history_channels = list(guild.text_channels) + [
+                thread for thread in thread_channels.values() if str(thread.id) in channel_ids
+            ]
+            for channel in history_channels:
+                if str(channel.id) not in channel_ids:
+                    continue
                 try:
                     batch: list[discord.Message] = []
                     async for message in channel.history(limit=HISTORY_LIMIT or None, oldest_first=True):
