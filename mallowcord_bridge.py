@@ -30,6 +30,7 @@ SERVICE_KEY = os.getenv("MALLOWCORD_SERVICE_KEY", "").strip()
 GUILD_ID = int((os.getenv("MALLOWCORD_DISCORD_GUILD_ID", "1560367587542433812").strip() or "1560367587542433812"))
 HISTORY_LIMIT = max(-1, min(1000000, int(os.getenv("MALLOWCORD_HISTORY_LIMIT", "0"))))
 POLL_SECONDS = max(8, int(os.getenv("MALLOWCORD_OUTBOX_POLL_SECONDS", "8")))
+SNAPSHOT_SCAN_SECONDS = max(60, int(os.getenv("MALLOWCORD_SNAPSHOT_SCAN_SECONDS", "300")))
 
 
 class MallowCordBridge:
@@ -47,7 +48,11 @@ class MallowCordBridge:
         self.sync_task: asyncio.Task | None = None
         self._members_synced = False
         self._history_synced = False
-        # Coalesce rapid Discord presence events and flush them as one D1 batch.
+        # Fingerprints live in the bot process: unchanged Discord snapshots never
+        # reach the database. A restart intentionally performs one recovery sync.
+        self._snapshot_hashes: dict[str, str] = {}
+        self._presence_last_sent: dict[str, str] = {}
+        # Coalesce rapid Discord presence events and flush them as one batch.
         self._presence_pending: dict[str, str] = {}
         self._presence_lock = asyncio.Lock()
         self.presence_task: asyncio.Task | None = None
@@ -135,6 +140,18 @@ class MallowCordBridge:
         # have also been migrated.
         return await self._request("POST", path, payload, base_url=D1_API_BASE or API_BASE)
 
+    async def _sync_snapshot_request(
+        self, path: str, payload: dict[str, Any], snapshot_key: str
+    ) -> dict[str, Any]:
+        fingerprinted = self._with_snapshot_fingerprint(payload, snapshot_key)
+        digest = str(fingerprinted["snapshot_hash"])
+        if self._snapshot_hashes.get(snapshot_key) == digest:
+            return {"ok": True, "unchanged": True, "skipped": True}
+        result = await self._sync_request(path, fingerprinted)
+        # Only remember acknowledged snapshots. Failed requests remain retryable.
+        self._snapshot_hashes[snapshot_key] = digest
+        return result
+
     async def _send_rust_event(self, event_type: str, payload: dict[str, Any]) -> bool:
         if not self.rust_events.enabled:
             return False
@@ -178,6 +195,19 @@ class MallowCordBridge:
                 log.exception("MallowCord import did not finish; retrying in %s seconds.", delay)
                 await asyncio.sleep(delay)
                 delay = min(delay * 2, 60)
+
+        # Discord gateway events handle changes immediately. This bounded full
+        # scan is a recovery check; fingerprints ensure an unchanged scan sends
+        # no snapshot requests and therefore performs no D1 reads or writes.
+        while self.enabled:
+            try:
+                await asyncio.sleep(SNAPSHOT_SCAN_SECONDS)
+                await self.sync_guild()
+                log.debug("Discord snapshot scan completed; unchanged snapshots were skipped.")
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                log.exception("MallowCord snapshot scan failed; the next scan will retry.")
 
     @staticmethod
     def _with_snapshot_fingerprint(payload: dict[str, Any], snapshot_key: str) -> dict[str, Any]:
@@ -239,17 +269,17 @@ class MallowCordBridge:
                     for emoji in guild.emojis
                 ],
             }
-            result = await self._sync_request(
+            result = await self._sync_snapshot_request(
                 "/api/integrations/mallowbot/discord/sync" if D1_API_BASE else "/integrations/mallowbot/discord/sync",
-                self._with_snapshot_fingerprint(structure_payload, "structure-v1"),
+                structure_payload,
+                "structure-v1",
             )
             log.info(
                 "MallowCord Discord structure sync completed: %s channels, %s roles.",
                 result.get("channels", len(channels)), result.get("roles", len(roles)),
             )
 
-            if not self._members_synced:
-                try:
+            try:
                     # Chunk gateway members (including their presence state) and send batches concurrently. A failed batch
                     # aborts this pass so the retry loop can safely resume (the API upserts).
                     member_records: list[dict[str, Any]] = []
@@ -278,9 +308,10 @@ class MallowCordBridge:
                             member_payload = {
                                 "guild_id": str(guild.id), "channels": [], "roles": [], "members": items,
                             }
-                            await self._sync_request(
+                            await self._sync_snapshot_request(
                                 "/api/integrations/mallowbot/discord/sync" if D1_API_BASE else "/integrations/mallowbot/discord/sync",
-                                self._with_snapshot_fingerprint(member_payload, f"members-v1-{index}"),
+                                member_payload,
+                                f"members-v1-{index}",
                             )
                     await asyncio.gather(*(
                         send_member_batch(index, items)
@@ -290,9 +321,10 @@ class MallowCordBridge:
                              sum(map(len, member_batches)), len(member_batches))
     
     
-                    self._members_synced = True
-                except Exception as exc:
-                    log.warning("MallowCord member import is not complete yet: %s", exc)
+                self._members_synced = True
+            except Exception as exc:
+                log.warning("MallowCord member import is not complete yet: %s", exc)
+                raise
 
             # Refresh the complete cached gateway presence snapshot on every
             # sync pass. This repairs stale DND/offline values after bot restarts
@@ -301,8 +333,10 @@ class MallowCordBridge:
                 current_status = str(cached_member.status)
                 if current_status not in {"online", "idle", "dnd"}:
                     current_status = "offline"
-                async with self._presence_lock:
-                    self._presence_pending[str(cached_member.id)] = current_status
+                discord_user_id = str(cached_member.id)
+                if self._presence_last_sent.get(discord_user_id) != current_status:
+                    async with self._presence_lock:
+                        self._presence_pending[discord_user_id] = current_status
             try:
                 await self._flush_presence_batch()
             except Exception as exc:
@@ -319,9 +353,10 @@ class MallowCordBridge:
                     "everyone_role_id": str(guild.default_role.id),
                     "emojis": [],
                 }
-                await self._sync_request(
+                await self._sync_snapshot_request(
                     "/api/integrations/mallowbot/discord/sync" if D1_API_BASE else "/integrations/mallowbot/discord/sync",
-                    self._with_snapshot_fingerprint(permission_payload, "permissions-v1"),
+                    permission_payload,
+                    "permissions-v1",
                 )
             except Exception as exc:
                 log.warning("Could not apply Discord channel permission overwrites: %s", exc)
@@ -553,6 +588,7 @@ class MallowCordBridge:
                 for user_id, status in batch.items():
                     self._presence_pending.setdefault(user_id, status)
             raise RuntimeError("; ".join(errors) or "No presence destination accepted the batch")
+        self._presence_last_sent.update(batch)
         return total_updated
 
     async def _presence_flush_loop(self) -> None:
