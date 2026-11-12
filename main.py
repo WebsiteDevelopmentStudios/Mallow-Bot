@@ -2445,7 +2445,9 @@ def _banned_guild_ids() -> set[int]:
 
 @bot.event
 async def on_presence_update(before: discord.Member, after: discord.Member) -> None:
-    if after.guild.id == mallowcord_bridge.GUILD_ID:
+    # Discord can emit duplicate presence events; do not spend a D1 write when
+    # the status did not actually change.
+    if after.guild.id == mallowcord_bridge.GUILD_ID and before.status != after.status:
         asyncio.create_task(mallowcord_bridge.handle_presence_update(after), name="mallowcord-presence-update")
 
 
