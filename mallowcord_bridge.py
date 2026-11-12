@@ -477,6 +477,24 @@ class MallowCordBridge:
         status = str(member.status)
         if status not in {"online", "idle", "dnd"}:
             status = "offline"
+        if not D1_API_BASE:
+            # Preserve the compatibility Worker/event path until the Rust
+            # D1 endpoint is explicitly configured on the bot host.
+            payload = {
+                "guild_id": str(member.guild.id),
+                "user_id": str(member.id),
+                "status": status,
+            }
+            if await self._send_rust_event("discord.presence.updated", payload):
+                return
+            try:
+                await self._request(
+                    "POST", "/integrations/mallowbot/discord/presence",
+                    payload, base_url=API_BASE,
+                )
+            except Exception as exc:
+                log.warning("Could not synchronize Discord presence for %s: %s", member.id, exc)
+            return
         # Keep only the newest state per Discord user; transient intermediate
         # statuses are not useful to persist and would waste D1 writes.
         async with self._presence_lock:
