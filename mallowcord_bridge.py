@@ -621,7 +621,6 @@ class MallowCordBridge:
                     D1_API_BASE, "/api/integrations/mallowbot/discord/presence/batch"
                 )
                 result = await self._request("POST", route, payload, base_url=D1_API_BASE)
-                succeeded = True
                 total_updated += int(result.get("updated", 0))
             except Exception as exc:
                 errors.append(f"Rust D1 batch: {exc}")
@@ -630,6 +629,7 @@ class MallowCordBridge:
         # The live website reads the production Worker database. Send each
         # changed status through its known, authenticated single-user endpoint.
         live_updated = 0
+        live_successful_ids: list[str] = []
         live_errors = []
         single_route = self._api_route_for_base(
             API_BASE, "/api/integrations/mallowbot/discord/presence"
@@ -648,7 +648,8 @@ class MallowCordBridge:
                 )
                 if result.get("ok", True):
                     live_updated += 1
-                succeeded = True
+                    live_successful_ids.append(update["user_id"])
+                    succeeded = True
             except Exception as exc:
                 live_errors.append(f"{update['user_id']}: {exc}")
         if live_errors:
@@ -665,12 +666,18 @@ class MallowCordBridge:
             )
         total_updated += live_updated
 
-        if not succeeded:
-            async with self._presence_lock:
-                for user_id, status in batch.items():
+        # A successful Rust write does not mean the live website was updated.
+        # Acknowledge only records accepted by the production Worker and retry
+        # failed IDs on the next flush.
+        async with self._presence_lock:
+            for user_id, status in batch.items():
+                if user_id not in live_successful_ids:
                     self._presence_pending.setdefault(user_id, status)
-            raise RuntimeError("; ".join(errors) or "No presence destination accepted the batch")
-        self._presence_last_sent.update(batch)
+        self._presence_last_sent.update({
+            user_id: batch[user_id] for user_id in live_successful_ids
+        })
+        if not succeeded:
+            raise RuntimeError("; ".join(errors) or "Production Worker accepted no presence updates")
         return total_updated
 
     async def _presence_flush_loop(self) -> None:
