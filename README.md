@@ -234,11 +234,11 @@ Configure these environment variables on the **actual Mallow-Bot runtime**:
 - `MALLOWCORD_HISTORY_LIMIT=50` (optional)
 - `MALLOWCORD_OUTBOX_POLL_SECONDS=3` (optional)
 
-For staged Rust event-ingestion testing, also configure these two optional values on the bot runtime:
+To send Discord data directly to the Rust/WASM Cloudflare Worker backed by the existing D1 database, set this optional variable on the bot runtime after that Worker has been deployed and its secret configured:
 
-- `MALLOWCORD_RUST_API_URL`: private Rust backend origin, for example `https://your-rust-service.example` (do not include `/api`).
-- `MALLOWCORD_INTERNAL_EVENT_SECRET`: the same private 32+ byte secret configured as `MALLOWCORD_INTERNAL_EVENT_SECRET` on the Rust service.
+- `MALLOWCORD_D1_API_URL`: the Rust Worker origin only, for example `https://mallowcord-rust-d1-staging.<your-subdomain>.workers.dev`. Do not append `/api`.
+- The Worker must have `MALLOWBOT_SERVICE_KEY` set to the exact same value as the bot's `MALLOWCORD_SERVICE_KEY`.
 
-When both are configured, new Discord messages, member joins/updates, and presence changes are signed and queued in Rust's PostgreSQL event inbox. If the Rust endpoint is unavailable, the bot falls back to the existing Worker API. Initial history backfill deliberately stays on the existing API so it does not flood the event queue. Leave these values unset to keep the current Worker-only behavior.
+With `MALLOWCORD_D1_API_URL` set, guild/channel/role/member/permission/emoji sync, live Discord messages, and presence updates go to the Rust D1 Worker. Initial history is sent in batches of up to 100 messages to its batch endpoint, reducing HTTP requests and D1 lookup work. The outbox, MallowCord-to-Discord delivery, account linking, and command queue remain on `MALLOWCORD_API_URL` until those routes are migrated. Leave `MALLOWCORD_D1_API_URL` empty until the Rust Worker is deployed and passes its health/ready checks; the existing Worker remains the default.
 
 The bot needs the Server Members Intent, Presence Intent, and Message Content Intent enabled in the Discord Developer Portal. It also needs View Channel, Read Message History, Send Messages, and Manage Webhooks in the mirrored channels. Manage Webhooks lets MallowCord messages appear with the original MallowCord username and profile picture; without it, the bridge falls back to a bot-authored `username: message` format.
