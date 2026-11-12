@@ -47,6 +47,10 @@ class MallowCordBridge:
         self.sync_task: asyncio.Task | None = None
         self._members_synced = False
         self._history_synced = False
+        # Coalesce rapid Discord presence events and flush them as one D1 batch.
+        self._presence_pending: dict[str, str] = {}
+        self._presence_lock = asyncio.Lock()
+        self.presence_task: asyncio.Task | None = None
 
     @property
     def enabled(self) -> bool:
@@ -151,6 +155,10 @@ class MallowCordBridge:
             return
         if self.poll_task is None or self.poll_task.done():
             self.poll_task = asyncio.create_task(self._poll_loop(), name="mallowcord-discord-outbox")
+        if self.presence_task is None or self.presence_task.done():
+            self.presence_task = asyncio.create_task(
+                self._presence_flush_loop(), name="mallowcord-presence-batcher"
+            )
         if not self._synced and (self.sync_task is None or self.sync_task.done()):
             # Keep the Discord ready handler responsive while the initial import runs.
             self.sync_task = asyncio.create_task(
@@ -466,17 +474,54 @@ class MallowCordBridge:
     async def handle_presence_update(self, member: discord.Member) -> None:
         if not self.enabled or member.guild.id != GUILD_ID or member.bot:
             return
-        payload = {
-            "guild_id": str(member.guild.id),
-            "user_id": str(member.id),
-            "status": str(member.status) if str(member.status) in {"online", "idle", "dnd"} else "offline",
-        }
-        if not D1_API_BASE and await self._send_rust_event("discord.presence.updated", payload):
-            return
+        status = str(member.status)
+        if status not in {"online", "idle", "dnd"}:
+            status = "offline"
+        # Keep only the newest state per Discord user; transient intermediate
+        # statuses are not useful to persist and would waste D1 writes.
+        async with self._presence_lock:
+            self._presence_pending[str(member.id)] = status
+
+    async def _flush_presence_batch(self) -> int:
+        if not D1_API_BASE:
+            return 0
+        async with self._presence_lock:
+            if not self._presence_pending:
+                return 0
+            batch = self._presence_pending
+            self._presence_pending = {}
+        updates = [
+            {"user_id": user_id, "status": status}
+            for user_id, status in batch.items()
+        ]
         try:
-            await self._request("POST", "/api/integrations/mallowbot/discord/presence" if D1_API_BASE else "/integrations/mallowbot/discord/presence", payload, base_url=D1_API_BASE or API_BASE)
-        except Exception as exc:
-            log.warning("Could not synchronize Discord presence for %s: %s", member.id, exc)
+            result = await self._request(
+                "POST",
+                "/api/integrations/mallowbot/discord/presence/batch",
+                {"guild_id": str(GUILD_ID), "updates": updates},
+                base_url=D1_API_BASE,
+            )
+            return int(result.get("updated", 0))
+        except Exception:
+            # Retry failed values, but never overwrite a newer event received
+            # while the HTTP request was in flight.
+            async with self._presence_lock:
+                for user_id, status in batch.items():
+                    self._presence_pending.setdefault(user_id, status)
+            raise
+
+    async def _presence_flush_loop(self) -> None:
+        while True:
+            try:
+                await asyncio.sleep(4)
+                count = await self._flush_presence_batch()
+                if count:
+                    log.debug("Flushed %s changed Discord presence records to MallowCord.", count)
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                log.warning("Could not flush MallowCord presence batch: %s", exc)
+                await asyncio.sleep(2)
 
     async def _get_webhook(self, channel: discord.TextChannel) -> discord.Webhook | None:
         cached = self.webhooks.get(channel.id)
@@ -707,6 +752,18 @@ class MallowCordBridge:
             await asyncio.sleep(POLL_SECONDS)
 
     async def close(self) -> None:
+        if self.presence_task:
+            self.presence_task.cancel()
+            try:
+                await self.presence_task
+            except asyncio.CancelledError:
+                pass
+            self.presence_task = None
+        if D1_API_BASE:
+            try:
+                await self._flush_presence_batch()
+            except Exception as exc:
+                log.warning("Final MallowCord presence flush failed; pending states will be refreshed after restart: %s", exc)
         if self.poll_task:
             self.poll_task.cancel()
             try:
