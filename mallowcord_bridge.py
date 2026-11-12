@@ -211,10 +211,19 @@ class MallowCordBridge:
 
     @staticmethod
     def _with_snapshot_fingerprint(payload: dict[str, Any], snapshot_key: str) -> dict[str, Any]:
-        # Hash the canonical payload in the bot so the Worker can skip entire
-        # unchanged snapshots with one indexed D1 read and zero row writes.
+        # Presence has its own delta path. Excluding it from member-directory
+        # fingerprints prevents a status change from rewriting the whole batch.
+        fingerprint_payload = payload
+        if snapshot_key.startswith("members-v1-"):
+            fingerprint_payload = {
+                **payload,
+                "members": [
+                    {key: value for key, value in member.items() if key != "status"}
+                    for member in payload.get("members", [])
+                ],
+            }
         canonical = json.dumps(
-            payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+            fingerprint_payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
         ).encode("utf-8")
         payload["snapshot_key"] = snapshot_key
         payload["snapshot_hash"] = hashlib.sha256(canonical).hexdigest()
@@ -280,47 +289,47 @@ class MallowCordBridge:
             )
 
             try:
-                    # Chunk gateway members (including their presence state) and send batches concurrently. A failed batch
-                    # aborts this pass so the retry loop can safely resume (the API upserts).
-                    member_records: list[dict[str, Any]] = []
-                    await guild.chunk(cache=True)
-                    for member in guild.members:
-                        member_records.append({
-                            "id": str(member.id),
-                            "username": member.name,
-                            "display_name": member.display_name,
-                            "avatar_url": str(member.display_avatar.url),
-                            "roles": [str(role.id) for role in member.roles if not role.is_default()],
-                            "status": str(member.status) if str(member.status) in {"online", "idle", "dnd", "offline"} else "offline",
-                            "bot": bool(member.bot),
-                        })
+                # Chunk gateway members (including their presence state) and send batches concurrently. A failed batch
+                # aborts this pass so the retry loop can safely resume (the API upserts).
+                member_records: list[dict[str, Any]] = []
+                await guild.chunk(cache=True)
+                for member in guild.members:
+                    member_records.append({
+                        "id": str(member.id),
+                        "username": member.name,
+                        "display_name": member.display_name,
+                        "avatar_url": str(member.display_avatar.url),
+                        "roles": [str(role.id) for role in member.roles if not role.is_default()],
+                        "status": str(member.status) if str(member.status) in {"online", "idle", "dnd", "offline"} else "offline",
+                        "bot": bool(member.bot),
+                    })
 
-                    # Stable ordering keeps the same users in each 100-member batch
-                    # across restarts, so one changed member only invalidates one batch.
-                    member_records.sort(key=lambda item: int(item["id"]))
-                    member_batches = [
-                        member_records[index:index + 100]
-                        for index in range(0, len(member_records), 100)
-                    ]
-                    member_sem = asyncio.Semaphore(5)
-                    async def send_member_batch(index: int, items: list[dict[str, Any]]) -> None:
-                        async with member_sem:
-                            member_payload = {
-                                "guild_id": str(guild.id), "channels": [], "roles": [], "members": items,
-                            }
-                            await self._sync_snapshot_request(
-                                "/api/integrations/mallowbot/discord/sync" if D1_API_BASE else "/integrations/mallowbot/discord/sync",
-                                member_payload,
-                                f"members-v1-{index}",
-                            )
-                    await asyncio.gather(*(
-                        send_member_batch(index, items)
-                        for index, items in enumerate(member_batches)
-                    ))
-                    log.info("MallowCord member directory synchronized: %s members in %s batches.",
-                             sum(map(len, member_batches)), len(member_batches))
-    
-    
+                # Stable ordering keeps the same users in each 100-member batch
+                # across restarts, so one changed member only invalidates one batch.
+                member_records.sort(key=lambda item: int(item["id"]))
+                member_batches = [
+                    member_records[index:index + 100]
+                    for index in range(0, len(member_records), 100)
+                ]
+                member_sem = asyncio.Semaphore(5)
+                async def send_member_batch(index: int, items: list[dict[str, Any]]) -> None:
+                    async with member_sem:
+                        member_payload = {
+                            "guild_id": str(guild.id), "channels": [], "roles": [], "members": items,
+                        }
+                        await self._sync_snapshot_request(
+                            "/api/integrations/mallowbot/discord/sync" if D1_API_BASE else "/integrations/mallowbot/discord/sync",
+                            member_payload,
+                            f"members-v1-{index}",
+                        )
+                await asyncio.gather(*(
+                    send_member_batch(index, items)
+                    for index, items in enumerate(member_batches)
+                ))
+                log.info("MallowCord member directory synchronized: %s members in %s batches.",
+                         sum(map(len, member_batches)), len(member_batches))
+
+
                 self._members_synced = True
             except Exception as exc:
                 log.warning("MallowCord member import is not complete yet: %s", exc)
@@ -539,6 +548,7 @@ class MallowCordBridge:
                     "POST", "/integrations/mallowbot/discord/presence",
                     payload, base_url=API_BASE,
                 )
+                self._presence_last_sent[str(member.id)] = status
             except Exception as exc:
                 log.warning("Could not synchronize Discord presence for %s: %s", member.id, exc)
             return
