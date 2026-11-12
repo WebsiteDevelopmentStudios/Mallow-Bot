@@ -74,9 +74,16 @@ class MallowCordBridge:
         for attempt in range(3):
             try:
                 async with session.request(method, request_base + path, json=payload) as response:
-                    data = await response.json(content_type=None)
+                    # Read the body as text first: Cloudflare may return an empty
+                    # or HTML error page when a Worker crashes before producing JSON.
+                    # Preserve that response instead of leaking JSONDecodeError.
+                    raw_body = await response.text()
+                    try:
+                        data = __import__("json").loads(raw_body) if raw_body.strip() else {}
+                    except (ValueError, TypeError):
+                        data = {"error": raw_body[:1000] or "empty response body"}
                     if not isinstance(data, dict):
-                        data = {"error": str(data)[:500]}
+                        data = {"error": str(data)[:1000]}
                     if response.status in {408, 425, 429} or response.status >= 500:
                         if attempt < 2:
                             retry_after = response.headers.get("Retry-After", "")
@@ -85,8 +92,9 @@ class MallowCordBridge:
                             except (TypeError, ValueError):
                                 wait_seconds = min(4.0, 0.5 * (2 ** attempt))
                             log.warning(
-                                "MallowCord API returned HTTP %s for %s; retrying in %.2fs (%s/3).",
+                                "MallowCord API returned HTTP %s for %s; retrying in %.2fs (%s/3). Response: %s",
                                 response.status, path, wait_seconds, attempt + 2,
+                                str(data.get("error") or data.get("detail") or "")[:300],
                             )
                             await asyncio.sleep(wait_seconds)
                             continue
@@ -96,6 +104,14 @@ class MallowCordBridge:
                         if detail:
                             message += f" — {detail}"
                         raise RuntimeError(f"MallowCord API {response.status} on {path}: {message}")
+                    if not raw_body.strip():
+                        raise RuntimeError(
+                            f"MallowCord API returned an empty response on {path} "
+                            f"(HTTP {response.status}, content-type={response.headers.get('Content-Type', 'unknown')}, "
+                            f"url={request_base + path})"
+                        )
+                    if "error" in data and not data.get("ok"):
+                        raise RuntimeError(f"MallowCord API error on {path}: {str(data['error'])[:1000]}")
                     return data
             except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
                 if attempt >= 2:
