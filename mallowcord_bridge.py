@@ -250,7 +250,7 @@ class MallowCordBridge:
 
             if not self._members_synced:
                 try:
-                    # Fetch every human member and send batches concurrently. A failed batch
+                    # Chunk gateway members (including their presence state) and send batches concurrently. A failed batch
                     # aborts this pass so the retry loop can safely resume (the API upserts).
                     member_records: list[dict[str, Any]] = []
                     await guild.chunk(cache=True)
