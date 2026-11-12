@@ -595,11 +595,38 @@ class MallowCordBridge:
         while True:
             try:
                 data = await self._request("GET", "/integrations/mallowbot/discord/outbox")
-                for event in data.get("events", []):
-                    await self._deliver(event)
+                events = data.get("events", [])
+                # Preserve ordering within each Discord channel while allowing
+                # independent channels to drain their outboxes concurrently.
+                channel_events: dict[str, list[dict[str, Any]]] = {}
+                for event in events:
+                    channel_key = str(event.get("discord_channel_id") or "")
+                    channel_events.setdefault(channel_key, []).append(event)
+
+                channel_sem = asyncio.Semaphore(4)
+
+                async def deliver_channel(items: list[dict[str, Any]]) -> None:
+                    async with channel_sem:
+                        for item in items:
+                            await self._deliver(item)
+
+                if channel_events:
+                    await asyncio.gather(
+                        *(deliver_channel(items) for items in channel_events.values())
+                    )
+
                 commands = await self._request("GET", "/integrations/mallowbot/discord/commands/next")
-                for job in commands.get("jobs", []):
-                    await self._run_queued_command(job)
+                jobs = commands.get("jobs", [])
+                if jobs:
+                    # Discord.py applies its own route rate limits; a small
+                    # concurrency cap avoids serial command-job latency.
+                    command_sem = asyncio.Semaphore(3)
+
+                    async def run_command(job: dict[str, Any]) -> None:
+                        async with command_sem:
+                            await self._run_queued_command(job)
+
+                    await asyncio.gather(*(run_command(job) for job in jobs))
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
