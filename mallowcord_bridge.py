@@ -79,6 +79,17 @@ class MallowCordBridge:
             )
         return self.session
 
+    @staticmethod
+    def _api_route_for_base(base_url: str, route: str) -> str:
+        """Keep API routes correct whether the configured base already ends in /api."""
+        route = "/" + route.lstrip("/")
+        base_path = urlsplit(base_url).path.rstrip("/")
+        if route.startswith("/api/") and base_path.endswith("/api"):
+            return route[4:]
+        if not route.startswith("/api/") and not base_path.endswith("/api"):
+            return "/api" + route
+        return route
+
     async def _request(self, method: str, path: str, payload: dict[str, Any] | None = None, *, base_url: str | None = None) -> dict[str, Any]:
         session = await self._http()
         request_base = (base_url or API_BASE).rstrip("/")
@@ -552,10 +563,10 @@ class MallowCordBridge:
                 "status": status,
             }
             try:
-                await self._request(
-                    "POST", "/integrations/mallowbot/discord/presence",
-                    payload, base_url=API_BASE,
+                route = self._api_route_for_base(
+                    API_BASE, "/api/integrations/mallowbot/discord/presence"
                 )
+                await self._request("POST", route, payload, base_url=API_BASE)
                 self._presence_last_sent[str(member.id)] = status
             except Exception as exc:
                 log.warning("Could not synchronize Discord presence for %s: %s", member.id, exc)
@@ -589,11 +600,13 @@ class MallowCordBridge:
         targets.append(("production Worker", API_BASE))
         for label, base_url in targets:
             try:
+                # Both deployments expose the integration under /api. Some
+                # host configs already include /api in the base URL and some do not.
+                route = self._api_route_for_base(
+                    base_url, "/api/integrations/mallowbot/discord/presence/batch"
+                )
                 result = await self._request(
-                    "POST",
-                    "/api/integrations/mallowbot/discord/presence/batch" if label == "Rust D1" else "/integrations/mallowbot/discord/presence/batch",
-                    payload,
-                    base_url=base_url,
+                    "POST", route, payload, base_url=base_url,
                 )
                 succeeded = True
                 total_updated += int(result.get("updated", 0))
