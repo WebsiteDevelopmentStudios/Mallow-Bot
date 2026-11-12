@@ -8,6 +8,8 @@ display name and avatar are preserved.
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 import logging
 import os
 import re
@@ -169,6 +171,17 @@ class MallowCordBridge:
                 await asyncio.sleep(delay)
                 delay = min(delay * 2, 60)
 
+    @staticmethod
+    def _with_snapshot_fingerprint(payload: dict[str, Any], snapshot_key: str) -> dict[str, Any]:
+        # Hash the canonical payload in the bot so the Worker can skip entire
+        # unchanged snapshots with one indexed D1 read and zero row writes.
+        canonical = json.dumps(
+            payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        ).encode("utf-8")
+        payload["snapshot_key"] = snapshot_key
+        payload["snapshot_hash"] = hashlib.sha256(canonical).hexdigest()
+        return payload
+
     async def sync_guild(self) -> None:
         if not self.enabled or self.bot is None:
             return
@@ -205,7 +218,7 @@ class MallowCordBridge:
                 {"id": str(role.id), "name": role.name, "position": role.position, "color": f"#{role.color.value:06x}"}
                 for role in guild.roles if not role.is_default() and not role.managed
             ]
-            result = await self._sync_request("/api/integrations/mallowbot/discord/sync" if D1_API_BASE else "/integrations/mallowbot/discord/sync", {
+            structure_payload = {
                 "guild_id": str(guild.id),
                 "guild_name": guild.name,
                 "icon_url": str(guild.icon.url) if guild.icon else None,
@@ -217,7 +230,11 @@ class MallowCordBridge:
                     {"id": str(emoji.id), "name": emoji.name, "image_url": str(emoji.url)}
                     for emoji in guild.emojis
                 ],
-            })
+            }
+            result = await self._sync_request(
+                "/api/integrations/mallowbot/discord/sync" if D1_API_BASE else "/integrations/mallowbot/discord/sync",
+                self._with_snapshot_fingerprint(structure_payload, "structure-v1"),
+            )
             log.info(
                 "MallowCord Discord structure sync completed: %s channels, %s roles.",
                 result.get("channels", len(channels)), result.get("roles", len(roles)),
@@ -227,12 +244,11 @@ class MallowCordBridge:
                 try:
                     # Fetch every human member and send batches concurrently. A failed batch
                     # aborts this pass so the retry loop can safely resume (the API upserts).
-                    member_batches: list[list[dict[str, Any]]] = []
-                    batch: list[dict[str, Any]] = []
+                    member_records: list[dict[str, Any]] = []
                     async for member in guild.fetch_members(limit=None):
                         if member.bot:
                             continue
-                        batch.append({
+                        member_records.append({
                             "id": str(member.id),
                             "username": member.name,
                             "display_name": member.display_name,
@@ -241,19 +257,28 @@ class MallowCordBridge:
                             "status": "offline" if str(member.status) == "offline" else "online",
                             "bot": False,
                         })
-                        if len(batch) >= 100:
-                            member_batches.append(batch)
-                            batch = []
-                    if batch:
-                        member_batches.append(batch)
-        
+
+                    # Stable ordering keeps the same users in each 100-member batch
+                    # across restarts, so one changed member only invalidates one batch.
+                    member_records.sort(key=lambda item: int(item["id"]))
+                    member_batches = [
+                        member_records[index:index + 100]
+                        for index in range(0, len(member_records), 100)
+                    ]
                     member_sem = asyncio.Semaphore(5)
-                    async def send_member_batch(items: list[dict[str, Any]]) -> None:
+                    async def send_member_batch(index: int, items: list[dict[str, Any]]) -> None:
                         async with member_sem:
-                            await self._sync_request("/api/integrations/mallowbot/discord/sync" if D1_API_BASE else "/integrations/mallowbot/discord/sync", {
+                            member_payload = {
                                 "guild_id": str(guild.id), "channels": [], "roles": [], "members": items,
-                            })
-                    await asyncio.gather(*(send_member_batch(items) for items in member_batches))
+                            }
+                            await self._sync_request(
+                                "/api/integrations/mallowbot/discord/sync" if D1_API_BASE else "/integrations/mallowbot/discord/sync",
+                                self._with_snapshot_fingerprint(member_payload, f"members-v1-{index}"),
+                            )
+                    await asyncio.gather(*(
+                        send_member_batch(index, items)
+                        for index, items in enumerate(member_batches)
+                    ))
                     log.info("MallowCord member directory synchronized: %s members in %s batches.",
                              sum(map(len, member_batches)), len(member_batches))
     
@@ -265,14 +290,18 @@ class MallowCordBridge:
             # Re-send channel overwrites after member batches so user-specific Discord
             # overwrites can resolve to their imported MallowCord shadow accounts.
             try:
-                await self._sync_request("/api/integrations/mallowbot/discord/sync" if D1_API_BASE else "/integrations/mallowbot/discord/sync", {
+                permission_payload = {
                     "guild_id": str(guild.id),
                     "channels": channels,
                     "roles": roles,
                     "members": [],
                     "everyone_role_id": str(guild.default_role.id),
                     "emojis": [],
-                })
+                }
+                await self._sync_request(
+                    "/api/integrations/mallowbot/discord/sync" if D1_API_BASE else "/integrations/mallowbot/discord/sync",
+                    self._with_snapshot_fingerprint(permission_payload, "permissions-v1"),
+                )
             except Exception as exc:
                 log.warning("Could not apply Discord channel permission overwrites: %s", exc)
 
