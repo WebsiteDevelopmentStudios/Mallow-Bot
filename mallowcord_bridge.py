@@ -495,7 +495,7 @@ class MallowCordBridge:
                 "avatar_url": str(member.display_avatar.url),
                 "roles": [str(role.id) for role in member.roles if not role.is_default()],
                 "status": str(member.status) if str(member.status) in {"online", "idle", "dnd"} else "offline",
-                "bot": False,
+                "bot": bool(member.bot),
             }],
         }
         if await self._send_rust_event("discord.member.joined", payload):
@@ -519,7 +519,7 @@ class MallowCordBridge:
                 "avatar_url": str(member.display_avatar.url),
                 "roles": [str(role.id) for role in member.roles if not role.is_default()],
                 "status": str(member.status) if str(member.status) in {"online", "idle", "dnd"} else "offline",
-                "bot": False,
+                "bot": bool(member.bot),
             }],
         }
         if await self._send_rust_event("discord.member.updated", payload):
