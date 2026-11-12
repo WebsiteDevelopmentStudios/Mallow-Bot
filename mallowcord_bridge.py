@@ -471,7 +471,7 @@ class MallowCordBridge:
             log.warning("Could not update Discord member %s in MallowCord: %s", member.id, exc)
 
     async def handle_presence_update(self, member: discord.Member) -> None:
-        if not self.enabled or member.guild.id != GUILD_ID or member.bot:
+        if not self.enabled or member.guild.id != GUILD_ID:
             return
         status = str(member.status)
         if status not in {"online", "idle", "dnd"}:
