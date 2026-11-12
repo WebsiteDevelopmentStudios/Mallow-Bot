@@ -415,7 +415,7 @@ class MallowCordBridge:
         if not D1_API_BASE and await self._send_rust_event("discord.member.updated", payload):
             return
         try:
-            await self._request("POST", "/integrations/mallowbot/discord/sync", payload)
+            await self._sync_request("/api/integrations/mallowbot/discord/sync" if D1_API_BASE else "/integrations/mallowbot/discord/sync", payload)
         except Exception as exc:
             log.warning("Could not update Discord member %s in MallowCord: %s", member.id, exc)
 
