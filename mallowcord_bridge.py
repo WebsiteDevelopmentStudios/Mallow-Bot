@@ -52,9 +52,18 @@ class MallowCordBridge:
     async def _http(self) -> aiohttp.ClientSession:
         if self.session is None or self.session.closed:
             timeout = aiohttp.ClientTimeout(total=210, connect=20, sock_read=180)
+            connector = aiohttp.TCPConnector(
+                limit=64,
+                limit_per_host=32,
+                ttl_dns_cache=300,
+                keepalive_timeout=30,
+                enable_cleanup_closed=True,
+            )
             self.session = aiohttp.ClientSession(
                 timeout=timeout,
-                headers={"X-MallowBot-Key": SERVICE_KEY, "User-Agent": "Mallow-Bot-MallowCord-Bridge/1.0"},
+                connector=connector,
+                headers={"X-MallowBot-Key": SERVICE_KEY, "User-Agent": "Mallow-Bot-MallowCord-Bridge/1.1"},
+                json_serialize=lambda value: __import__("json").dumps(value, separators=(",", ":"), ensure_ascii=False),
             )
         return self.session
 
@@ -66,13 +75,19 @@ class MallowCordBridge:
                     data = await response.json(content_type=None)
                     if not isinstance(data, dict):
                         data = {"error": str(data)[:500]}
-                    if response.status >= 500 and attempt < 2:
-                        log.warning(
-                            "MallowCord API returned HTTP %s for %s; retrying (%s/3).",
-                            response.status, path, attempt + 2,
-                        )
-                        await asyncio.sleep(1.5 * (attempt + 1))
-                        continue
+                    if response.status in {408, 425, 429} or response.status >= 500:
+                        if attempt < 2:
+                            retry_after = response.headers.get("Retry-After", "")
+                            try:
+                                wait_seconds = max(0.25, min(15.0, float(retry_after)))
+                            except (TypeError, ValueError):
+                                wait_seconds = min(4.0, 0.5 * (2 ** attempt))
+                            log.warning(
+                                "MallowCord API returned HTTP %s for %s; retrying in %.2fs (%s/3).",
+                                response.status, path, wait_seconds, attempt + 2,
+                            )
+                            await asyncio.sleep(wait_seconds)
+                            continue
                     if response.status >= 400:
                         detail = data.get("detail")
                         message = str(data.get("error") or "request failed")
