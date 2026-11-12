@@ -29,7 +29,7 @@ D1_API_BASE = os.getenv("MALLOWCORD_D1_API_URL", "").strip().rstrip("/")
 SERVICE_KEY = os.getenv("MALLOWCORD_SERVICE_KEY", "").strip()
 GUILD_ID = int((os.getenv("MALLOWCORD_DISCORD_GUILD_ID", "1560367587542433812").strip() or "1560367587542433812"))
 HISTORY_LIMIT = max(-1, min(1000000, int(os.getenv("MALLOWCORD_HISTORY_LIMIT", "0"))))
-POLL_SECONDS = max(2, int(os.getenv("MALLOWCORD_OUTBOX_POLL_SECONDS", "3")))
+POLL_SECONDS = max(8, int(os.getenv("MALLOWCORD_OUTBOX_POLL_SECONDS", "8")))
 
 
 class MallowCordBridge:
