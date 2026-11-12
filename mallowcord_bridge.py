@@ -93,9 +93,14 @@ class MallowCordBridge:
     async def _request(self, method: str, path: str, payload: dict[str, Any] | None = None, *, base_url: str | None = None) -> dict[str, Any]:
         session = await self._http()
         request_base = (base_url or API_BASE).rstrip("/")
+        # Normalize API prefixes against the configured base. Hosts may be set
+        # either as the origin or with /api already appended; never produce
+        # /api/api/... or accidentally drop the API prefix.
+        request_path = self._api_route_for_base(request_base, path)
+        request_url = request_base + request_path
         for attempt in range(3):
             try:
-                async with session.request(method, request_base + path, json=payload) as response:
+                async with session.request(method, request_url, json=payload) as response:
                     # Read the body as text first: Cloudflare may return an empty
                     # or HTML error page when a Worker crashes before producing JSON.
                     # Preserve that response instead of leaking JSONDecodeError.
@@ -150,10 +155,12 @@ class MallowCordBridge:
         # write there first, then mirror the same changed snapshot to the D1
         # ingestion Worker when configured. The D1 staging endpoint is not a
         # substitute for updating the live API's database.
-        live_path = path[4:] if path.startswith("/api/") else path
+        # Pass canonical /api paths to both hosts. _request() handles whether
+        # each configured base URL already includes /api.
+        live_path = path if path.startswith("/api/") else "/api" + path
         result = await self._request("POST", live_path, payload, base_url=API_BASE)
         if D1_API_BASE:
-            d1_path = path if path.startswith("/api/") else "/api" + path
+            d1_path = live_path
             try:
                 await self._request("POST", d1_path, payload, base_url=D1_API_BASE)
             except Exception:
