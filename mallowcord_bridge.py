@@ -508,10 +508,7 @@ class MallowCordBridge:
                 "bot": bool(member.bot),
             }],
         }
-        # Queue the Rust event for realtime processing, but also update the
-        # production API and D1 mirror so the member directory cannot diverge
-        # between the live UI database and the staging ingestion database.
-        await self._send_rust_event("discord.member.joined", payload)
+        # Write the live member directory and its D1 mirror through the same sync path.
         try:
             await self._sync_request("/api/integrations/mallowbot/discord/sync" if D1_API_BASE else "/integrations/mallowbot/discord/sync", payload)
         except Exception as exc:
@@ -534,9 +531,7 @@ class MallowCordBridge:
                 "bot": bool(member.bot),
             }],
         }
-        # Keep the Rust realtime event and the persistent live/D1 snapshots
-        # in sync; the event queue alone is not the member-directory source.
-        await self._send_rust_event("discord.member.updated", payload)
+        # Write the live member directory and its D1 mirror through the same sync path.
         try:
             await self._sync_request("/api/integrations/mallowbot/discord/sync" if D1_API_BASE else "/integrations/mallowbot/discord/sync", payload)
         except Exception as exc:
