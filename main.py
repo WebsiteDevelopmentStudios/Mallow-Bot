@@ -2459,7 +2459,14 @@ async def on_member_join(member: discord.Member) -> None:
 
 @bot.event
 async def on_member_update(before: discord.Member, after: discord.Member) -> None:
-    if after.guild.id == mallowcord_bridge.GUILD_ID:
+    if after.guild.id != mallowcord_bridge.GUILD_ID:
+        return
+    before_roles = tuple(sorted(role.id for role in before.roles))
+    after_roles = tuple(sorted(role.id for role in after.roles))
+    before_state = (before.name, before.display_name, str(before.display_avatar.url), before_roles)
+    after_state = (after.name, after.display_name, str(after.display_avatar.url), after_roles)
+    # Ignore Discord member events that do not change anything MallowCord stores.
+    if before_state != after_state:
         asyncio.create_task(mallowcord_bridge.handle_member_update(after), name="mallowcord-member-update")
 
 
