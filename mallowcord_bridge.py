@@ -135,10 +135,20 @@ class MallowCordBridge:
         raise RuntimeError(f"MallowCord request failed after retries: {path}")
 
     async def _sync_request(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
-        # The Rust Worker is an isolated D1 ingestion service. Keep account,
-        # outbox, command and link APIs on the compatibility Worker until they
-        # have also been migrated.
-        return await self._request("POST", path, payload, base_url=D1_API_BASE or API_BASE)
+        # The production API is the live source read by MallowCord's UI. Always
+        # write there first, then mirror the same changed snapshot to the D1
+        # ingestion Worker when configured. The D1 staging endpoint is not a
+        # substitute for updating the live API's database.
+        live_path = path[4:] if path.startswith("/api/") else path
+        result = await self._request("POST", live_path, payload, base_url=API_BASE)
+        if D1_API_BASE:
+            d1_path = path if path.startswith("/api/") else "/api" + path
+            try:
+                await self._request("POST", d1_path, payload, base_url=D1_API_BASE)
+            except Exception:
+                log.exception("Live MallowCord sync succeeded, but the D1 mirror failed for %s.", d1_path)
+                raise
+        return result
 
     async def _sync_snapshot_request(
         self, path: str, payload: dict[str, Any], snapshot_key: str
@@ -498,8 +508,10 @@ class MallowCordBridge:
                 "bot": bool(member.bot),
             }],
         }
-        if await self._send_rust_event("discord.member.joined", payload):
-            return
+        # Queue the Rust event for realtime processing, but also update the
+        # production API and D1 mirror so the member directory cannot diverge
+        # between the live UI database and the staging ingestion database.
+        await self._send_rust_event("discord.member.joined", payload)
         try:
             await self._sync_request("/api/integrations/mallowbot/discord/sync" if D1_API_BASE else "/integrations/mallowbot/discord/sync", payload)
         except Exception as exc:
@@ -522,8 +534,9 @@ class MallowCordBridge:
                 "bot": bool(member.bot),
             }],
         }
-        if await self._send_rust_event("discord.member.updated", payload):
-            return
+        # Keep the Rust realtime event and the persistent live/D1 snapshots
+        # in sync; the event queue alone is not the member-directory source.
+        await self._send_rust_event("discord.member.updated", payload)
         try:
             await self._sync_request("/api/integrations/mallowbot/discord/sync" if D1_API_BASE else "/integrations/mallowbot/discord/sync", payload)
         except Exception as exc:
