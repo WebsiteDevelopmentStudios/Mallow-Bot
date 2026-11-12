@@ -234,7 +234,7 @@ class MallowCordBridge:
                     member_sem = asyncio.Semaphore(5)
                     async def send_member_batch(items: list[dict[str, Any]]) -> None:
                         async with member_sem:
-                            await self._request("POST", "/integrations/mallowbot/discord/sync", {
+                            await self._sync_request("/api/integrations/mallowbot/discord/sync" if D1_API_BASE else "/integrations/mallowbot/discord/sync", {
                                 "guild_id": str(guild.id), "channels": [], "roles": [], "members": items,
                             })
                     await asyncio.gather(*(send_member_batch(items) for items in member_batches))
