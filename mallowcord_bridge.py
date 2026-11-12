@@ -17,6 +17,7 @@ from typing import Any
 import aiohttp
 import discord
 from dotenv import load_dotenv
+from mallowcord_rust_events import MallowCordRustEvents
 
 load_dotenv()
 
@@ -34,6 +35,7 @@ class MallowCordBridge:
         # uses mallowcord_bridge.GUILD_ID in Discord event handlers.
         self.GUILD_ID = GUILD_ID
         self.session: aiohttp.ClientSession | None = None
+        self.rust_events = MallowCordRustEvents()
         self.bot: discord.Client | None = None
         self.poll_task: asyncio.Task | None = None
         self.webhooks: dict[int, discord.Webhook] = {}
@@ -87,6 +89,19 @@ class MallowCordBridge:
                 )
                 await asyncio.sleep(1.5 * (attempt + 1))
         raise RuntimeError(f"MallowCord request failed after retries: {path}")
+
+    async def _send_rust_event(self, event_type: str, payload: dict[str, Any]) -> bool:
+        if not self.rust_events.enabled:
+            return False
+        try:
+            result = await self.rust_events.send_event(event_type, payload)
+            log.debug("Queued MallowCord Rust event %s (%s).", event_type, result.get("event_id", "accepted"))
+            return True
+        except Exception:
+            # Preserve the existing Worker API as a safe fallback while the Rust
+            # event path is being tested and tuned.
+            log.exception("Could not queue MallowCord Rust event %s; using the compatibility API.", event_type)
+            return False
 
     async def start(self, bot: discord.Client) -> None:
         self.bot = bot
@@ -287,19 +302,24 @@ class MallowCordBridge:
         if not content:
             # Do not create blank rows for embed-only system messages.
             return False
+        payload = {
+            "guild_id": str(message.guild.id),
+            "channel_id": str(message.channel.id),
+            "message_id": str(message.id),
+            "author_id": str(message.author.id),
+            "username": message.author.name,
+            "display_name": getattr(message.author, "display_name", message.author.name),
+            "avatar_url": str(message.author.display_avatar.url),
+            "content": content[:4000],
+            "timestamp": int(message.created_at.timestamp()),
+            "mentioned_user_ids": [str(member.id) for member in message.mentions],
+        }
+        # Historical backfill remains on the compatibility endpoint to avoid
+        # flooding the live inbox during the initial channel import.
+        if not raise_errors and await self._send_rust_event("discord.message.created", payload):
+            return True
         try:
-            await self._request("POST", "/integrations/mallowbot/discord/messages", {
-                "guild_id": str(message.guild.id),
-                "channel_id": str(message.channel.id),
-                "message_id": str(message.id),
-                "author_id": str(message.author.id),
-                "username": message.author.name,
-                "display_name": getattr(message.author, "display_name", message.author.name),
-                "avatar_url": str(message.author.display_avatar.url),
-                "content": content[:4000],
-                "timestamp": int(message.created_at.timestamp()),
-                "mentioned_user_ids": [str(member.id) for member in message.mentions],
-            })
+            await self._request("POST", "/integrations/mallowbot/discord/messages", payload)
             return True
         except Exception as exc:
             if raise_errors:
@@ -310,33 +330,63 @@ class MallowCordBridge:
     async def handle_member_join(self, member: discord.Member) -> None:
         if not self.enabled or member.guild.id != GUILD_ID or member.bot:
             return
+        payload = {
+            "guild_id": str(member.guild.id),
+            "channels": [],
+            "roles": [],
+            "members": [{
+                "id": str(member.id),
+                "username": member.name,
+                "display_name": member.display_name,
+                "avatar_url": str(member.display_avatar.url),
+                "roles": [str(role.id) for role in member.roles if not role.is_default()],
+                "status": str(member.status) if str(member.status) in {"online", "idle", "dnd"} else "offline",
+                "bot": False,
+            }],
+        }
+        if await self._send_rust_event("discord.member.joined", payload):
+            return
         try:
-            await self._request("POST", "/integrations/mallowbot/discord/sync", {
-                "guild_id": str(member.guild.id),
-                "channels": [],
-                "roles": [],
-                "members": [{
-                    "id": str(member.id),
-                    "username": member.name,
-                    "display_name": member.display_name,
-                    "avatar_url": str(member.display_avatar.url),
-                    "roles": [str(role.id) for role in member.roles if not role.is_default()],
-                    "status": "offline" if str(member.status) == "offline" else "online",
-                    "bot": False,
-                }],
-            })
+            await self._request("POST", "/integrations/mallowbot/discord/sync", payload)
         except Exception as exc:
             log.warning("Could not add joining Discord member %s to MallowCord: %s", member.id, exc)
+
+    async def handle_member_update(self, member: discord.Member) -> None:
+        if not self.enabled or member.guild.id != GUILD_ID or member.bot:
+            return
+        payload = {
+            "guild_id": str(member.guild.id),
+            "channels": [],
+            "roles": [],
+            "members": [{
+                "id": str(member.id),
+                "username": member.name,
+                "display_name": member.display_name,
+                "avatar_url": str(member.display_avatar.url),
+                "roles": [str(role.id) for role in member.roles if not role.is_default()],
+                "status": str(member.status) if str(member.status) in {"online", "idle", "dnd"} else "offline",
+                "bot": False,
+            }],
+        }
+        if await self._send_rust_event("discord.member.updated", payload):
+            return
+        try:
+            await self._request("POST", "/integrations/mallowbot/discord/sync", payload)
+        except Exception as exc:
+            log.warning("Could not update Discord member %s in MallowCord: %s", member.id, exc)
 
     async def handle_presence_update(self, member: discord.Member) -> None:
         if not self.enabled or member.guild.id != GUILD_ID or member.bot:
             return
+        payload = {
+            "guild_id": str(member.guild.id),
+            "user_id": str(member.id),
+            "status": str(member.status) if str(member.status) in {"online", "idle", "dnd"} else "offline",
+        }
+        if await self._send_rust_event("discord.presence.updated", payload):
+            return
         try:
-            await self._request("POST", "/integrations/mallowbot/discord/presence", {
-                "guild_id": str(member.guild.id),
-                "user_id": str(member.id),
-                "status": "offline" if str(member.status) == "offline" else "online",
-            })
+            await self._request("POST", "/integrations/mallowbot/discord/presence", payload)
         except Exception as exc:
             log.warning("Could not synchronize Discord presence for %s: %s", member.id, exc)
 
@@ -552,6 +602,7 @@ class MallowCordBridge:
         if self.session and not self.session.closed:
             await self.session.close()
         self.session = None
+        await self.rust_events.close()
 
 
 mallowcord_bridge = MallowCordBridge()
