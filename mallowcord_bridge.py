@@ -249,7 +249,7 @@ class MallowCordBridge:
             # Re-send channel overwrites after member batches so user-specific Discord
             # overwrites can resolve to their imported MallowCord shadow accounts.
             try:
-                await self._request("POST", "/integrations/mallowbot/discord/sync", {
+                await self._sync_request("/api/integrations/mallowbot/discord/sync" if D1_API_BASE else "/integrations/mallowbot/discord/sync", {
                     "guild_id": str(guild.id),
                     "channels": channels,
                     "roles": roles,
@@ -391,7 +391,7 @@ class MallowCordBridge:
         if not D1_API_BASE and await self._send_rust_event("discord.member.joined", payload):
             return
         try:
-            await self._request("POST", "/integrations/mallowbot/discord/sync", payload)
+            await self._sync_request("/api/integrations/mallowbot/discord/sync" if D1_API_BASE else "/integrations/mallowbot/discord/sync", payload)
         except Exception as exc:
             log.warning("Could not add joining Discord member %s to MallowCord: %s", member.id, exc)
 
