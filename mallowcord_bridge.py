@@ -94,7 +94,7 @@ class MallowCordBridge:
                             log.warning(
                                 "MallowCord API returned HTTP %s for %s; retrying in %.2fs (%s/3). Response: %s",
                                 response.status, path, wait_seconds, attempt + 2,
-                                str(data.get("error") or data.get("detail") or "")[:300],
+                                (str(data.get("error") or "") + (": " + str(data.get("detail")) if data.get("detail") else ""))[:500],
                             )
                             await asyncio.sleep(wait_seconds)
                             continue
