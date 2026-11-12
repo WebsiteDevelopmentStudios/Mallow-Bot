@@ -424,8 +424,9 @@ class MallowCordBridge:
         payload = self._discord_message_payload(message)
         if payload is None:
             return False
-        # Use the legacy async event inbox only when the D1 Worker is not configured.
-        if not D1_API_BASE and not raise_errors and await self._send_rust_event("discord.message.created", payload):
+        # Prefer the durable Rust event queue even when the legacy D1 Worker is configured.
+        # Fall back to the Worker only when Rust events are unavailable or fail.
+        if not raise_errors and await self._send_rust_event("discord.message.created", payload):
             return True
         try:
             await self._request("POST", "/api/integrations/mallowbot/discord/messages" if D1_API_BASE else "/integrations/mallowbot/discord/messages", payload, base_url=D1_API_BASE or API_BASE)
@@ -453,7 +454,7 @@ class MallowCordBridge:
                 "bot": False,
             }],
         }
-        if not D1_API_BASE and await self._send_rust_event("discord.member.joined", payload):
+        if await self._send_rust_event("discord.member.joined", payload):
             return
         try:
             await self._sync_request("/api/integrations/mallowbot/discord/sync" if D1_API_BASE else "/integrations/mallowbot/discord/sync", payload)
@@ -477,7 +478,7 @@ class MallowCordBridge:
                 "bot": False,
             }],
         }
-        if not D1_API_BASE and await self._send_rust_event("discord.member.updated", payload):
+        if await self._send_rust_event("discord.member.updated", payload):
             return
         try:
             await self._sync_request("/api/integrations/mallowbot/discord/sync" if D1_API_BASE else "/integrations/mallowbot/discord/sync", payload)
