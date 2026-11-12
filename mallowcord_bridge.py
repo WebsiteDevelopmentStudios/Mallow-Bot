@@ -477,15 +477,13 @@ class MallowCordBridge:
         if status not in {"online", "idle", "dnd"}:
             status = "offline"
         if not D1_API_BASE:
-            # Preserve the compatibility Worker/event path until the Rust
-            # D1 endpoint is explicitly configured on the bot host.
+            # Presence must reach the production Worker, which owns the live
+            # member directory. Do not acknowledge a staging Rust event here.
             payload = {
                 "guild_id": str(member.guild.id),
                 "user_id": str(member.id),
                 "status": status,
             }
-            if await self._send_rust_event("discord.presence.updated", payload):
-                return
             try:
                 await self._request(
                     "POST", "/integrations/mallowbot/discord/presence",
@@ -518,7 +516,9 @@ class MallowCordBridge:
                         {"guild_id": str(GUILD_ID), "updates": updates},
                         base_url=D1_API_BASE,
                     )
-                    return int(result.get("updated", 0))
+                    if int(result.get("updated", 0)) > 0:
+                        return int(result.get("updated", 0))
+                    log.warning("Rust presence batch updated no linked profiles; retrying through the production Worker")
                 except Exception as rust_error:
                     log.warning("Rust presence batch unavailable; falling back to the production Worker: %s", rust_error)
             result = await self._request(
