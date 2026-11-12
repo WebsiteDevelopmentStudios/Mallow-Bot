@@ -294,6 +294,20 @@ class MallowCordBridge:
                 except Exception as exc:
                     log.warning("MallowCord member import is not complete yet: %s", exc)
 
+            # Refresh the complete cached gateway presence snapshot on every
+            # sync pass. This repairs stale DND/offline values after bot restarts
+            # even when Discord does not emit a new transition event.
+            for cached_member in guild.members:
+                current_status = str(cached_member.status)
+                if current_status not in {"online", "idle", "dnd"}:
+                    current_status = "offline"
+                async with self._presence_lock:
+                    self._presence_pending[str(cached_member.id)] = current_status
+            try:
+                await self._flush_presence_batch()
+            except Exception as exc:
+                log.warning("Initial Discord presence snapshot could not be fully synchronized: %s", exc)
+
             # Re-send channel overwrites after member batches so user-specific Discord
             # overwrites can resolve to their imported MallowCord shadow accounts.
             try:
@@ -507,32 +521,38 @@ class MallowCordBridge:
             {"user_id": user_id, "status": status}
             for user_id, status in batch.items()
         ]
-        try:
-            if D1_API_BASE:
-                try:
-                    result = await self._request(
-                        "POST",
-                        "/api/integrations/mallowbot/discord/presence/batch",
-                        {"guild_id": str(GUILD_ID), "updates": updates},
-                        base_url=D1_API_BASE,
-                    )
-                    if int(result.get("updated", 0)) > 0:
-                        return int(result.get("updated", 0))
-                    log.warning("Rust presence batch updated no linked profiles; retrying through the production Worker")
-                except Exception as rust_error:
-                    log.warning("Rust presence batch unavailable; falling back to the production Worker: %s", rust_error)
-            result = await self._request(
-                "POST",
-                "/integrations/mallowbot/discord/presence/batch",
-                {"guild_id": str(GUILD_ID), "updates": updates},
-                base_url=API_BASE,
-            )
-            return int(result.get("updated", 0))
-        except Exception:
+        payload = {"guild_id": str(GUILD_ID), "updates": updates}
+        total_updated = 0
+        succeeded = False
+        errors: list[str] = []
+
+        # Keep the Rust D1 ingestion database and the compatibility Worker in
+        # sync. The web client may still read through the Worker while the
+        # Rust migration is being rolled out.
+        targets = []
+        if D1_API_BASE:
+            targets.append(("Rust D1", D1_API_BASE))
+        targets.append(("production Worker", API_BASE))
+        for label, base_url in targets:
+            try:
+                result = await self._request(
+                    "POST",
+                    "/api/integrations/mallowbot/discord/presence/batch" if label == "Rust D1" else "/integrations/mallowbot/discord/presence/batch",
+                    payload,
+                    base_url=base_url,
+                )
+                succeeded = True
+                total_updated += int(result.get("updated", 0))
+            except Exception as exc:
+                errors.append(f"{label}: {exc}")
+                log.warning("Could not update Discord presence through %s: %s", label, exc)
+
+        if not succeeded:
             async with self._presence_lock:
                 for user_id, status in batch.items():
                     self._presence_pending.setdefault(user_id, status)
-            raise
+            raise RuntimeError("; ".join(errors) or "No presence destination accepted the batch")
+        return total_updated
 
     async def _presence_flush_loop(self) -> None:
         while True:
