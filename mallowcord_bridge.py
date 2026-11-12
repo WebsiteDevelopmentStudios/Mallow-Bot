@@ -360,7 +360,7 @@ class MallowCordBridge:
             return False
         # Historical backfill remains on the compatibility endpoint to avoid
         # flooding the live inbox during the initial channel import.
-        if not raise_errors and await self._send_rust_event("discord.message.created", payload):
+        if not D1_API_BASE and not raise_errors and await self._send_rust_event("discord.message.created", payload):
             return True
         try:
             await self._request("POST", "/api/integrations/mallowbot/discord/messages" if D1_API_BASE else "/integrations/mallowbot/discord/messages", payload, base_url=D1_API_BASE or API_BASE)
@@ -388,7 +388,7 @@ class MallowCordBridge:
                 "bot": False,
             }],
         }
-        if await self._send_rust_event("discord.member.joined", payload):
+        if not D1_API_BASE and await self._send_rust_event("discord.member.joined", payload):
             return
         try:
             await self._request("POST", "/integrations/mallowbot/discord/sync", payload)
@@ -412,7 +412,7 @@ class MallowCordBridge:
                 "bot": False,
             }],
         }
-        if await self._send_rust_event("discord.member.updated", payload):
+        if not D1_API_BASE and await self._send_rust_event("discord.member.updated", payload):
             return
         try:
             await self._request("POST", "/integrations/mallowbot/discord/sync", payload)
@@ -427,7 +427,7 @@ class MallowCordBridge:
             "user_id": str(member.id),
             "status": str(member.status) if str(member.status) in {"online", "idle", "dnd"} else "offline",
         }
-        if await self._send_rust_event("discord.presence.updated", payload):
+        if not D1_API_BASE and await self._send_rust_event("discord.presence.updated", payload):
             return
         try:
             await self._request("POST", "/api/integrations/mallowbot/discord/presence" if D1_API_BASE else "/integrations/mallowbot/discord/presence", payload, base_url=D1_API_BASE or API_BASE)
