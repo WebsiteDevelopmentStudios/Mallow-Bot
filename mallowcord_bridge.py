@@ -358,8 +358,7 @@ class MallowCordBridge:
         payload = self._discord_message_payload(message)
         if payload is None:
             return False
-        # Historical backfill remains on the compatibility endpoint to avoid
-        # flooding the live inbox during the initial channel import.
+        # Use the legacy async event inbox only when the D1 Worker is not configured.
         if not D1_API_BASE and not raise_errors and await self._send_rust_event("discord.message.created", payload):
             return True
         try:
