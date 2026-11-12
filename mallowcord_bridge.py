@@ -357,6 +357,20 @@ class MallowCordBridge:
                 log.info("MallowCord member directory synchronized: %s members in %s batches.",
                          sum(map(len, member_batches)), len(member_batches))
 
+                # A member snapshot establishes the initial presence baseline.
+                # Queue only changed values so restarts recover statuses once
+                # without turning the periodic directory scan into repeated writes.
+                async with self._presence_lock:
+                    for member in member_records:
+                        if member.get("bot"):
+                            continue
+                        discord_id = str(member["id"])
+                        status = str(member.get("status") or "offline")
+                        if status not in {"online", "idle", "dnd", "offline"}:
+                            status = "offline"
+                        if self._presence_last_sent.get(discord_id) != status:
+                            self._presence_pending[discord_id] = status
+
 
                 self._members_synced = True
             except Exception as exc:
@@ -598,65 +612,58 @@ class MallowCordBridge:
         succeeded = False
         errors: list[str] = []
 
-        # Keep the Rust D1 ingestion database and the compatibility Worker in
-        # sync. The web client may still read through the Worker while the
-        # Rust migration is being rolled out.
-        targets = []
+        # Rust accepts a batch, but the production Worker currently exposes
+        # only the single-user presence route. Never send a batch to that Worker:
+        # it falls through to the website session guard and returns 401.
         if D1_API_BASE:
-            targets.append(("Rust D1", D1_API_BASE))
-        targets.append(("production Worker", API_BASE))
-        for label, base_url in targets:
             try:
-                # Both deployments expose the integration under /api. Some
-                # host configs already include /api in the base URL and some do not.
                 route = self._api_route_for_base(
-                    base_url, "/api/integrations/mallowbot/discord/presence/batch"
+                    D1_API_BASE, "/api/integrations/mallowbot/discord/presence/batch"
                 )
-                result = await self._request(
-                    "POST", route, payload, base_url=base_url,
-                )
+                result = await self._request("POST", route, payload, base_url=D1_API_BASE)
                 succeeded = True
                 total_updated += int(result.get("updated", 0))
             except Exception as exc:
-                # Older production Workers may expose only the single-user
-                # presence route. A missing batch route falls through to the
-                # normal session guard and returns "Sign in required." In that
-                # case, use the compatible endpoint per member instead.
-                message = str(exc)
-                if "Sign in required" in message or "Not signed in" in message:
-                    try:
-                        fallback_updated = 0
-                        for update in updates:
-                            single_route = self._api_route_for_base(
-                                base_url, "/api/integrations/mallowbot/discord/presence"
-                            )
-                            single_result = await self._request(
-                                "POST",
-                                single_route,
-                                {
-                                    "guild_id": str(GUILD_ID),
-                                    "user_id": update["user_id"],
-                                    "status": update["status"],
-                                },
-                                base_url=base_url,
-                            )
-                            fallback_updated += int(bool(single_result.get("ok", True)))
-                        succeeded = True
-                        total_updated += fallback_updated
-                        log.info(
-                            "Discord presence batch used the compatible single-user endpoint through %s (%s updates).",
-                            label, fallback_updated,
-                        )
-                        continue
-                    except Exception as fallback_exc:
-                        errors.append(f"{label} batch: {exc}; single-user fallback: {fallback_exc}")
-                        log.warning(
-                            "Presence batch and single-user fallback both failed through %s: %s",
-                            label, fallback_exc,
-                        )
-                        continue
-                errors.append(f"{label}: {exc}")
-                log.warning("Could not update Discord presence through %s: %s", label, exc)
+                errors.append(f"Rust D1 batch: {exc}")
+                log.warning("Could not update Discord presence through Rust D1: %s", exc)
+
+        # The live website reads the production Worker database. Send each
+        # changed status through its known, authenticated single-user endpoint.
+        live_updated = 0
+        live_errors = []
+        single_route = self._api_route_for_base(
+            API_BASE, "/api/integrations/mallowbot/discord/presence"
+        )
+        for update in updates:
+            try:
+                result = await self._request(
+                    "POST",
+                    single_route,
+                    {
+                        "guild_id": str(GUILD_ID),
+                        "user_id": update["user_id"],
+                        "status": update["status"],
+                    },
+                    base_url=API_BASE,
+                )
+                if result.get("ok", True):
+                    live_updated += 1
+                succeeded = True
+            except Exception as exc:
+                live_errors.append(f"{update['user_id']}: {exc}")
+        if live_errors:
+            detail = "; ".join(live_errors[:3])
+            errors.append(f"production Worker single-user updates: {detail}")
+            log.warning(
+                "Could not update %s Discord presence records through the production Worker. First errors: %s",
+                len(live_errors), detail,
+            )
+        if live_updated:
+            log.info(
+                "Synchronized %s Discord presence records through the production Worker single-user endpoint.",
+                live_updated,
+            )
+        total_updated += live_updated
 
         if not succeeded:
             async with self._presence_lock:
