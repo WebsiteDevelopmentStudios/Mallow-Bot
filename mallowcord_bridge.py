@@ -253,17 +253,16 @@ class MallowCordBridge:
                     # Fetch every human member and send batches concurrently. A failed batch
                     # aborts this pass so the retry loop can safely resume (the API upserts).
                     member_records: list[dict[str, Any]] = []
-                    async for member in guild.fetch_members(limit=None):
-                        if member.bot:
-                            continue
+                    await guild.chunk(cache=True)
+                    for member in guild.members:
                         member_records.append({
                             "id": str(member.id),
                             "username": member.name,
                             "display_name": member.display_name,
                             "avatar_url": str(member.display_avatar.url),
                             "roles": [str(role.id) for role in member.roles if not role.is_default()],
-                            "status": "offline" if str(member.status) == "offline" else "online",
-                            "bot": False,
+                            "status": str(member.status) if str(member.status) in {"online", "idle", "dnd", "offline"} else "offline",
+                            "bot": bool(member.bot),
                         })
 
                     # Stable ordering keeps the same users in each 100-member batch
@@ -424,7 +423,7 @@ class MallowCordBridge:
             return False
 
     async def handle_member_join(self, member: discord.Member) -> None:
-        if not self.enabled or member.guild.id != GUILD_ID or member.bot:
+        if not self.enabled or member.guild.id != GUILD_ID:
             return
         payload = {
             "guild_id": str(member.guild.id),
@@ -501,8 +500,6 @@ class MallowCordBridge:
             self._presence_pending[str(member.id)] = status
 
     async def _flush_presence_batch(self) -> int:
-        if not D1_API_BASE:
-            return 0
         async with self._presence_lock:
             if not self._presence_pending:
                 return 0
@@ -513,16 +510,25 @@ class MallowCordBridge:
             for user_id, status in batch.items()
         ]
         try:
+            if D1_API_BASE:
+                try:
+                    result = await self._request(
+                        "POST",
+                        "/api/integrations/mallowbot/discord/presence/batch",
+                        {"guild_id": str(GUILD_ID), "updates": updates},
+                        base_url=D1_API_BASE,
+                    )
+                    return int(result.get("updated", 0))
+                except Exception as rust_error:
+                    log.warning("Rust presence batch unavailable; falling back to the production Worker: %s", rust_error)
             result = await self._request(
                 "POST",
-                "/api/integrations/mallowbot/discord/presence/batch",
+                "/integrations/mallowbot/discord/presence/batch",
                 {"guild_id": str(GUILD_ID), "updates": updates},
-                base_url=D1_API_BASE,
+                base_url=API_BASE,
             )
             return int(result.get("updated", 0))
         except Exception:
-            # Retry failed values, but never overwrite a newer event received
-            # while the HTTP request was in flight.
             async with self._presence_lock:
                 for user_id, status in batch.items():
                     self._presence_pending.setdefault(user_id, status)
