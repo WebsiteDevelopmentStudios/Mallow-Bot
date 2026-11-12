@@ -1,6 +1,7 @@
 """Signed, retryable sender for MallowCord's Rust event inbox."""
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import hmac
 import json
@@ -79,7 +80,7 @@ class MallowCordRustEvents:
             except (aiohttp.ClientError, TimeoutError):
                 if attempt == 2:
                     raise
-            await __import__("asyncio").sleep(0.4 * (attempt + 1))
+            await asyncio.sleep(0.4 * (attempt + 1))
         raise RuntimeError("MallowCord event delivery failed after retries.")
 
     async def close(self) -> None:
