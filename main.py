@@ -2456,6 +2456,12 @@ async def on_member_join(member: discord.Member) -> None:
 
 
 @bot.event
+async def on_member_update(before: discord.Member, after: discord.Member) -> None:
+    if after.guild.id == mallowcord_bridge.GUILD_ID:
+        asyncio.create_task(mallowcord_bridge.handle_member_update(after), name="mallowcord-member-update")
+
+
+@bot.event
 async def on_guild_join(guild: discord.Guild) -> None:
     """Leave blacklisted guilds without exposing blacklist details publicly."""
     try:
