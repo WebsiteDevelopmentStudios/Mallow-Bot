@@ -234,4 +234,11 @@ Configure these environment variables on the **actual Mallow-Bot runtime**:
 - `MALLOWCORD_HISTORY_LIMIT=50` (optional)
 - `MALLOWCORD_OUTBOX_POLL_SECONDS=3` (optional)
 
+For staged Rust event-ingestion testing, also configure these two optional values on the bot runtime:
+
+- `MALLOWCORD_RUST_API_URL`: private Rust backend origin, for example `https://your-rust-service.example` (do not include `/api`).
+- `MALLOWCORD_INTERNAL_EVENT_SECRET`: the same private 32+ byte secret configured as `MALLOWCORD_INTERNAL_EVENT_SECRET` on the Rust service.
+
+When both are configured, new Discord messages, member joins/updates, and presence changes are signed and queued in Rust's PostgreSQL event inbox. If the Rust endpoint is unavailable, the bot falls back to the existing Worker API. Initial history backfill deliberately stays on the existing API so it does not flood the event queue. Leave these values unset to keep the current Worker-only behavior.
+
 The bot needs the Server Members Intent, Presence Intent, and Message Content Intent enabled in the Discord Developer Portal. It also needs View Channel, Read Message History, Send Messages, and Manage Webhooks in the mirrored channels. Manage Webhooks lets MallowCord messages appear with the original MallowCord username and profile picture; without it, the bridge falls back to a bot-authored `username: message` format.
