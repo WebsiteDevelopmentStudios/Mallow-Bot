@@ -618,6 +618,43 @@ class MallowCordBridge:
                 succeeded = True
                 total_updated += int(result.get("updated", 0))
             except Exception as exc:
+                # Older production Workers may expose only the single-user
+                # presence route. A missing batch route falls through to the
+                # normal session guard and returns "Sign in required." In that
+                # case, use the compatible endpoint per member instead.
+                message = str(exc)
+                if "Sign in required" in message or "Not signed in" in message:
+                    try:
+                        fallback_updated = 0
+                        for update in updates:
+                            single_route = self._api_route_for_base(
+                                base_url, "/api/integrations/mallowbot/discord/presence"
+                            )
+                            single_result = await self._request(
+                                "POST",
+                                single_route,
+                                {
+                                    "guild_id": str(GUILD_ID),
+                                    "user_id": update["user_id"],
+                                    "status": update["status"],
+                                },
+                                base_url=base_url,
+                            )
+                            fallback_updated += int(bool(single_result.get("ok", True)))
+                        succeeded = True
+                        total_updated += fallback_updated
+                        log.info(
+                            "Discord presence batch used the compatible single-user endpoint through %s (%s updates).",
+                            label, fallback_updated,
+                        )
+                        continue
+                    except Exception as fallback_exc:
+                        errors.append(f"{label} batch: {exc}; single-user fallback: {fallback_exc}")
+                        log.warning(
+                            "Presence batch and single-user fallback both failed through %s: %s",
+                            label, fallback_exc,
+                        )
+                        continue
                 errors.append(f"{label}: {exc}")
                 log.warning("Could not update Discord presence through %s: %s", label, exc)
 
