@@ -30,7 +30,8 @@ SERVICE_KEY = os.getenv("MALLOWCORD_SERVICE_KEY", "").strip()
 GUILD_ID = int((os.getenv("MALLOWCORD_DISCORD_GUILD_ID", "1560367587542433812").strip() or "1560367587542433812"))
 HISTORY_LIMIT = max(-1, min(1000000, int(os.getenv("MALLOWCORD_HISTORY_LIMIT", "0"))))
 POLL_SECONDS = max(15, int(os.getenv("MALLOWCORD_OUTBOX_POLL_SECONDS", "15")))
-SNAPSHOT_SCAN_SECONDS = max(60, int(os.getenv("MALLOWCORD_SNAPSHOT_SCAN_SECONDS", "300")))
+# Scan the Discord gateway cache frequently; GitHub fingerprints make unchanged scans free of D1 writes.
+SNAPSHOT_SCAN_SECONDS = min(5, max(3, int(os.getenv("MALLOWCORD_SNAPSHOT_SCAN_SECONDS", "4"))))
 
 
 class MallowCordBridge:
@@ -50,7 +51,10 @@ class MallowCordBridge:
         self._history_synced = False
         # Fingerprints live in the bot process: unchanged Discord snapshots never
         # reach the database. A restart intentionally performs one recovery sync.
-        self._snapshot_hashes: dict[str, str] = {}
+        self._github_snapshot: dict[str, Any] = {"version": 1, "guild_id": str(GUILD_ID), "groups": {}, "members": {}}
+        self._github_snapshot_loaded = False
+        self._github_snapshot_sha: str | None = None
+        self._github_snapshot_dirty = False
         self._presence_last_sent: dict[str, str] = {}
         # Coalesce rapid Discord presence events and flush them as one batch.
         self._presence_pending: dict[str, str] = {}
@@ -158,16 +162,77 @@ class MallowCordBridge:
         target = D1_API_BASE or API_BASE
         return await self._request("POST", route, payload, base_url=target)
 
+    async def _load_github_snapshot(self) -> None:
+        if self._github_snapshot_loaded:
+            return
+        route = f"/integrations/mallowbot/discord/snapshot?guild_id={GUILD_ID}"
+        data = await self._request("GET", route, base_url=API_BASE)
+        snapshot = data.get("snapshot")
+        if isinstance(snapshot, dict) and str(snapshot.get("guild_id")) == str(GUILD_ID):
+            self._github_snapshot = {
+                "version": 1,
+                "guild_id": str(GUILD_ID),
+                "groups": dict(snapshot.get("groups") or {}),
+                "members": dict(snapshot.get("members") or {}),
+            }
+        self._github_snapshot_sha = str(data.get("sha") or "") or None
+        self._github_snapshot_loaded = True
+        log.info(
+            "Loaded GitHub Discord snapshot: %s entity groups and %s member fingerprints.",
+            len(self._github_snapshot["groups"]), len(self._github_snapshot["members"]),
+        )
+
+    async def _save_github_snapshot(self) -> None:
+        if not self._github_snapshot_dirty:
+            return
+        payload = {
+            "guild_id": str(GUILD_ID),
+            "sha": self._github_snapshot_sha,
+            "snapshot": self._github_snapshot,
+        }
+        data = await self._request(
+            "POST", "/integrations/mallowbot/discord/snapshot", payload, base_url=API_BASE
+        )
+        self._github_snapshot_sha = str(data.get("sha") or self._github_snapshot_sha or "") or None
+        self._github_snapshot_dirty = False
+
     async def _sync_snapshot_request(
         self, path: str, payload: dict[str, Any], snapshot_key: str
     ) -> dict[str, Any]:
-        fingerprinted = self._with_snapshot_fingerprint(payload, snapshot_key)
+        await self._load_github_snapshot()
+        if snapshot_key.startswith("members-v1-"):
+            previous = self._github_snapshot.setdefault("members", {})
+            changed: list[dict[str, Any]] = []
+            fingerprints: dict[str, str] = {}
+            for member in payload.get("members", []):
+                discord_id = str(member.get("id") or "")
+                if not discord_id:
+                    continue
+                # Store only one-way hashes in GitHub; no usernames, avatars, or raw Discord IDs.
+                member_key = hashlib.sha256(discord_id.encode("utf-8")).hexdigest()
+                stable_member = {key: value for key, value in member.items() if key != "status"}
+                canonical = json.dumps(stable_member, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+                digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+                if previous.get(member_key) != digest:
+                    changed.append(member)
+                    fingerprints[member_key] = digest
+            if not changed:
+                return {"ok": True, "unchanged": True, "skipped": True}
+            delta = {**payload, "members": changed}
+            result = await self._sync_request(path, delta)
+            previous.update(fingerprints)
+            self._github_snapshot_dirty = True
+            return result
+
+        fingerprinted = self._with_snapshot_fingerprint(dict(payload), snapshot_key)
         digest = str(fingerprinted["snapshot_hash"])
-        if self._snapshot_hashes.get(snapshot_key) == digest:
+        groups = self._github_snapshot.setdefault("groups", {})
+        if groups.get(snapshot_key) == digest:
             return {"ok": True, "unchanged": True, "skipped": True}
         result = await self._sync_request(path, fingerprinted)
-        # Only remember acknowledged snapshots. Failed requests remain retryable.
-        self._snapshot_hashes[snapshot_key] = digest
+        # Only persist a new fingerprint after the D1 write is acknowledged.
+        groups[snapshot_key] = digest
+        self._github_snapshot_dirty = True
         return result
 
     async def _send_rust_event(self, event_type: str, payload: dict[str, Any]) -> bool:
@@ -221,7 +286,7 @@ class MallowCordBridge:
             try:
                 await asyncio.sleep(SNAPSHOT_SCAN_SECONDS)
                 await self.sync_guild()
-                log.debug("Discord snapshot scan completed; unchanged snapshots were skipped.")
+                log.debug("Discord %sscan completed against GitHub fingerprints; unchanged entities skipped.", SNAPSHOT_SCAN_SECONDS)
             except asyncio.CancelledError:
                 raise
             except Exception:
@@ -310,7 +375,8 @@ class MallowCordBridge:
                 # Chunk gateway members (including their presence state) and send batches concurrently. A failed batch
                 # aborts this pass so the retry loop can safely resume (the API upserts).
                 member_records: list[dict[str, Any]] = []
-                await guild.chunk(cache=True)
+                if not self._members_synced:
+                    await guild.chunk(cache=True)
                 for member in guild.members:
                     member_records.append({
                         "id": str(member.id),
@@ -441,6 +507,7 @@ class MallowCordBridge:
                 self._history_synced = True
             if not self._members_synced:
                 raise RuntimeError("Discord member import is still incomplete; check the bot's Server Members Intent.")
+            await self._save_github_snapshot()
             log.info("MallowCord Discord bridge initialized for guild %s (%s).", guild.name, guild.id)
 
     @staticmethod
