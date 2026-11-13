@@ -29,7 +29,7 @@ D1_API_BASE = os.getenv("MALLOWCORD_D1_API_URL", "").strip().rstrip("/")
 SERVICE_KEY = os.getenv("MALLOWCORD_SERVICE_KEY", "").strip()
 GUILD_ID = int((os.getenv("MALLOWCORD_DISCORD_GUILD_ID", "1560367587542433812").strip() or "1560367587542433812"))
 HISTORY_LIMIT = max(-1, min(1000000, int(os.getenv("MALLOWCORD_HISTORY_LIMIT", "0"))))
-POLL_SECONDS = max(8, int(os.getenv("MALLOWCORD_OUTBOX_POLL_SECONDS", "8")))
+POLL_SECONDS = max(15, int(os.getenv("MALLOWCORD_OUTBOX_POLL_SECONDS", "15")))
 SNAPSHOT_SCAN_SECONDS = max(60, int(os.getenv("MALLOWCORD_SNAPSHOT_SCAN_SECONDS", "300")))
 
 
@@ -151,22 +151,12 @@ class MallowCordBridge:
         raise RuntimeError(f"MallowCord request failed after retries: {path}")
 
     async def _sync_request(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
-        # The production API is the live source read by MallowCord's UI. Always
-        # write there first, then mirror the same changed snapshot to the D1
-        # ingestion Worker when configured. The D1 staging endpoint is not a
-        # substitute for updating the live API's database.
-        # Pass canonical /api paths to both hosts. _request() handles whether
-        # each configured base URL already includes /api.
-        live_path = path if path.startswith("/api/") else "/api" + path
-        result = await self._request("POST", live_path, payload, base_url=API_BASE)
-        if D1_API_BASE:
-            d1_path = live_path
-            try:
-                await self._request("POST", d1_path, payload, base_url=D1_API_BASE)
-            except Exception:
-                log.exception("Live MallowCord sync succeeded, but the D1 mirror failed for %s.", d1_path)
-                raise
-        return result
+        # The Rust D1 ingestion Worker and production API share the same D1
+        # database. Send each event to exactly one writer: using both endpoints
+        # duplicated lookups and upserts against the same database.
+        route = path if path.startswith("/api/") else "/api" + path
+        target = D1_API_BASE or API_BASE
+        return await self._request("POST", route, payload, base_url=target)
 
     async def _sync_snapshot_request(
         self, path: str, payload: dict[str, Any], snapshot_key: str
@@ -584,9 +574,11 @@ class MallowCordBridge:
         status = str(member.status)
         if status not in {"online", "idle", "dnd"}:
             status = "offline"
+        if self._presence_last_sent.get(str(member.id)) == status:
+            return
         if not D1_API_BASE:
-            # Presence must reach the production Worker, which owns the live
-            # member directory. Do not acknowledge a staging Rust event here.
+            # The production Worker remains the live writer when Rust ingestion
+            # is not configured.
             payload = {
                 "guild_id": str(member.guild.id),
                 "user_id": str(member.id),
@@ -601,12 +593,14 @@ class MallowCordBridge:
             except Exception as exc:
                 log.warning("Could not synchronize Discord presence for %s: %s", member.id, exc)
             return
-        # Keep only the newest state per Discord user; transient intermediate
-        # statuses are not useful to persist and would waste D1 writes.
+        # Coalesce changed states and send one batch to the single configured
+        # writer. The production Worker and Rust D1 Worker share this database.
         async with self._presence_lock:
             self._presence_pending[str(member.id)] = status
 
     async def _flush_presence_batch(self) -> int:
+        if not D1_API_BASE:
+            return 0
         async with self._presence_lock:
             if not self._presence_pending:
                 return 0
@@ -617,77 +611,20 @@ class MallowCordBridge:
             for user_id, status in batch.items()
         ]
         payload = {"guild_id": str(GUILD_ID), "updates": updates}
-        total_updated = 0
-        succeeded = False
-        errors: list[str] = []
-
-        # Rust accepts a batch, but the production Worker currently exposes
-        # only the single-user presence route. Never send a batch to that Worker:
-        # it falls through to the website session guard and returns 401.
-        if D1_API_BASE:
-            try:
-                route = self._api_route_for_base(
-                    D1_API_BASE, "/api/integrations/mallowbot/discord/presence/batch"
-                )
-                result = await self._request("POST", route, payload, base_url=D1_API_BASE)
-                total_updated += int(result.get("updated", 0))
-            except Exception as exc:
-                errors.append(f"Rust D1 batch: {exc}")
-                log.warning("Could not update Discord presence through Rust D1: %s", exc)
-
-        # The live website reads the production Worker database. Send each
-        # changed status through its known, authenticated single-user endpoint.
-        live_updated = 0
-        live_successful_ids: list[str] = []
-        live_errors = []
-        single_route = self._api_route_for_base(
-            API_BASE, "/api/integrations/mallowbot/discord/presence"
+        route = self._api_route_for_base(
+            D1_API_BASE, "/api/integrations/mallowbot/discord/presence/batch"
         )
-        for update in updates:
-            try:
-                result = await self._request(
-                    "POST",
-                    single_route,
-                    {
-                        "guild_id": str(GUILD_ID),
-                        "user_id": update["user_id"],
-                        "status": update["status"],
-                    },
-                    base_url=API_BASE,
-                )
-                if result.get("ok", True):
-                    live_updated += 1
-                    live_successful_ids.append(update["user_id"])
-                    succeeded = True
-            except Exception as exc:
-                live_errors.append(f"{update['user_id']}: {exc}")
-        if live_errors:
-            detail = "; ".join(live_errors[:3])
-            errors.append(f"production Worker single-user updates: {detail}")
-            log.warning(
-                "Could not update %s Discord presence records through the production Worker. First errors: %s",
-                len(live_errors), detail,
-            )
-        if live_updated:
-            log.info(
-                "Synchronized %s Discord presence records through the production Worker single-user endpoint.",
-                live_updated,
-            )
-        total_updated += live_updated
-
-        # A successful Rust write does not mean the live website was updated.
-        # Acknowledge only records accepted by the production Worker and retry
-        # failed IDs on the next flush.
-        async with self._presence_lock:
-            for user_id, status in batch.items():
-                if user_id not in live_successful_ids:
+        try:
+            result = await self._request("POST", route, payload, base_url=D1_API_BASE)
+        except Exception:
+            async with self._presence_lock:
+                for user_id, status in batch.items():
                     self._presence_pending.setdefault(user_id, status)
-        self._presence_last_sent.update({
-            user_id: batch[user_id] for user_id in live_successful_ids
-        })
-        if not succeeded:
-            raise RuntimeError("; ".join(errors) or "Production Worker accepted no presence updates")
-        return total_updated
+            raise
+        # A successful batch response acknowledges every supplied state,
+        # including unlinked Discord users that correctly produce zero writes.
+        self._presence_last_sent.update(batch)
+        return int(result.get("updated", 0))
 
     async def _presence_flush_loop(self) -> None:
         while True:
