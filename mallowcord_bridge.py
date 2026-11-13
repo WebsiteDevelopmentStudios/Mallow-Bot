@@ -519,6 +519,24 @@ class MallowCordBridge:
                         saved_cursor = self._github_snapshot.setdefault("history", {}).get(channel_key)
                         after = None
                         last_seen_id = 0
+                        if not saved_cursor:
+                            # This bridge already has a live message mirror. On
+                            # rollout, establish a no-write baseline at the newest
+                            # existing Discord message instead of replaying years
+                            # of history into D1 just because the cursor is new.
+                            latest = None
+                            async for latest_message in channel.history(limit=1):
+                                latest = latest_message
+                                break
+                            await self._save_history_cursor(
+                                channel.id, latest.id if latest is not None else 0
+                            )
+                            if latest is not None:
+                                log.info(
+                                    "Seeded history cursor for #%s at its latest existing message; skipped historical replay.",
+                                    channel.name,
+                                )
+                            return 0
                         if saved_cursor:
                             try:
                                 cursor_id = self._decode_history_cursor(channel.id, saved_cursor)
