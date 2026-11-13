@@ -553,7 +553,9 @@ class MallowCordBridge:
                         if batch:
                             async with history_sem:
                                 count += await self.handle_discord_message_batch(batch)
-                            await self._save_history_cursor(channel.id, batch[-1].id)
+                            # Save the newest observed message, including any
+                            # ignored bot/webhook messages after the last batch item.
+                            await self._save_history_cursor(channel.id, last_seen_id or batch[-1].id)
                         elif last_seen_id:
                             # Also advance over bot/webhook messages, which are
                             # intentionally excluded from the import.
