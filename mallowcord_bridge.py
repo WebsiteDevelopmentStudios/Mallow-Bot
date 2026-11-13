@@ -8,6 +8,7 @@ display name and avatar are preserved.
 from __future__ import annotations
 
 import asyncio
+import base64
 import hashlib
 import json
 import logging
@@ -51,7 +52,7 @@ class MallowCordBridge:
         self._history_synced = False
         # Fingerprints live in the bot process: unchanged Discord snapshots never
         # reach the database. A restart intentionally performs one recovery sync.
-        self._github_snapshot: dict[str, Any] = {"version": 1, "guild_id": str(GUILD_ID), "groups": {}, "members": {}}
+        self._github_snapshot: dict[str, Any] = {"version": 1, "guild_id": str(GUILD_ID), "groups": {}, "members": {}, "history": {}}
         self._github_snapshot_loaded = False
         self._github_snapshot_sha: str | None = None
         self._github_snapshot_dirty = False
@@ -174,6 +175,7 @@ class MallowCordBridge:
                 "guild_id": str(GUILD_ID),
                 "groups": dict(snapshot.get("groups") or {}),
                 "members": dict(snapshot.get("members") or {}),
+                "history": dict(snapshot.get("history") or {}),
             }
         self._github_snapshot_sha = str(data.get("sha") or "") or None
         self._github_snapshot_loaded = True
@@ -195,6 +197,35 @@ class MallowCordBridge:
         )
         self._github_snapshot_sha = str(data.get("sha") or self._github_snapshot_sha or "") or None
         self._github_snapshot_dirty = False
+
+    def _history_channel_key(self, channel_id: int) -> str:
+        return hashlib.sha256(str(channel_id).encode("utf-8")).hexdigest()
+
+    def _encode_history_cursor(self, channel_id: int, message_id: int) -> str:
+        # Cursor IDs are reversible-encrypted before being stored in the
+        # GitHub snapshot, so raw Discord snowflakes are not exposed there.
+        key = hashlib.sha256(
+            (SERVICE_KEY + ":" + self._history_channel_key(channel_id)).encode("utf-8")
+        ).digest()
+        raw = str(message_id).encode("ascii")
+        encrypted = bytes(value ^ key[index % len(key)] for index, value in enumerate(raw))
+        return base64.urlsafe_b64encode(encrypted).decode("ascii")
+
+    def _decode_history_cursor(self, channel_id: int, encoded: str) -> int:
+        key = hashlib.sha256(
+            (SERVICE_KEY + ":" + self._history_channel_key(channel_id)).encode("utf-8")
+        ).digest()
+        encrypted = base64.urlsafe_b64decode(encoded.encode("ascii"))
+        raw = bytes(value ^ key[index % len(key)] for index, value in enumerate(encrypted))
+        return int(raw.decode("ascii"))
+
+    async def _save_history_cursor(self, channel_id: int, message_id: int) -> None:
+        history = self._github_snapshot.setdefault("history", {})
+        history[self._history_channel_key(channel_id)] = self._encode_history_cursor(
+            channel_id, message_id
+        )
+        self._github_snapshot_dirty = True
+        await self._save_github_snapshot()
 
     async def _sync_snapshot_request(
         self, path: str, payload: dict[str, Any], snapshot_key: str
@@ -480,17 +511,46 @@ class MallowCordBridge:
                     async def import_channel(channel: discord.TextChannel) -> int:
                         count = 0
                         batch: list[discord.Message] = []
-                        async for message in channel.history(limit=HISTORY_LIMIT or None, oldest_first=True):
+                        channel_key = self._history_channel_key(channel.id)
+                        saved_cursor = self._github_snapshot.setdefault("history", {}).get(channel_key)
+                        after = None
+                        if saved_cursor:
+                            try:
+                                cursor_id = self._decode_history_cursor(channel.id, saved_cursor)
+                                if cursor_id > 0:
+                                    after = discord.Object(id=cursor_id)
+                                else:
+                                    # A zero cursor marks a channel that was
+                                    # successfully checked and contained no history.
+                                    return 0
+                            except Exception:
+                                log.exception(
+                                    "Could not decode saved history cursor for #%s; refusing to replay its history.",
+                                    channel.name,
+                                )
+                                raise RuntimeError(
+                                    f"Saved history cursor for #{channel.name} is invalid; refusing a duplicate import."
+                                )
+
+                        async for message in channel.history(
+                            limit=HISTORY_LIMIT or None, oldest_first=True, after=after
+                        ):
                             if message.author.bot or message.webhook_id is not None:
                                 continue
                             batch.append(message)
                             if len(batch) >= 100:
                                 async with history_sem:
                                     count += await self.handle_discord_message_batch(batch)
+                                # Advance only after the whole batch is acknowledged.
+                                await self._save_history_cursor(channel.id, batch[-1].id)
                                 batch = []
                         if batch:
                             async with history_sem:
                                 count += await self.handle_discord_message_batch(batch)
+                            await self._save_history_cursor(channel.id, batch[-1].id)
+                        elif not saved_cursor:
+                            # Persist a completion marker for an empty channel.
+                            await self._save_history_cursor(channel.id, 0)
                         return count
     
                     channel_results = await asyncio.gather(
