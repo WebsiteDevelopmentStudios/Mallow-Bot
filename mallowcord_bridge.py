@@ -510,17 +510,26 @@ class MallowCordBridge:
         payload = self._discord_message_payload(message)
         if payload is None:
             return False
-        # Prefer the durable Rust event queue even when the legacy D1 Worker is configured.
-        # Fall back to the Worker only when Rust events are unavailable or fail.
-        if not raise_errors and await self._send_rust_event("discord.message.created", payload):
-            return True
         try:
-            await self._request("POST", "/api/integrations/mallowbot/discord/messages" if D1_API_BASE else "/integrations/mallowbot/discord/messages", payload, base_url=D1_API_BASE or API_BASE)
+            if D1_API_BASE:
+                # MallowCord's live UI reads the production Worker database.
+                # Write there first, then mirror the same message to the Rust/D1
+                # ingestion Worker. Sending only to D1_API_BASE makes Discord
+                # messages invisible in the production MallowCord chat.
+                await self._sync_request("/integrations/mallowbot/discord/messages", payload)
+            else:
+                # Use the durable Rust event queue only when the D1 mirror is not
+                # configured. The event consumer is not the live D1 data path.
+                if not raise_errors and await self._send_rust_event("discord.message.created", payload):
+                    return True
+                await self._request("POST", "/integrations/mallowbot/discord/messages", payload, base_url=API_BASE)
+            log.info("Mirrored Discord message %s from #%s into MallowCord.", message.id, message.channel.name)
             return True
         except Exception as exc:
             if raise_errors:
                 raise
-            log.warning("Could not mirror Discord message %s: %s", message.id, exc)
+            log.warning("Could not mirror Discord message %s from #%s into MallowCord: %s",
+                        message.id, message.channel.name, exc)
             return False
 
     async def handle_member_join(self, member: discord.Member) -> None:
