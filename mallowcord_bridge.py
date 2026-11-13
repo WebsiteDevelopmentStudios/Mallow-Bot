@@ -269,6 +269,10 @@ class MallowCordBridge:
         delay = 5
         while self.enabled and not self._synced:
             try:
+                # Restart recovery is deliberately first: do not issue any
+                # snapshot-backed D1 writes until the persisted GitHub baseline
+                # has been loaded and validated for this guild.
+                await self._load_github_snapshot()
                 await self.sync_guild()
                 self._synced = True
                 log.info("MallowCord initial import completed successfully.")
@@ -606,9 +610,14 @@ class MallowCordBridge:
                 "bot": bool(member.bot),
             }],
         }
-        # Write the live member directory and its D1 mirror through the same sync path.
+        # Compare against the persisted GitHub baseline before any D1 write.
         try:
-            await self._sync_request("/api/integrations/mallowbot/discord/sync" if D1_API_BASE else "/integrations/mallowbot/discord/sync", payload)
+            await self._sync_snapshot_request(
+                "/api/integrations/mallowbot/discord/sync" if D1_API_BASE else "/integrations/mallowbot/discord/sync",
+                payload,
+                "members-v1-live",
+            )
+            await self._save_github_snapshot()
         except Exception as exc:
             log.warning("Could not add joining Discord member %s to MallowCord: %s", member.id, exc)
 
@@ -629,9 +638,14 @@ class MallowCordBridge:
                 "bot": bool(member.bot),
             }],
         }
-        # Write the live member directory and its D1 mirror through the same sync path.
+        # Compare against the persisted GitHub baseline before any D1 write.
         try:
-            await self._sync_request("/api/integrations/mallowbot/discord/sync" if D1_API_BASE else "/integrations/mallowbot/discord/sync", payload)
+            await self._sync_snapshot_request(
+                "/api/integrations/mallowbot/discord/sync" if D1_API_BASE else "/integrations/mallowbot/discord/sync",
+                payload,
+                "members-v1-live",
+            )
+            await self._save_github_snapshot()
         except Exception as exc:
             log.warning("Could not update Discord member %s in MallowCord: %s", member.id, exc)
 
