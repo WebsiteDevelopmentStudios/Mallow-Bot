@@ -56,6 +56,7 @@ class MallowCordBridge:
         self._github_snapshot_loaded = False
         self._github_snapshot_sha: str | None = None
         self._github_snapshot_dirty = False
+        self._snapshot_lock = asyncio.Lock()
         self._presence_last_sent: dict[str, str] = {}
         # Coalesce rapid Discord presence events and flush them as one batch.
         self._presence_pending: dict[str, str] = {}
@@ -185,18 +186,21 @@ class MallowCordBridge:
         )
 
     async def _save_github_snapshot(self) -> None:
-        if not self._github_snapshot_dirty:
-            return
-        payload = {
-            "guild_id": str(GUILD_ID),
-            "sha": self._github_snapshot_sha,
-            "snapshot": self._github_snapshot,
-        }
-        data = await self._request(
-            "POST", "/integrations/mallowbot/discord/snapshot", payload, base_url=API_BASE
-        )
-        self._github_snapshot_sha = str(data.get("sha") or self._github_snapshot_sha or "") or None
-        self._github_snapshot_dirty = False
+        # Multiple history channels can finish together; serialize GitHub
+        # compare-and-swap writes so an older SHA cannot overwrite a newer one.
+        async with self._snapshot_lock:
+            if not self._github_snapshot_dirty:
+                return
+            payload = {
+                "guild_id": str(GUILD_ID),
+                "sha": self._github_snapshot_sha,
+                "snapshot": self._github_snapshot,
+            }
+            data = await self._request(
+                "POST", "/integrations/mallowbot/discord/snapshot", payload, base_url=API_BASE
+            )
+            self._github_snapshot_sha = str(data.get("sha") or self._github_snapshot_sha or "") or None
+            self._github_snapshot_dirty = False
 
     def _history_channel_key(self, channel_id: int) -> str:
         return hashlib.sha256(str(channel_id).encode("utf-8")).hexdigest()
@@ -514,6 +518,7 @@ class MallowCordBridge:
                         channel_key = self._history_channel_key(channel.id)
                         saved_cursor = self._github_snapshot.setdefault("history", {}).get(channel_key)
                         after = None
+                        last_seen_id = 0
                         if saved_cursor:
                             try:
                                 cursor_id = self._decode_history_cursor(channel.id, saved_cursor)
@@ -535,6 +540,7 @@ class MallowCordBridge:
                         async for message in channel.history(
                             limit=HISTORY_LIMIT or None, oldest_first=True, after=after
                         ):
+                            last_seen_id = message.id
                             if message.author.bot or message.webhook_id is not None:
                                 continue
                             batch.append(message)
@@ -548,6 +554,10 @@ class MallowCordBridge:
                             async with history_sem:
                                 count += await self.handle_discord_message_batch(batch)
                             await self._save_history_cursor(channel.id, batch[-1].id)
+                        elif last_seen_id:
+                            # Also advance over bot/webhook messages, which are
+                            # intentionally excluded from the import.
+                            await self._save_history_cursor(channel.id, last_seen_id)
                         elif not saved_cursor:
                             # Persist a completion marker for an empty channel.
                             await self._save_history_cursor(channel.id, 0)
