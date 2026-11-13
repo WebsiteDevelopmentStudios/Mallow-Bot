@@ -2191,6 +2191,30 @@ intents.presences = True
 
 
 class MallowBot(commands.Bot):
+    async def connect(self, *, reconnect: bool = True) -> None:
+        """Recover if Discord rejects the very first Gateway WebSocket handshake.
+
+        discord.py's reconnect path assumes self.ws exists after a failed
+        handshake. A Gateway HTTP 503 can happen before a websocket object is
+        created, which otherwise raises "'NoneType' object has no attribute
+        'sequence'" and terminates the bot process.
+        """
+        retry_delay = 5.0
+        while True:
+            try:
+                await super().connect(reconnect=reconnect)
+                return
+            except AttributeError as exc:
+                if not reconnect or self.ws is not None or getattr(exc, "name", None) != "sequence":
+                    raise
+                logger.warning(
+                    "Discord Gateway failed before the WebSocket session was created; "
+                    "retrying a fresh connection in %.1f seconds.",
+                    retry_delay,
+                )
+                await asyncio.sleep(retry_delay)
+                retry_delay = min(retry_delay * 2, 60.0)
+
     async def close(self) -> None:
         await mallowcord_bridge.close()
         await super().close()
