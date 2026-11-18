@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101018">
+  <title>MallowBot Panel</title>
+  <style>
+    *{box-sizing:border-box}html,body{height:100%;margin:0}
+    body{display:grid;place-items:center;background:#101018;color:#eee;font:14px system-ui,-apple-system,"Segoe UI",sans-serif}
+    main{text-align:center;padding:32px}
+    img{width:76px;height:76px;object-fit:contain;margin-bottom:18px}
+    p{color:#aaa}
+    .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#9b4d2f;margin:0 3px;animation:pulse 1s infinite alternate}
+    @keyframes pulse{to{opacity:.25}}
+  </style>
+</head>
+<body>
+  <main>
+    <img src="https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/MallowBot.png" alt="MallowBot">
+    <div><strong>MallowBot Panel</strong></div>
+    <p>Connecting to your dashboard<span class="dot"></span><span class="dot"></span><span class="dot"></span></p>
+  </main>
+  <script>
+    // Keep the hosted dashboard as the single source of truth for login,
+    // sessions, server settings, and API requests.
+    window.location.replace("https://mallowbot.kz.ci/");
+  </script>
+</body>
+</html>
