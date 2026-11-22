@@ -6,7 +6,7 @@ mod premium;
 
 use anyhow::{Context, Result};
 use serenity::{
-    all::{Command, CommandInteraction, CreateCommand, Interaction, Message, Ready},
+    all::{Command, CommandInteraction, CreateCommand, CreateEmbed, CreateMessage, GuildId, Interaction, Member, Message, Ready, User},
     async_trait,
     prelude::*,
 };
@@ -38,6 +38,44 @@ impl EventHandler for Handler {
         commands.extend(community::commands());
         if let Err(err) = Command::set_global_commands(&ctx.http, commands).await {
             error!(%err, "Could not register initial Rust migration commands");
+        }
+    }
+
+    async fn guild_member_addition(&self, ctx: DiscordContext, member: Member) {
+        let guild_id = member.guild_id.get();
+        let cfg = self.state.dashboard.guild_config(guild_id).await;
+        let messages = &cfg.messages_config;
+        if messages.get("welcome_enabled").and_then(|v| v.as_bool()) != Some(true) { return; }
+        let Some(channel) = messages.get("welcome_channel_id").and_then(|v| v.as_str()).and_then(|v| v.parse::<u64>().ok()) else { return };
+        let guild = member.guild_id.to_partial_guild(&ctx.http).await.ok();
+        let server = guild.as_ref().map(|g| g.name.as_str()).unwrap_or("the server");
+        let count = guild.as_ref().and_then(|g| g.member_count).unwrap_or(0);
+        let user = format!("<@{}>", member.user.id.get());
+        let template = messages.get("welcome_message").and_then(|v| v.as_str()).unwrap_or("Welcome {user} to {server}!");
+        let body = template.replace("{user}", &user).replace("{server}", server).replace("{member_count}", &count.to_string());
+        let title = messages.get("welcome_title").and_then(|v| v.as_str()).unwrap_or("");
+        let mut embed = CreateEmbed::new().description(body.chars().take(4000).collect::<String>());
+        if !title.is_empty() { embed = embed.title(title.chars().take(256).collect::<String>()); }
+        let builder = CreateMessage::new().embed(embed);
+        if let Err(error) = serenity::all::ChannelId::new(channel).send_message(&ctx.http, builder).await {
+            warn!(%error, guild_id, "Could not send configured welcome message");
+        }
+    }
+
+    async fn guild_member_removal(&self, ctx: DiscordContext, guild_id: GuildId, user: User, _member: Option<Member>) {
+        let cfg = self.state.dashboard.guild_config(guild_id.get()).await;
+        let messages = &cfg.messages_config;
+        if messages.get("goodbye_enabled").and_then(|v| v.as_bool()) != Some(true) { return; }
+        let Some(channel) = messages.get("goodbye_channel_id").and_then(|v| v.as_str()).and_then(|v| v.parse::<u64>().ok()) else { return };
+        let guild = guild_id.to_partial_guild(&ctx.http).await.ok();
+        let server = guild.as_ref().map(|g| g.name.as_str()).unwrap_or("the server");
+        let template = messages.get("goodbye_message").and_then(|v| v.as_str()).unwrap_or("{user} left {server}.");
+        let body = template.replace("{user}", &format!("<@{}>", user.id.get())).replace("{server}", server);
+        let title = messages.get("goodbye_title").and_then(|v| v.as_str()).unwrap_or("");
+        let mut embed = CreateEmbed::new().description(body.chars().take(4000).collect::<String>());
+        if !title.is_empty() { embed = embed.title(title.chars().take(256).collect::<String>()); }
+        if let Err(error) = serenity::all::ChannelId::new(channel).send_message(&ctx.http, CreateMessage::new().embed(embed)).await {
+            warn!(%error, guild_id = guild_id.get(), "Could not send configured goodbye message");
         }
     }
 
