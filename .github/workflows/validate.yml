@@ -5,6 +5,10 @@ on:
     branches: ["main", "migration/full-rust-bot"]
   pull_request:
 
+concurrency:
+  group: rust-validation-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   rust:
     runs-on: ubuntu-latest
