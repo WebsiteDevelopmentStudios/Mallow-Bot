@@ -74,6 +74,7 @@ impl EventHandler for Handler {
     }
 
     async fn guild_member_addition(&self, ctx: DiscordContext, member: Member) {
+        if self.state.premium.is_banned(member.user.id.get()).await { return; }
         let guild_id = member.guild_id.get();
         if let Some(role_id) = self.state.community.autorole(guild_id) {
             if let Err(error) = member.add_role(&ctx.http, RoleId::new(role_id)).await {
