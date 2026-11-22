@@ -497,6 +497,55 @@ pub async fn handle(ctx: &Context, command: &CommandInteraction, store: &Communi
                 }
             }
         }
+        "set-log" => {
+            if user_id != 1021068313071210498 { "Only the bot developer can configure DM logs.".into() }
+            else {
+                let channel = command.data.options.iter().find_map(|o| if let CommandDataOptionValue::Channel(id) = o.value { Some(id.get()) } else { None });
+                if let Some(channel) = channel {
+                    store.set_record("log_channels", &guild_id.to_string(), Some(json!(channel)));
+                    format!("DM conversations will be logged to <#{channel}>.")
+                } else { "Choose a text channel for DM logs.".into() }
+            }
+        }
+        "dm" => {
+            let permitted = command.member.as_ref().and_then(|member| member.permissions).map(|p| p.manage_messages()).unwrap_or(false);
+            if !permitted { "You need Manage Messages permission to use this command.".into() }
+            else {
+                let target = command.data.options.iter().find_map(|o| if o.name == "member" { if let CommandDataOptionValue::User(id) = o.value { Some(id) } else { None } });
+                let text = command.data.options.iter().find_map(|o| if o.name == "message" { if let CommandDataOptionValue::String(value) = &o.value { Some(value.as_str()) } else { None } }).unwrap_or("");
+                let log_channel = store.record("log_channels", &guild_id.to_string()).and_then(|v| v.as_u64());
+                if let (Some(target), Some(log_channel)) = (target, log_channel) {
+                    if target.get() == user_id || text.trim().is_empty() || text.len() > 1900 { "Choose another member and provide a message of 1,900 characters or fewer.".into() }
+                    else {
+                        match target.create_dm_channel(&ctx.http).await {
+                            Ok(channel) if channel.say(&ctx.http, text).await.is_ok() => {
+                                store.set_record("dm_routes", &target.get().to_string(), Some(json!({"guild_id":guild_id,"channel_id":log_channel,"set_by":user_id,"updated_at":now_seconds()})));
+                                format!("Sent a DM to <@{}>. Their replies will be forwarded only to <#{log_channel}>.", target.get())
+                            }
+                            _ => "I couldn't DM that member. They may have DMs disabled.".into()
+                        }
+                    }
+                } else { "This server needs a DM log channel. Ask the bot developer to configure it with /set-log.".into() }
+            }
+        }
+        "purge" => {
+            let permitted = command.member.as_ref().and_then(|member| member.permissions).map(|p| p.manage_messages()).unwrap_or(false);
+            if !permitted { "You need Manage Messages permission to use this command.".into() }
+            else {
+                let amount = command.data.options.iter().find_map(|o| if let CommandDataOptionValue::Integer(value) = o.value { Some(value) } else { None }).unwrap_or(0).clamp(1,100) as u8;
+                match command.channel_id.messages(&ctx.http, GetMessages::new().limit(amount)).await {
+                    Ok(messages) if !messages.is_empty() => {
+                        let ids: Vec<_> = messages.iter().map(|message| message.id).collect();
+                        match command.channel_id.delete_messages(&ctx.http, ids).await {
+                            Ok(()) => format!("Deleted {} message(s).", messages.len()),
+                            Err(_) => "I couldn't delete those messages. Check my Manage Messages permission and message age.".into()
+                        }
+                    }
+                    Ok(_) => "There are no messages to delete.".into(),
+                    Err(_) => "I couldn't read this channel's message history.".into()
+                }
+            }
+        }
         "snipe" => {
             match store.record("snipes", &command.channel_id.get().to_string()) {
                 Some(value) => format!("Recently deleted message: {}", value.get("content").and_then(Value::as_str).unwrap_or("[No text content]")),
