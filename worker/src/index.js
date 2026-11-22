@@ -49,7 +49,7 @@ function interactionResponse(payload) {
 export default {
   async fetch(request, env, ctx) {
     if (request.method !== "POST") {
-      return new Response("Mochi-Bot Discord endpoint", { status: 200 });
+      return new Response("Mallow Bot Discord endpoint", { status: 200 });
     }
 
     if (!(await verifyDiscordRequest(request, env.DISCORD_PUBLIC_KEY))) {
