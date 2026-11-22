@@ -149,6 +149,14 @@ impl MusicManager {
 
     pub async fn voice_state_update(&self, state: &VoiceState) {
         let Some(guild_id) = state.guild_id.map(|id| id.get()) else { return };
+        {
+            let mut members = self.member_voice_channels.write().await;
+            if let Some(channel) = state.channel_id {
+                members.insert((guild_id, state.user_id.get()), channel.get());
+            } else {
+                members.remove(&(guild_id, state.user_id.get()));
+            }
+        }
         if Some(state.user_id.get()) != *self.bot_user_id.read().await { return; }
         let mut voices = self.voices.write().await;
         let voice = voices.entry(guild_id).or_default();
@@ -338,10 +346,10 @@ impl MusicManager {
         };
         if enabled {
             if let Some(encoded) = encoded { self.spawn_lyrics(guild, encoded).await; }
-            "Synchronized lyrics enabled. Lyrics will appear in your voice channel when available.".into()
+            "Warning: This Feature Is In Beta, Don't Expect A Fully Working Version Soon".into()
         } else {
             if let Some(task) = self.lyrics_tasks.lock().await.remove(&guild) { task.abort(); }
-            "Synchronized lyrics disabled.".into()
+            "Lyrics disabled.".into()
         }
     }
 
