@@ -15,6 +15,7 @@ use tracing::{info, warn};
 struct Track {
     encoded: String,
     title: String,
+    artist: String,
     uri: String,
     duration_ms: u64,
 }
@@ -158,7 +159,18 @@ impl MusicManager {
 
     async fn search(&self, query: &str) -> Result<Track> {
         if !self.enabled() { return Err(anyhow!("Lavalink is disabled. Set ENABLE_LAVALINK=true to enable music.")); }
-        let identifier = if query.starts_with("http://") || query.starts_with("https://") { query.to_string() } else { format!("ytsearch:{query}") };
+        let mut search_term = query.trim().to_string();
+        if query.contains("open.spotify.com/track/") || query.contains("spotify.link/") {
+            let metadata = self.client.get("https://open.spotify.com/oembed").query(&[("url", query)]).send().await
+                .context("Spotify metadata lookup failed")?;
+            if !metadata.status().is_success() { return Err(anyhow!("Spotify did not return track metadata")); }
+            let data: Value = metadata.json().await.context("Spotify metadata was invalid")?;
+            let title = data.get("title").and_then(Value::as_str).unwrap_or("").trim();
+            let artist = data.get("author_name").and_then(Value::as_str).unwrap_or("Unknown Artist").trim();
+            if title.is_empty() { return Err(anyhow!("Spotify track title was missing")); }
+            search_term = format!("{artist} - {title}");
+        }
+        let identifier = if search_term.starts_with("http://") || search_term.starts_with("https://") { search_term.clone() } else { format!("ytsearch:{search_term}") };
         let response = self.client.get(format!("{}/v4/loadtracks", self.base_url))
             .header("Authorization", &self.password)
             .query(&[("identifier", identifier)])
@@ -171,6 +183,7 @@ impl MusicManager {
         Ok(Track {
             encoded: encoded.to_string(),
             title: info.get("title").and_then(Value::as_str).unwrap_or("Unknown track").to_string(),
+            artist: info.get("author").and_then(Value::as_str).unwrap_or("Unknown Artist").to_string(),
             uri: info.get("uri").and_then(Value::as_str).unwrap_or("").to_string(),
             duration_ms: info.get("length").and_then(Value::as_u64).unwrap_or(0),
         })
