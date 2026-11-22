@@ -133,7 +133,7 @@ impl EventHandler for Handler {
         if !is_prefix && cfg.features.get("social").and_then(|v| v.as_bool()).unwrap_or(true) {
             let video_id = content.split_whitespace().find_map(|part| {
                 if let Some(id) = part.split("youtu.be/").nth(1) { Some(id.chars().take(11).collect::<String>()) }
-                else if let Some(id) = part.split("v=").nth(1) { Some(id.chars().take_11().collect::<String>()) }
+                else if let Some(id) = part.split("v=").nth(1) { Some(id.chars().take(11).collect::<String>()) }
                 else { None }
             }).filter(|id| id.len() == 11);
             if let Some(video_id) = video_id {
