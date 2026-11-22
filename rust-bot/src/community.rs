@@ -356,7 +356,7 @@ pub fn bliss_commands() -> Vec<CreateCommand> {
     ]
 }
 
-pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, store: &CommunityStore, music: &MusicManager) -> bool {
+pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, store: &CommunityStore, music: &MusicManager, premium: &PremiumClient) -> bool {
     let Some(guild_id) = message.guild_id.map(|id| id.get()) else { return false };
     let Some(rest) = message.content.strip_prefix(&cfg.prefix) else { return false };
     let mut parts = rest.trim().splitn(2, char::is_whitespace);
