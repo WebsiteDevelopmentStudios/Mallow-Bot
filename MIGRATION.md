@@ -1,45 +1,43 @@
-# Full Rust migration status
+# Rust migration status
 
-Target: one Rust Mallow Bot runtime. All movie and media-hosting functionality is excluded and has been removed from the migration branch.
+Target: one Rust Mallow Bot runtime. Production `main` remains unchanged until the Rust service is validated and ready for cutover.
 
-## Completed on `migration/full-rust-bot`
+## Implemented on `migration/full-rust-bot`
 
-- [x] Isolated migration branch; production `main` remains unchanged.
-- [x] Rust executable, Serenity gateway, Axum health server, dashboard config client, and Premium client.
-- [x] Authenticated HTTP interaction bridge for the Cloudflare/Vercel interaction forwarders.
-- [x] Owner guild-list and leave endpoints with the existing Bot-token authorization contract.
-- [x] Lavalink v4 WebSocket connection, Discord voice-state handoff, per-guild queue, playback controls, Spotify track metadata lookup, and LRCLIB synchronized lyrics.
+- [x] Isolated migration branch.
+- [x] Rust executable using Serenity for Discord and Axum for HTTP.
+- [x] Authenticated HTTP interaction bridge for the Vercel and Cloudflare forwarders.
+- [x] Owner guild-list and leave endpoints using the existing Bot-token authorization contract.
+- [x] Dashboard runtime configuration and Premium/ban checks over HTTP.
+- [x] Lavalink v4 WebSocket client, Discord voice-state handoff, per-guild queues, playback controls, Spotify metadata lookup, and synchronized LRCLIB lyrics.
 - [x] MCXboxBroadcast and Lavalink keep-alive tasks.
 - [x] Rotating custom Discord presence.
-- [x] XP/levels/leaderboard, configurable XP cooldown/range, economy balances/rewards/games/transfers, fun commands, swear counter, adjustments, and swear leaderboard.
+- [x] XP, levels, leaderboards, configurable XP cooldown/range, Mallow Coins, economy games, transfers, and daily rewards.
+- [x] Fun commands and randomized direct-mention replies.
+- [x] Swear counter with Unicode/obfuscation normalization, non-overlapping phrase counting, developer adjustments, and leaderboards.
 - [x] Prefix music and community command dispatch.
-- [x] Invite-link deletion and configurable timeouts.
+- [x] Discord invite protection and configurable timeouts.
 - [x] Dashboard-driven welcome/goodbye messages and 700×400 rendered member cards with avatar, display name, and member number.
 - [x] Bliss SMP welcome, announcements, and events.
-- [x] Auto-role, reaction roles, and rules verification.
-- [x] Ticket channel creation/close, ticket ownership/support permission checks, and duplicate-ticket prevention.
-- [x] Premium gating, vanity taglines, custom embeds, custom commands, snipe capture, sticky reposts, channel/role backup export, DM forwarding, purge, update log, YouTube enrichment, ToS, uptime, and command list.
-- [x] Remove Python bot runtime modules and Python requirements from the migration branch.
-- [x] Remove movie commands, movie search/hosting/proxy code, movie directory, FFmpeg/FFprobe/HLS dependencies, and movie-specific Would You Rather content by removing the legacy Python bot runtime.
-- [x] Remove the unrelated D1 storage-usage endpoint and developer-dashboard panel.
-- [x] Add Rust Render Docker deployment and Node.js Vercel interaction verification.
+- [x] Automatic roles, reaction roles, and rules verification.
+- [x] Support ticket creation, persistent ticket panel buttons, duplicate-ticket prevention, and owner/support close permissions.
+- [x] Premium gating, vanity taglines, custom embeds, custom commands, snipe capture, sticky reposts, server layout export, DM forwarding, purge, update log, YouTube enrichment, ToS, uptime, command list, and command synchronization.
+- [x] Persistent Halloween countdown messages with daily general Halloween facts.
+- [x] Rust Render Docker deployment, Vercel interaction verification, and Cloudflare Worker forwarding.
+- [x] Remove the legacy Python bot runtime and its Python-only dependency manifest.
+- [x] Remove the obsolete dashboard feature controls and API settings for retired functionality.
 
-## Still required before production cutover
+## Remaining validation before production cutover
 
-- [ ] Resolve all current Rust CI/build issues and pass `cargo check`, `cargo test`, release build, and production Docker build on the latest commit.
-- [ ] Run a live Discord test for gateway startup, HTTP-forwarded slash commands, command options/permissions, reactions, member join/leave cards, tickets, and owner endpoints.
-- [ ] Run a live Lavalink test for voice join, track search/play, queue advance, pause/resume, skip/stop/volume, Spotify links, and synchronized lyrics.
-- [ ] Validate the dashboard runtime-config and Premium API contracts against the production Cloudflare Pages deployment.
-- [ ] Verify Vercel and Cloudflare Worker forwarding secrets and endpoint URLs.
-- [ ] Validate persistent storage behavior on the chosen host; Render's free filesystem is ephemeral.
-- [ ] Finish parity gaps such as ticket-panel component buttons, full server backup fidelity, and any dashboard/owner controls not covered by the live test.
-- [ ] Confirm all required Discord intents and permissions in the Developer Portal and bot role.
-- [ ] Review deployment environment variables and perform a rollback rehearsal.
-- [ ] Only after all checks pass, replace the production startup command with the Rust executable and merge to `main`.
-
-## Explicit exclusion
-
-No movie commands, movie search, movie channel linking, movie file library, movie downloads, movie web routes, movie proxy, FFmpeg/FFprobe, HLS playback/hosting, or movie cleanup tasks belong in Mallow Bot.
+- [ ] Pass Rust CI on the latest commit: formatting, `cargo check`, `cargo test`, release build, and production Docker build.
+- [ ] Run live Discord tests for gateway startup, Vercel/Worker forwarded slash commands, command options and permissions, reactions, member join/leave cards, ticket buttons, and owner endpoints.
+- [ ] Run live Lavalink tests for voice join, search/play, queue advance, pause/resume, skip/stop/volume, Spotify links, and synchronized lyrics.
+- [ ] Validate dashboard runtime-config and Premium API contracts against the deployed dashboard.
+- [ ] Verify Vercel and Cloudflare Worker secrets and endpoint URLs.
+- [ ] Confirm the selected host provides persistent storage for `MALLOW_DATA_DIR`; Render's free filesystem is ephemeral.
+- [ ] Review Discord intents and permissions in the Developer Portal and bot role.
+- [ ] Review deployment variables and perform a rollback rehearsal.
+- [ ] Only after these checks pass, replace the production startup with the Rust executable and merge to `main`.
 
 ## Architecture
 
@@ -47,13 +45,14 @@ No movie commands, movie search, movie channel linking, movie file library, movi
 - `rust-bot/src/community.rs`: community commands, moderation, tickets, reaction roles, and persistent JSON state.
 - `rust-bot/src/music.rs`: Lavalink v4, Discord voice session synchronization, queue, Spotify metadata, and synchronized lyrics.
 - `rust-bot/src/member_cards.rs`: 700×400 welcome/goodbye image rendering.
+- `rust-bot/src/halloween.rs`: persistent countdown messages and daily facts.
 - `rust-bot/src/dashboard.rs`: cached dashboard runtime-config HTTP contract.
 - `rust-bot/src/premium.rs`: Premium and ban checks.
 - `rust-bot/src/health.rs`: health/readiness endpoint.
 - `rust-bot/src/tasks.rs`: keep-alives and rotating status.
-- `api/index.js`: Discord signature verification and forwarding to the Rust interaction endpoint.
-- `worker/src/index.js`: Cloudflare Worker interaction forwarding.
+- `api/index.js`: Vercel Discord signature verification and interaction forwarding.
+- `worker/src/index.js`: Cloudflare Worker Discord signature verification and interaction forwarding.
 
 ## Data boundary
 
-The Rust bot does not connect directly to Cloudflare D1. Dashboard settings and Premium state continue through the existing HTTP APIs. The D1 storage-usage reporting feature remains removed.
+The bot reads dashboard settings and Premium state through the existing HTTP APIs. It does not access the dashboard database directly. Local community state is stored as JSON under `MALLOW_DATA_DIR`.
