@@ -323,7 +323,40 @@ impl EventHandler for Handler {
             let normalize = |value: &str| -> Vec<String> {
                 let mut mapped = String::new();
                 for raw in value.nfkd().flat_map(char::to_lowercase).filter(|ch| !is_combining_mark(*ch)) {
-                    let ch = match raw { '0' => 'o', '1' | '!' | '|' => 'i', '3' => 'e', '4' | '@' => 'a', '5' | '
+                    let ch = match raw {
+                        '0' => 'o',
+                        '1' | '!' | '|' => 'i',
+                        '3' => 'e',
+                        '4' | '@' => 'a',
+                        '5' | '$' => 's',
+                        '7' | '+' => 't',
+                        '8' => 'b',
+                        '9' => 'g',
+                        '€' => 'e',
+                        other => other,
+                    };
+                    if ch.is_alphanumeric() { mapped.push(ch); }
+                    else if ch.is_whitespace() { mapped.push(' '); }
+                }
+                mapped.split_whitespace().map(str::to_owned).collect()
+            };
+            let words = normalize(content);
+            let mut phrases: Vec<Vec<String>> = cfg.swear_words.iter()
+                .map(|term| normalize(term))
+                .filter(|phrase| !phrase.is_empty())
+                .collect();
+            phrases.sort_by(|a, b| b.len().cmp(&a.len()));
+            phrases.dedup();
+            let mut hits = 0_i64;
+            let mut cursor = 0usize;
+            while cursor < words.len() {
+                if let Some(phrase) = phrases.iter().find(|phrase| words[cursor..].starts_with(phrase.as_slice())) {
+                    hits += 1;
+                    cursor += phrase.len();
+                } else {
+                    cursor += 1;
+                }
+            }
             if hits > 0 {
                 let total = self.state.community.add_swears(guild_id, message.author.id.get(), hits);
                 let adjustment = cfg.swear_count_adjustments.get(message.author.id.get().to_string()).and_then(|v| v.as_i64()).unwrap_or(0);
