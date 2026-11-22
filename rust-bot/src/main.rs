@@ -365,7 +365,7 @@ impl EventHandler for Handler {
             }
         }
         if message.reference.is_none() && message.mentions.iter().any(|user| user.id == ctx.cache.current_user().id) {
-            let descriptions: Vec<&str> = include_str!("../../description.txt").split("\\n\\n")
+            let descriptions: Vec<&str> = include_str!("../../description.txt").split("\n\n")
                 .map(str::trim).filter(|value| !value.is_empty()).collect();
             if !descriptions.is_empty() {
                 let mut index = rand::Rng::gen_range(&mut rand::thread_rng(), 0..descriptions.len());
