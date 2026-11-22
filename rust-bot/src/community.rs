@@ -445,7 +445,7 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
     true
 }
 
-async fn create_ticket_channel(http: &Http, guild_id: u64, user_id: u64, username: &str, cfg: &GuildConfig, store: &CommunityStore) -> Result<u64, String> {
+pub async fn create_ticket_channel(http: &Http, guild_id: u64, user_id: u64, username: &str, cfg: &GuildConfig, store: &CommunityStore) -> Result<u64, String> {
     if cfg.tickets_config.get("enabled").and_then(Value::as_bool) != Some(true) {
         return Err("Tickets are disabled for this server.".into());
     }
