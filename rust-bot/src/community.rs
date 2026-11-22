@@ -1093,11 +1093,11 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
                 let amount = command.data.options.iter().find_map(|o| if let CommandDataOptionValue::Integer(value) = &o.value { Some(*value) } else { None }).unwrap_or(0).clamp(1,100) as u8;
                 match command.channel_id.messages(http, GetMessages::new().limit(amount)).await {
                     Ok(messages) if !messages.is_empty() => {
-                        let ids: Vec<_> = messages.iter().map(|message| message.id).collect();
-                        match command.channel_id.delete_messages(http, ids).await {
-                            Ok(()) => format!("Deleted {} message(s).", messages.len()),
-                            Err(_) => "I couldn't delete those messages. Check my Manage Messages permission and message age.".into()
+                        let mut deleted = 0usize;
+                        for message in messages {
+                            if message.delete(http).await.is_ok() { deleted += 1; }
                         }
+                        format!("Deleted {deleted} message(s).")
                     }
                     Ok(_) => "There are no messages to delete.".into(),
                     Err(_) => "I couldn't read this channel's message history.".into()
