@@ -80,18 +80,44 @@ impl EventHandler for Handler {
         }
     }
 
-    async fn message(&self, _ctx: DiscordContext, message: Message) {
+    async fn message(&self, ctx: DiscordContext, message: Message) {
         if message.author.bot { return; }
         let Some(guild_id) = message.guild_id.map(|id| id.get()) else { return };
         let cfg = self.state.dashboard.guild_config(guild_id).await;
-        if cfg.features.get("xp").and_then(|v| v.as_bool()).unwrap_or(true) && !message.content.trim().is_empty() {
-            let old = self.state.community.xp(guild_id, message.author.id.get());
+        let content = message.content.trim();
+        let is_prefix = content.to_lowercase().starts_with(&cfg.prefix.to_lowercase());
+        if !is_prefix && !content.is_empty() && cfg.features.get("xp").and_then(|v| v.as_bool()).unwrap_or(true) {
+            let cooldown = cfg.xp_config.get("cooldown_seconds").and_then(|v| v.as_u64()).unwrap_or(60);
             let add = 10 + (message.id.get() % 11) as i64;
-            let new = self.state.community.add_xp(guild_id, message.author.id.get(), add);
-            let old_level = ((old.max(0) as f64 / 100.0).sqrt()) as i64;
-            let new_level = ((new.max(0) as f64 / 100.0).sqrt()) as i64;
-            if new_level > old_level && cfg.xp_config.get("announce_level_up").and_then(|v| v.as_bool()).unwrap_or(true) {
-                let _ = message.channel_id.say(&_ctx.http, format!("<@{}> reached level {}.", message.author.id.get(), new_level)).await;
+            if let Some((old, new)) = self.state.community.add_xp(guild_id, message.author.id.get(), add, cooldown) {
+                let old_level = ((old.max(0) as f64 / 100.0).sqrt()) as i64;
+                let new_level = ((new.max(0) as f64 / 100.0).sqrt()) as i64;
+                if new_level > old_level && cfg.xp_config.get("announce_level_up").and_then(|v| v.as_bool()).unwrap_or(true) {
+                    let _ = message.channel_id.say(&ctx.http, format!("<@{}> reached level {}.", message.author.id.get(), new_level)).await;
+                }
+            }
+        }
+        if !is_prefix && cfg.features.get("swear_counter").and_then(|v| v.as_bool()).unwrap_or(true) && !cfg.swear_words.is_empty() {
+            let normalize = |value: &str| -> Vec<String> {
+                let mut mapped = String::new();
+                for ch in value.to_lowercase().chars() {
+                    let ch = match ch { '0' => 'o', '1' | '!' | '|' => 'i', '3' => 'e', '4' | '@' => 'a', '5' | '$' => 's', '7' | '+' => 't', '8' => 'b', '9' => 'g', other => other };
+                    if ch.is_alphanumeric() { mapped.push(ch); } else { mapped.push(' '); }
+                }
+                mapped.split_whitespace().map(str::to_owned).collect()
+            };
+            let words = normalize(content);
+            let mut hits = 0_i64;
+            for term in &cfg.swear_words {
+                let phrase = normalize(term);
+                if phrase.is_empty() || phrase.len() > words.len() { continue; }
+                hits += words.windows(phrase.len()).filter(|window| *window == phrase.as_slice()).count() as i64;
+            }
+            if hits > 0 {
+                let total = self.state.community.add_swears(guild_id, message.author.id.get(), hits);
+                let adjustment = cfg.swear_count_adjustments.get(message.author.id.get().to_string()).and_then(|v| v.as_i64()).unwrap_or(0);
+                let shown = (total + adjustment).max(0);
+                let _ = message.reply(&ctx.http, format!("You now have {shown} swear(s) in this server.")).await;
             }
         }
     }
