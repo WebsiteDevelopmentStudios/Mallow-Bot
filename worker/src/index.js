@@ -78,7 +78,7 @@ export default {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Mochi-Bot-Secret": env.WAKE_SECRET,
+          "X-Mallow-Bot-Secret": env.WAKE_SECRET,
         },
         body: JSON.stringify(payload),
       }).catch(() => {
