@@ -386,7 +386,7 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
         "vibecheck" | "ship" | "fortune" | "wyr" => Some("fun"),
         "youtube" => Some("social"),
         "play" | "join" | "leave" | "pause" | "resume" | "skip" | "stop" | "queue" | "volume" | "lyrics" => Some("music"),
-        "commands" | "help" | "update" | "uptime" | "sync" | "tos" | "say" | "ticket" | "ticket-panel" | "ticket-close" | "backup" | "embed" | "vanity" | "custom-command" | "premium-status" | "announcement" | "event" | "rules" | "autorole" | "reaction-role" => Some("utility"),
+        "commands" | "help" | "update" | "uptime" | "sync" | "tos" | "say" | "countdown" | "ticket" | "ticket-panel" | "ticket-close" | "backup" | "embed" | "vanity" | "custom-command" | "premium-status" | "announcement" | "event" | "rules" | "autorole" | "reaction-role" => Some("utility"),
         _ => None,
     };
     if cfg.disabled_commands.iter().any(|name| name == &command)
