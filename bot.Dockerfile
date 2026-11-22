@@ -1,4 +1,4 @@
-FROM rust:1.86-bookworm AS builder
+FROM rust:1.90-bookworm AS builder
 WORKDIR /app
 ENV CARGO_TARGET_DIR=/tmp/mallow-target
 COPY rust-bot/Cargo.toml rust-bot/Cargo.toml
