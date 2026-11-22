@@ -1,20 +1,35 @@
 services:
   - type: web
-    name: mochi-bot
-    runtime: python
+    name: mallow-bot-rust
+    runtime: docker
     plan: free
     region: oregon
-    buildCommand: pip install -r requirements.txt
-    startCommand: python cloud_backend.py
+    dockerfilePath: ./bot.Dockerfile
+    dockerContext: .
     healthCheckPath: /health
+    autoDeploy: true
     envVars:
       - key: DISCORD_TOKEN
         sync: false
       - key: WAKE_SECRET
         sync: false
-      - key: PYTHONUNBUFFERED
-        value: "1"
-      - key: MOVIE_HOST
-        value: "127.0.0.1"
-      - key: MOVIE_PORT
-        value: "8080"
+      - key: MALLOW_DASHBOARD_CONFIG_SECRET
+        sync: false
+      - key: MALLOW_DASHBOARD_CONFIG_URL
+        value: https://mallowbot.kz.ci/api/runtime-config
+      - key: PREMIUM_CHECK_URL
+        value: https://mallowbot.kz.ci/api/premium-check
+      - key: ENABLE_LAVALINK
+        value: "true"
+      - key: LAVALINK_URI
+        sync: false
+      - key: LAVALINK_PASSWORD
+        sync: false
+      - key: MCXBROADCAST_URL
+        sync: false
+      - key: MCXBROADCAST_PING_INTERVAL
+        value: "300"
+      - key: MALLOW_DATA_DIR
+        value: /tmp/mallow-data
+      - key: RUST_LOG
+        value: info
