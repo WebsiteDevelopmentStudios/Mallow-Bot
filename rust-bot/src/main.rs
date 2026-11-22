@@ -3,6 +3,7 @@ mod community;
 mod dashboard;
 mod health;
 mod premium;
+mod tasks;
 
 use anyhow::{Context, Result};
 use serenity::{
@@ -174,6 +175,7 @@ async fn main() -> Result<()> {
         .await
         .context("Could not create Discord client")?;
 
+    tasks::spawn_keepalives();
     info!("Starting Mallow Bot Rust migration runtime");
     client.start().await.context("Discord gateway stopped")?;
     Ok(())
