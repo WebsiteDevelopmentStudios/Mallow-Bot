@@ -22,7 +22,7 @@ async def is_bot_access_banned(discord_id: int | str) -> bool:
         return cached[1]
 
     async def fetch_status() -> bool:
-        timeout = aiohttp.ClientTimeout(total=4)
+        timeout = aiohttp.ClientTimeout(total=1.4, connect=0.8)
         try:
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.get(CHECK_URL, params={"discord_id": user_id}) as response:
