@@ -288,6 +288,21 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
     let command = parts.next().unwrap_or("").to_lowercase();
     let argument = parts.next().unwrap_or("").trim();
     let user_id = message.author.id.get();
+    let feature = match command.as_str() {
+        "balance" | "daily" | "gamble" | "coinflip" | "slots" | "roulette" | "dice" | "blackjack" | "work" | "pay" | "rob" => Some("economy"),
+        "xp" | "level" | "leaderboard" => Some("xp"),
+        "swears" | "swear-leaderboard" => Some("swear_counter"),
+        "timeout-minutes" | "dm" | "set-log" => Some("moderation"),
+        "vibecheck" | "ship" | "fortune" | "wyr" => Some("fun"),
+        "youtube" => Some("social"),
+        "play" | "join" | "leave" | "pause" | "resume" | "skip" | "stop" | "queue" | "volume" | "lyrics" => Some("music"),
+        _ => None,
+    };
+    if cfg.disabled_commands.iter().any(|name| name == &command)
+        || feature.and_then(|key| cfg.features.get(key).and_then(Value::as_bool)) == Some(false) {
+        let _ = message.reply(&ctx.http, format!("The {command} command is disabled in this server.")).await;
+        return true;
+    }
     let custom_key = format!("{guild_id}:{command}");
     if let Some(response) = store.record("custom_commands", &custom_key).and_then(|v| v.as_str().map(str::to_owned)) {
         let _ = message.reply(&ctx.http, response.chars().take(1900).collect::<String>()).await;
