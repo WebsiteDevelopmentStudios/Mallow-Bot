@@ -4,7 +4,7 @@ Mallow Bot is a Rust-based Discord bot for music, community engagement, moderati
 
 ## Runtime
 
-- Rust 2021 application in `rust-bot/`
+- Rust 2021 application in `rust-bot/`, exposed through a root Cargo workspace
 - Serenity Discord Gateway client
 - Axum HTTP service for health checks, signed interaction forwarding, and owner endpoints
 - Dashboard runtime configuration from `https://mallowbot.kz.ci/api/runtime-config`
@@ -28,20 +28,29 @@ Requirements:
 - Discord bot token
 - Lavalink v4 server when music playback is enabled
 
+From the repository root:
+
 ```sh
-cd rust-bot
 cargo build --release
 ```
+
+The root `Cargo.toml` is a workspace manifest whose default member is `rust-bot/`. This lets hosting panels run Cargo from the repository root without needing a custom working directory.
 
 ## Run
 
 From the repository root:
 
 ```sh
-./start.sh
+cargo run --release
 ```
 
-The startup script installs the Rust stable toolchain into the container user's home directory if Cargo is not already installed, compiles the source from GitHub, and starts the resulting Rust executable. No Python `requirements.txt` or manually uploaded executable is needed.
+Or use:
+
+```sh
+bash start.sh
+```
+
+No Python `requirements.txt`, Python entry file, or manually uploaded executable is needed.
 
 The service listens on `PORT` or `SERVER_PORT` (default `25572`).
 
@@ -65,22 +74,19 @@ The service listens on `PORT` or `SERVER_PORT` (default `25572`).
 
 ## bot-hosting.net deployment
 
-The bot-hosting.net server pulls this repository from GitHub. It should build and run the Rust source directly; do not upload the GitHub Actions executable artifact.
+The bot-hosting.net server pulls this repository from GitHub. Select the **Rust** runtime in the panel. Its provided startup command detects the root `Cargo.toml` and runs `cargo run --release`; the root workspace automatically selects `rust-bot/` as the default member.
 
-Set the bot-hosting.net startup command to:
+The host's Cargo command also generates a root `Cargo.lock` when one is not present. Keeping the workspace manifest at the repository root allows the host's dependency detection to inspect the Rust project's lockfile and install any required system packages from `Aptfile`.
+
+If entering a custom start command, use:
 
 ```sh
-bash start.sh
+cargo run --release
 ```
-
-The script:
-1. Uses the Rust toolchain already installed on the container, or installs Rust stable under the container user's home directory if Cargo is missing.
-2. Runs `cargo build --release` inside `rust-bot/`.
-3. Starts `rust-bot/target/release/mallow-bot`.
 
 Configure the environment variables listed above in the host panel. Set `MALLOW_DATA_DIR` to a writable persistent directory provided by bot-hosting.net. Keep the existing Lavalink URI/password if music playback should remain enabled.
 
-The old Python startup command (`pip install ... requirements.txt && python3 ...`) must be replaced with `bash start.sh`. Rust dependencies are managed by `rust-bot/Cargo.toml`; they are fetched and compiled by Cargo, not pip. Do not start the old Python process alongside Rust using the same Discord token.
+Do not use the old Python startup command (`pip install ... requirements.txt && python3 ...`) or run the old Python process alongside Rust using the same Discord token. Rust dependencies are managed by Cargo, not pip.
 
 ## Data persistence
 
