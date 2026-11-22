@@ -444,7 +444,7 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
             return true;
         }
         if !active {
-            let _ = command.create_response(&ctx.http, CreateInteractionResponse::Message(CreateInteractionResponseMessage::new().content("Mallow Premium is required. Get Premium at https://mallowbot.kz.ci/subscriptions.html").ephemeral(true))).await;
+            let _ = respond(http, command, "Mallow Premium is required. Get Premium at https://mallowbot.kz.ci/subscriptions.html".into(), true, deferred).await;
             return true;
         }
     }
