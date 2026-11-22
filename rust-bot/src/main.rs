@@ -80,7 +80,7 @@ impl EventHandler for Handler {
         if let Err(err) = Command::set_global_commands(&ctx.http, registered_global_commands()).await {
             error!(%err, "Could not register global Mallow Bot commands");
         }
-        if let Err(err) = Command::set_guild_commands(&ctx.http, GuildId::new(1544628300217978932), community::bliss_commands()).await {
+        if let Err(err) = GuildId::new(1544628300217978932).set_commands(&ctx.http, community::bliss_commands()).await {
             error!(%err, "Could not register Bliss SMP guild-only commands");
         }
     }
@@ -532,13 +532,13 @@ async fn handle_command(http: &Http, command: &CommandInteraction, state: &BotSt
             if !permitted { "You need Administrator permission to refresh slash commands.".into() }
             else if let Some(guild) = command.guild_id {
                 if guild.get() != 1544628300217978932 {
-                    if let Err(error) = Command::set_guild_commands(http, guild, Vec::new()).await {
+                    if let Err(error) = guild.set_commands(http, Vec::new()).await {
                         warn!(%error, "Could not clear stale guild command registrations");
                     }
                 }
                 match Command::set_global_commands(http, registered_global_commands()).await {
                     Ok(_) => {
-                        let _ = Command::set_guild_commands(http, GuildId::new(1544628300217978932), community::bliss_commands()).await;
+                        let _ = GuildId::new(1544628300217978932).set_commands(http, community::bliss_commands()).await;
                         "Global commands refreshed. Bliss SMP commands remain registered only in Bliss SMP.".into()
                     }
                     Err(error) => format!("Could not refresh slash commands: {error}"),
