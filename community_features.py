@@ -1686,9 +1686,14 @@ def setup(bot):
                 return
             cfg = await get_guild_config(member.guild.id)
             mc = cfg.get("messages_config", {})
-            if not mc.get("welcome_enabled") or not mc.get("welcome_channel_id"):
-                return
-            channel_id = int(mc["welcome_channel_id"])
+            is_bliss_smp = member.guild.id == 1544628300217978932
+            if is_bliss_smp:
+                # Bliss SMP uses its own welcome flow, independent of dashboard welcome toggles.
+                channel_id = 1574137525583224963
+            else:
+                if not mc.get("welcome_enabled") or not mc.get("welcome_channel_id"):
+                    return
+                channel_id = int(mc["welcome_channel_id"])
             channel = member.guild.get_channel(channel_id)
             if channel is None:
                 channel = await member.guild.fetch_channel(channel_id)
@@ -1696,14 +1701,24 @@ def setup(bot):
                 logger.warning("Welcome channel %s for guild %s is not a text channel.", channel_id, member.guild.id)
                 return
             image_url = mc.get("welcome_image_url") or "https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/dashboard/Welcome.png"
-            welcomer_section = (
-                "╭─〔 👤 **Welcomer** 〕─╮\n"
-                f"│ WELCOME {member.mention} TO {discord.utils.escape_markdown(member.guild.name)}!!\n"
-                f"│ we now have {member.guild.member_count or 1} members!!!\n"
-                "╰──────────────────────────╯"
-            )
+            if is_bliss_smp:
+                welcomer_section = (
+                    "📢 **BLISS SMP NEW MEMBER** 📢\\n"
+                    f"**WELCOME {member.mention} TO THE SERVER**\\n\\n"
+                    "Rules: <#1544630280118206496>\\n"
+                    "**REACT TO THE MESSAGE TO GET ACCESS TO THE SERVER**\\n"
+                    "REALM CODE IN: <#1544638277179678730>\\n\\n"
+                    "React with 💎 in Rules tab!"
+                )
+            else:
+                welcomer_section = (
+                    "╭─〔 👤 **Welcomer** 〕─╮\\n"
+                    f"│ WELCOME {member.mention} TO {discord.utils.escape_markdown(member.guild.name)}!!\\n"
+                    f"│ we now have {member.guild.member_count or 1} members!!!\\n"
+                    "╰──────────────────────────╯"
+                )
             embed = discord.Embed(
-                title=str(mc.get("welcome_title") or "").strip()[:256] or None,
+                title=(None if is_bliss_smp else (str(mc.get("welcome_title") or "").strip()[:256] or None)),
                 description=welcomer_section[:4096],
                 color=discord.Color.green(),
             )
