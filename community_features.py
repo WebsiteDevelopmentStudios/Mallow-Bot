@@ -1717,11 +1717,39 @@ def setup(bot):
                     f"│ we now have {member.guild.member_count or 1} members!!!\n"
                     "╰──────────────────────────╯"
                 )
-            embed = discord.Embed(
-                title=(None if is_bliss_smp else (str(mc.get("welcome_title") or "").strip()[:256] or None)),
-                description=welcomer_section[:4096],
-                color=discord.Color.green(),
-            )
+            if is_bliss_smp:
+                embed = discord.Embed(
+                    title="📢  BLISS SMP  •  NEW MEMBER",
+                    description=(
+                        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\n"
+                        f"## ✨ Welcome {member.mention}! ✨\\n"
+                        "We're glad you've joined the realm. Get verified and jump into the adventure!\\n"
+                        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                    ),
+                    color=discord.Color.from_rgb(104, 86, 255),
+                    timestamp=discord.utils.utcnow(),
+                )
+                embed.add_field(
+                    name="💎  GET SERVER ACCESS",
+                    value=(
+                        "Head to <#1544630280118206496> and react to the rules message with **💎** "
+                        "to unlock the server."
+                    ),
+                    inline=False,
+                )
+                embed.add_field(
+                    name="🗺️  FIND THE REALM CODE",
+                    value="Once you're verified, the realm code is waiting in <#1544638277179678730>.",
+                    inline=False,
+                )
+                embed.set_thumbnail(url=member.display_avatar.url)
+                embed.set_footer(text="BLISS SMP  •  Your adventure starts here")
+            else:
+                embed = discord.Embed(
+                    title=str(mc.get("welcome_title") or "").strip()[:256] or None,
+                    description=welcomer_section[:4096],
+                    color=discord.Color.green(),
+                )
             card = await build_member_card(member, image_url, leaving=False)
             if card:
                 embed.set_image(url="attachment://mallow-member-card.png")
