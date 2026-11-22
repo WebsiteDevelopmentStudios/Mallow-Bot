@@ -305,7 +305,7 @@ impl EventHandler for Handler {
             config::GuildConfig::default()
         };
         if !community::handle(ctx.http.as_ref(), &command, &self.state.community, &self.state.premium, &guild_config, false).await {
-            handle_command(ctx.http.as_ref(), &command, &self.state, false).await;
+            handle_command(ctx.http.as_ref(), &command, &self.state, &guild_config, false).await;
         }
     }
 }
@@ -320,9 +320,18 @@ async fn apply_reaction_role(state: &BotState, ctx: &DiscordContext, reaction: &
     if let Err(error) = result { warn!(%error, guild_id = guild_id.get(), user_id = user_id.get(), role_id, "Could not apply reaction-role change"); }
 }
 
-async fn handle_command(http: &Http, command: &CommandInteraction, state: &BotState, deferred: bool) {
+async fn handle_command(http: &Http, command: &CommandInteraction, state: &BotState, cfg: &config::GuildConfig, deferred: bool) {
     use serenity::builder::{CreateInteractionResponse, CreateInteractionResponseMessage, EditInteractionResponse};
     let guild = command.guild_id.map(|id| id.get());
+    let music_commands = ["play","join","leave","pause","resume","skip","queue","stop","volume","lyrics"];
+    if music_commands.contains(&command.data.name.as_str())
+        && (cfg.features.get("music").and_then(serde_json::Value::as_bool) == Some(false)
+            || cfg.disabled_commands.iter().any(|disabled| disabled == &command.data.name)) {
+        let content = "Music commands are disabled in this server.".to_string();
+        if deferred { let _ = command.edit_response(http, EditInteractionResponse::new().content(content)).await; }
+        else { let _ = command.create_response(http, CreateInteractionResponse::Message(CreateInteractionResponseMessage::new().content(content).ephemeral(true))).await; }
+        return;
+    }
     let voice_channel = if let Some(guild) = guild { state.music.voice_channel_for_user(guild, command.user.id.get()).await } else { None };
     let content = match command.data.name.as_str() {
         "play" => match (guild, voice_channel) {
@@ -476,7 +485,7 @@ async fn http_interaction(
     }
     let cfg = if let Some(guild) = command.guild_id { state.dashboard.guild_config(guild.get()).await } else { config::GuildConfig::default() };
     if !community::handle(http.as_ref(), &command, &state.community, &state.premium, &cfg, true).await {
-        handle_command(http.as_ref(), &command, &state, true).await;
+        handle_command(http.as_ref(), &command, &state, &cfg, true).await;
     }
     (StatusCode::OK, Json(serde_json::json!({"ok":true})))
 }
