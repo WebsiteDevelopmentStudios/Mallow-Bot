@@ -106,17 +106,18 @@ impl EventHandler for Handler {
             CreateEmbed::new().description(body.chars().take(4000).collect::<String>())
         };
         if !is_bliss && !title.is_empty() { embed = embed.title(title.chars().take(256).collect::<String>()); }
+        let display_name = member.nick.as_deref().unwrap_or(&member.user.name);
         let image_url = messages.get("welcome_image_url").and_then(|v| v.as_str()).unwrap_or("https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/dashboard/Welcome.png");
         let avatar_url = member.user.avatar_url().unwrap_or_else(|| "https://cdn.discordapp.com/embed/avatars/0.png".into());
         let member_number = count.max(1);
-        if let Some(card) = member_cards::render(image_url, &avatar_url, &member.user.name, member_number, false).await {
+        if let Some(card) = member_cards::render(image_url, &avatar_url, display_name, member_number, false).await {
             embed = embed.image("attachment://mallow-member-card.png");
             let builder = CreateMessage::new().embed(embed).add_file(CreateAttachment::bytes(card, "mallow-member-card.png"));
             if let Err(error) = serenity::all::ChannelId::new(channel).send_message(&ctx.http, builder).await {
                 warn!(%error, guild_id, "Could not send rendered welcome card");
             }
         } else {
-            embed = embed.thumbnail(&avatar_url).image(image_url).footer(serenity::builder::CreateEmbedFooter::new(format!("{} · This user is #{} on the server", member.user.name, member_number)));
+            embed = embed.thumbnail(&avatar_url).image(image_url).footer(serenity::builder::CreateEmbedFooter::new(format!("{} · This user is #{} on the server", display_name, member_number)));
             if let Err(error) = serenity::all::ChannelId::new(channel).send_message(&ctx.http, CreateMessage::new().embed(embed)).await {
                 warn!(%error, guild_id, "Could not send fallback welcome message");
             }
