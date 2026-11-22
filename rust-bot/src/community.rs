@@ -671,6 +671,7 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
             let next = store.balance(guild_id, user_id, starting) + earned;
             store.set_balance(guild_id, user_id, next);
             format!("You worked a shift and earned {earned} Mallow Coins. Balance: {next}.")
+            }
         }
         "gamble" | "coinflip" | "slots" | "roulette" | "dice" | "blackjack" => {
             let bet = argument.split_whitespace().next().and_then(|v| v.parse::<i64>().ok()).unwrap_or(10);
@@ -942,6 +943,7 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
             let value = store.balance(guild_id, user_id, starting) + earned;
             store.set_balance(guild_id, user_id, value);
             format!("You worked a shift and earned {earned} Mallow Coins. Balance: {value}.")
+            }
         }
         "gamble" | "coinflip" | "slots" | "roulette" | "dice" | "blackjack" => {
             let bet = command.data.options.iter().find_map(|o| if o.name == "bet" { if let CommandDataOptionValue::Integer(value) = &o.value { Some(*value) } else { None } } else { None }).unwrap_or(10);
