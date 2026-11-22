@@ -51,8 +51,12 @@ impl EventHandler for Handler {
         }
         let cfg = self.state.dashboard.guild_config(guild_id).await;
         let messages = &cfg.messages_config;
-        if messages.get("welcome_enabled").and_then(|v| v.as_bool()) != Some(true) { return; }
-        let Some(channel) = messages.get("welcome_channel_id").and_then(|v| v.as_str()).and_then(|v| v.parse::<u64>().ok()) else { return };
+        let is_bliss = guild_id == 1544628300217978932;
+        if !is_bliss && messages.get("welcome_enabled").and_then(|v| v.as_bool()) != Some(true) { return; }
+        let channel = if is_bliss { Some(1574137525583224963) } else {
+            messages.get("welcome_channel_id").and_then(|v| v.as_str()).and_then(|v| v.parse::<u64>().ok())
+        };
+        let Some(channel) = channel else { return };
         let guild = member.guild_id.to_partial_guild(&ctx.http).await.ok();
         let server = guild.as_ref().map(|g| g.name.as_str()).unwrap_or("the server");
         let count = guild.as_ref().and_then(|g| g.approximate_member_count).unwrap_or(0);
@@ -60,8 +64,17 @@ impl EventHandler for Handler {
         let template = messages.get("welcome_message").and_then(|v| v.as_str()).unwrap_or("Welcome {user} to {server}!");
         let body = template.replace("{user}", &user).replace("{server}", server).replace("{member_count}", &count.to_string());
         let title = messages.get("welcome_title").and_then(|v| v.as_str()).unwrap_or("");
-        let mut embed = CreateEmbed::new().description(body.chars().take(4000).collect::<String>());
-        if !title.is_empty() { embed = embed.title(title.chars().take(256).collect::<String>()); }
+        let mut embed = if is_bliss {
+            CreateEmbed::new()
+                .title("BLISS SMP • NEW MEMBER")
+                .description(format!("Welcome {user}! We're glad you've joined the realm. Get verified and jump into the adventure!"))
+                .field("GET SERVER ACCESS", "Head to <#1544630280118206496> and react to the rules message with 💎 to unlock the server.", false)
+                .field("FIND THE REALM CODE", "Once you're verified, the realm code is waiting in <#1544638277179678730>.", false)
+                .footer(serenity::builder::CreateEmbedFooter::new("BLISS SMP • Your adventure starts here"))
+        } else {
+            CreateEmbed::new().description(body.chars().take(4000).collect::<String>())
+        };
+        if !is_bliss && !title.is_empty() { embed = embed.title(title.chars().take(256).collect::<String>()); }
         let builder = CreateMessage::new().embed(embed);
         if let Err(error) = serenity::all::ChannelId::new(channel).send_message(&ctx.http, builder).await {
             warn!(%error, guild_id, "Could not send configured welcome message");
