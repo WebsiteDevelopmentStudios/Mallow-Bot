@@ -571,8 +571,7 @@ pub async fn create_ticket_channel(http: &Http, guild_id: u64, user_id: u64, use
 fn level(xp: i64) -> i64 { ((xp.max(0) as f64 / 100.0).sqrt()) as i64 }
 fn now_seconds() -> u64 { SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs() }
 fn pseudo_roll(max: u64) -> u64 {
-    let t = now_seconds().wrapping_mul(6364136223846793005).wrapping_add(std::process::id() as u64);
-    if max == 0 { 0 } else { (t ^ (t >> 17) ^ (t >> 31)) % max }
+    if max == 0 { 0 } else { rand::Rng::gen_range(&mut rand::thread_rng(), 0..max) }
 }
 
 async fn respond(http: &Http, command: &CommandInteraction, content: String, ephemeral: bool, deferred: bool) {
