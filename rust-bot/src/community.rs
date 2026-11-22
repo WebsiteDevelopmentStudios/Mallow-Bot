@@ -377,6 +377,19 @@ pub async fn handle(ctx: &Context, command: &CommandInteraction, store: &Communi
                 }
             }
         }
+        "update" => {
+            match fs::read_to_string("update.txt") {
+                Ok(update) if !update.trim().is_empty() => {
+                    let mut sent = true;
+                    for chunk in update.as_bytes().chunks(1800) {
+                        let text = String::from_utf8_lossy(chunk);
+                        if command.channel_id.say(&ctx.http, text.to_string()).await.is_err() { sent = false; break; }
+                    }
+                    if sent { "Posted the update log.".into() } else { "I couldn't post the full update log.".into() }
+                }
+                _ => "No update log is available right now.".into()
+            }
+        }
         "youtube" => {
             let url = command.data.options.iter().find_map(|option| match &option.value { CommandDataOptionValue::String(value) => Some(value.as_str()), _ => None }).unwrap_or("");
             if !url.starts_with("https://www.youtube.com/") && !url.starts_with("https://youtu.be/") { "Provide a valid YouTube video URL.".into() }
