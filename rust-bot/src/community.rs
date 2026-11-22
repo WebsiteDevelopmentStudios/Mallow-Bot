@@ -664,7 +664,7 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
             } else { "Mention a member to rob. Usage: -mb rob @member".into() }
         }
         "vibecheck" => {
-            let target = command.data.options.iter().find_map(|o| if o.name == "member" { if let CommandDataOptionValue::User(id) = o.value { Some(id.get()) } else { None } } else { None }).unwrap_or(user_id);
+            let target = command.data.options.iter().find_map(|o| if o.name == "member" { if let CommandDataOptionValue::User(id) = &o.value { Some(id.get()) } else { None } } else { None }).unwrap_or(user_id);
             let score = pseudo_roll(101);
             let verdict = if score >= 90 { "legendary energy" } else if score >= 70 { "main-character energy" } else if score >= 40 { "mysterious side-character energy" } else { "needs a snack and a nap" };
             format!("Vibe scan for <@{target}>: **{score}/100** — {verdict}.")
@@ -842,7 +842,7 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
             format!("You worked a shift and earned {earned} Mallow Coins. Balance: {value}.")
         }
         "gamble" | "coinflip" | "slots" | "roulette" | "dice" | "blackjack" => {
-            let bet = command.data.options.iter().find_map(|o| if o.name == "bet" { if let CommandDataOptionValue::Integer(value) = o.value { Some(value) } else { None } } else { None }).unwrap_or(10);
+            let bet = command.data.options.iter().find_map(|o| if o.name == "bet" { if let CommandDataOptionValue::Integer(value) = &o.value { Some(*value) } else { None } } else { None }).unwrap_or(10);
             let balance = store.balance(guild_id, user_id, starting);
             if balance < bet { format!("You need at least {bet} Mallow Coins to play. Your balance is {balance}.") }
             else {
@@ -974,7 +974,7 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
         "set-log" => {
             if user_id != 1021068313071210498 { "Only the bot developer can configure DM logs.".into() }
             else {
-                let channel = command.data.options.iter().find_map(|o| if let CommandDataOptionValue::Channel(id) = o.value { Some(id.get()) } else { None });
+                let channel = command.data.options.iter().find_map(|o| if let CommandDataOptionValue::Channel(id) = &o.value { Some(id.get()) } else { None });
                 if let Some(channel) = channel {
                     store.set_record("log_channels", &guild_id.to_string(), Some(json!(channel)));
                     format!("DM conversations will be logged to <#{channel}>.")
@@ -985,7 +985,7 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
             let permitted = command.member.as_ref().and_then(|member| member.permissions).map(|p| p.manage_messages()).unwrap_or(false);
             if !permitted { "You need Manage Messages permission to use this command.".into() }
             else {
-                let target = command.data.options.iter().find_map(|o| if o.name == "member" { if let CommandDataOptionValue::User(id) = o.value { Some(id) } else { None } } else { None });
+                let target = command.data.options.iter().find_map(|o| if o.name == "member" { if let CommandDataOptionValue::User(id) = &o.value { Some(*id) } else { None } } else { None });
                 let text = command.data.options.iter().find_map(|o| if o.name == "message" { if let CommandDataOptionValue::String(value) = &o.value { Some(value.as_str()) } else { None } } else { None }).unwrap_or("");
                 let log_channel = store.record("log_channels", &guild_id.to_string()).and_then(|v| v.as_u64());
                 if let (Some(target), Some(log_channel)) = (target, log_channel) {
@@ -1031,7 +1031,7 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
             if !permitted { "You need Manage Roles permission to use this command.".into() }
             else {
                 let action = command.data.options.iter().find_map(|o| if o.name == "action" { if let CommandDataOptionValue::String(v) = &o.value { Some(v.as_str()) } else { None } } else { None }).unwrap_or("status");
-                let role = command.data.options.iter().find_map(|o| if let CommandDataOptionValue::Role(id) = o.value { Some(id.get()) } else { None });
+                let role = command.data.options.iter().find_map(|o| if let CommandDataOptionValue::Role(id) = &o.value { Some(id.get()) } else { None });
                 match action {
                     "set" => if let Some(role) = role { store.set_autorole(guild_id, Some(role)); format!("Auto-role enabled. New members will receive <@&{role}>.") } else { "Choose a role to assign.".into() },
                     "disable" => { store.set_autorole(guild_id, None); "Auto-role has been disabled for this server.".into() },
@@ -1043,7 +1043,7 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
             let permitted = command.member.as_ref().and_then(|member| member.permissions).map(|p| p.manage_roles()).unwrap_or(false);
             if !permitted { "You need Manage Roles permission to use this command.".into() }
             else {
-                let enabled = command.data.options.iter().find_map(|o| if o.name == "enabled" { if let CommandDataOptionValue::Boolean(v) = o.value { Some(v) } else { None } } else { None }).unwrap_or(false);
+                let enabled = command.data.options.iter().find_map(|o| if o.name == "enabled" { if let CommandDataOptionValue::Boolean(v) = &o.value { Some(*v) } else { None } } else { None }).unwrap_or(false);
                 let message_id = command.data.options.iter().find_map(|o| if o.name == "message_id" { if let CommandDataOptionValue::String(v) = &o.value { v.parse::<u64>().ok() } else { None } } else { None });
                 let emoji = command.data.options.iter().find_map(|o| if o.name == "emoji" { if let CommandDataOptionValue::String(v) = &o.value { Some(v.clone()) } else { None } } else { None }).unwrap_or_default();
                 let role = command.data.options.iter().find_map(|o| if o.name == "role" { if let CommandDataOptionValue::Role(id) = o.value { Some(id.get()) } else { None } } else { None });
@@ -1072,7 +1072,7 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
                 let role = command.data.options.iter().find_map(|o| if o.name == "role" { if let CommandDataOptionValue::Role(id) = o.value { Some(id.get()) } else { None } } else { None });
                 match action {
                     "create" => {
-                        let channel = command.data.options.iter().find_map(|o| if o.name == "channel" { if let CommandDataOptionValue::Channel(id) = o.value { Some(id) } else { None } } else { None }).unwrap_or(command.channel_id);
+                        let channel = command.data.options.iter().find_map(|o| if o.name == "channel" { if let CommandDataOptionValue::Channel(id) = &o.value { Some(*id) } else { None } } else { None }).unwrap_or(command.channel_id);
                         let title = command.data.options.iter().find_map(|o| if o.name == "title" { if let CommandDataOptionValue::String(v) = &o.value { Some(v.as_str()) } else { None } } else { None }).unwrap_or("Choose your roles");
                         let description = command.data.options.iter().find_map(|o| if o.name == "description" { if let CommandDataOptionValue::String(v) = &o.value { Some(v.as_str()) } else { None } } else { None }).unwrap_or("React below to get a role. Remove your reaction to remove it.");
                         match channel.send_message(http, CreateMessage::new().embed(CreateEmbed::new().title(title).description(description))).await {
