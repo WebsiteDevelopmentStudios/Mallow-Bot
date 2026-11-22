@@ -36,13 +36,26 @@ impl CommunityStore {
         f(&data)
     }
 
-    pub fn add_xp(&self, guild: u64, user: u64, amount: i64) -> i64 {
+    pub fn add_xp(&self, guild: u64, user: u64, amount: i64, cooldown: u64) -> Option<(i64, i64)> {
         self.mutate(|data| {
             let key = format!("{guild}:{user}");
-            let entry = data.pointer_mut(&format!("/xp/{key}"));
-            let old = entry.and_then(|value| value.as_i64()).unwrap_or(0);
+            let now = now_seconds();
+            let last = data.get("last_xp").and_then(|v| v.get(&key)).and_then(Value::as_u64).unwrap_or(0);
+            if now.saturating_sub(last) < cooldown { return None; }
+            let old = data.get("xp").and_then(|v| v.get(&key)).and_then(Value::as_i64).unwrap_or(0);
             let new = old.saturating_add(amount.max(0));
-            data["xp"][key] = json!(new);
+            data["xp"][key.clone()] = json!(new);
+            data["last_xp"][key] = json!(now);
+            Some((old, new))
+        })
+    }
+
+    pub fn add_swears(&self, guild: u64, user: u64, amount: i64) -> i64 {
+        self.mutate(|data| {
+            let key = format!("{guild}:{user}");
+            let old = data.get("swears").and_then(|v| v.get(&key)).and_then(Value::as_i64).unwrap_or(0);
+            let new = old.saturating_add(amount.max(0));
+            data["swears"][key] = json!(new);
             new
         })
     }
