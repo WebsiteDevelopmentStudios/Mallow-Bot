@@ -2,12 +2,13 @@ mod config;
 mod community;
 mod dashboard;
 mod health;
+mod music;
 mod premium;
 mod tasks;
 
 use anyhow::{Context, Result};
 use serenity::{
-    all::{Command, CommandInteraction, CreateCommand, CreateEmbed, CreateMessage, GuildId, Interaction, Member, Message, Reaction, Ready, RoleId, User},
+    all::{Command, CommandInteraction, CommandOptionType, CreateCommand, CreateCommandOption, CreateEmbed, CreateMessage, GuildId, Interaction, Member, Message, Reaction, Ready, RoleId, User, VoiceServerUpdateEvent, VoiceState},
     async_trait,
     prelude::*,
 };
@@ -20,6 +21,7 @@ struct BotState {
     dashboard: dashboard::DashboardClient,
     premium: premium::PremiumClient,
     community: community::CommunityStore,
+    music: Arc<music::MusicManager>,
 }
 
 struct Handler {
@@ -30,11 +32,21 @@ struct Handler {
 impl EventHandler for Handler {
     async fn ready(&self, ctx: DiscordContext, ready: Ready) {
         info!(user = %ready.user.name, "Mallow Bot Rust gateway connected");
+        self.state.music.set_bot_user_id(ready.user.id.get()).await;
         let mut commands = vec![
             CreateCommand::new("ping").description("Check Mallow Bot's response time"),
             CreateCommand::new("uptime").description("Show how long Mallow Bot has been online"),
             CreateCommand::new("commands").description("Show the main Mallow Bot command groups"),
             CreateCommand::new("tos").description("Show Mallow Bot acceptable-use rules"),
+            CreateCommand::new("play").description("Play a song or Spotify track in your voice channel").add_option(CreateCommandOption::new(CommandOptionType::String, "song", "Song name or URL").required(true)),
+            CreateCommand::new("join").description("Join your current voice channel"),
+            CreateCommand::new("leave").description("Leave the voice channel and clear the queue"),
+            CreateCommand::new("pause").description("Pause the current song"),
+            CreateCommand::new("resume").description("Resume the paused song"),
+            CreateCommand::new("skip").description("Skip the currently playing song"),
+            CreateCommand::new("queue").description("Show the current music queue"),
+            CreateCommand::new("stop").description("Stop music and clear the queue"),
+            CreateCommand::new("volume").description("Set the music volume").add_option(CreateCommandOption::new(CommandOptionType::Integer, "level", "Volume from 0 to 100").min_int_value(0).max_int_value(100).required(true)),
         ];
         commands.extend(community::commands());
         if let Err(err) = Command::set_global_commands(&ctx.http, commands).await {
@@ -96,6 +108,14 @@ impl EventHandler for Handler {
         if let Err(error) = serenity::all::ChannelId::new(channel).send_message(&ctx.http, CreateMessage::new().embed(embed)).await {
             warn!(%error, guild_id = guild_id.get(), "Could not send configured goodbye message");
         }
+    }
+
+    async fn voice_state_update(&self, _ctx: DiscordContext, _old: Option<VoiceState>, new: VoiceState) {
+        self.state.music.voice_state_update(&new).await;
+    }
+
+    async fn voice_server_update(&self, _ctx: DiscordContext, event: VoiceServerUpdateEvent) {
+        self.state.music.voice_server_update(&event).await;
     }
 
     async fn reaction_add(&self, ctx: DiscordContext, reaction: Reaction) {
@@ -244,6 +264,7 @@ async fn main() -> Result<()> {
         dashboard: dashboard::DashboardClient::from_env()?,
         premium: premium::PremiumClient::from_env()?,
         community: community::CommunityStore::open(),
+        music: Arc::new(music::MusicManager::from_env()?),
     });
 
     let port = env::var("PORT").or_else(|_| env::var("SERVER_PORT")).unwrap_or_else(|_| "25572".into());
@@ -270,6 +291,7 @@ async fn main() -> Result<()> {
         .context("Could not create Discord client")?;
 
     tasks::spawn_keepalives();
+    tokio::spawn(state.music.clone().run_node());
     info!("Starting Mallow Bot Rust migration runtime");
     client.start().await.context("Discord gateway stopped")?;
     Ok(())
