@@ -3,7 +3,7 @@ use futures_util::{SinkExt, StreamExt};
 use reqwest::Client;
 use serde_json::{json, Value};
 use serenity::{
-    all::{GuildId, VoiceServerUpdateEvent, VoiceState},
+    all::{VoiceServerUpdateEvent, VoiceState},
     http::Http,
     gateway::ShardMessenger,
 };
