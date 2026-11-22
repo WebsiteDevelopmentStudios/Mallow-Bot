@@ -3,5 +3,14 @@ Mallow Bot — New in This Update
 - Added a per-server swear counter toggle to the dashboard.
 - Added `-mb swears` to check your own counted swear-word occurrences in the current server.
 - Added `-mb swear-leaderboard` to show the top ten members by swear-word count in the current server.
-- Added owner-only swear-word management to the developer panel, including adding and removing words.
+- Added owner-only swear-word management to the developer panel, including adding and removing tracked words.
 - Each configured word occurrence is counted. The counter does not delete messages or apply punishments.
+
+Rules Verification
+
+- Added `/rules` with four required options: enabled (true/false), message ID, emoji, and role.
+- Supports standard Unicode emoji and custom Discord emoji.
+- When enabled, reacting to the configured message grants the selected role.
+- Removing the reaction removes the role.
+- Setting enabled to false stops new reactions from granting the role; removing an existing reaction still removes the role.
+- Requires Manage Roles permission for the command, and Mallow Bot must have Manage Roles with its highest role above the selected role.
