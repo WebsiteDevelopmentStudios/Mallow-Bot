@@ -21,7 +21,7 @@ async fn mcxboxbroadcast_keepalive() {
         Ok(client) => client,
         Err(error) => { warn!(%error, "Could not initialize MCXboxBroadcast HTTP client"); return; }
     };
-    let url = format!("{base}/health");
+    let url = base.clone();
     let mut ticker = interval(Duration::from_secs(seconds));
     loop {
         ticker.tick().await;
