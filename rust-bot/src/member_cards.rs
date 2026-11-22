@@ -1,14 +1,25 @@
 use ab_glyph::{FontArc, PxScale};
 use image::{imageops, DynamicImage, GenericImageView, ImageFormat, Rgba, RgbaImage};
 use imageproc::drawing::draw_text_mut;
-use std::{io::Cursor, time::Duration};
+use std::{io::Cursor, net::IpAddr, time::Duration};
 use tracing::warn;
 
 const DEFAULT_BACKGROUND: &str = "https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/dashboard/Welcome.png";
 
 async fn download(url: &str, max_bytes: usize) -> Option<Vec<u8>> {
-    if !(url.starts_with("https://") || url.starts_with("http://")) { return None; }
-    let client = reqwest::Client::builder().timeout(Duration::from_secs(8)).build().ok()?;
+    let parsed = url::Url::parse(url).ok()?;
+    if parsed.scheme() != "https" { return None; }
+    let host = parsed.host_str()?.to_ascii_lowercase();
+    if host == "localhost" || host.ends_with(".localhost") || host.ends_with(".local") || host.ends_with(".internal") { return None; }
+    if let Ok(ip) = host.parse::<IpAddr>() {
+        let blocked = match ip {
+            IpAddr::V4(ip) => ip.is_private() || ip.is_loopback() || ip.is_link_local() || ip.is_unspecified() || ip.is_multicast(),
+            IpAddr::V6(ip) => ip.is_loopback() || ip.is_unspecified() || ip.is_unique_local() || ip.is_unicast_link_local() || ip.is_multicast(),
+        };
+        if blocked { return None; }
+    }
+    let client = reqwest::Client::builder().timeout(Duration::from_secs(8))
+        .redirect(reqwest::redirect::Policy::none()).build().ok()?;
     let response = client.get(url).send().await.ok()?;
     if !response.status().is_success() { return None; }
     if response.content_length().unwrap_or(0) > max_bytes as u64 { return None; }
