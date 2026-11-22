@@ -24,7 +24,7 @@ Mallow Bot is a Rust-based Discord bot for music, community engagement, moderati
 ## Build
 
 Requirements:
-- Rust stable toolchain
+- Rust stable toolchain (1.82 or newer)
 - Discord bot token
 - Lavalink v4 server when music playback is enabled
 
@@ -33,11 +33,15 @@ cd rust-bot
 cargo build --release
 ```
 
-Run:
+## Run
+
+From the repository root:
 
 ```sh
-DISCORD_TOKEN=your-token cargo run --release
+./start.sh
 ```
+
+The startup script installs the Rust stable toolchain into the container user's home directory if Cargo is not already installed, compiles the source from GitHub, and starts the resulting Rust executable. No Python `requirements.txt` or manually uploaded executable is needed.
 
 The service listens on `PORT` or `SERVER_PORT` (default `25572`).
 
@@ -59,36 +63,24 @@ The service listens on `PORT` or `SERVER_PORT` (default `25572`).
 | `PORT` | HTTP service port supplied by the host |
 | `RUST_LOG` | Rust tracing filter |
 
-## Discord and interaction forwarding
-
-Enable these privileged intents in the Discord Developer Portal:
-- Server Members Intent
-- Message Content Intent
-
-Grant the bot the permissions required by enabled features, including Manage Messages, Manage Roles, Manage Channels, Moderate Members, and voice connect/speak permissions.
-
-For the Cloudflare interaction Worker, configure:
-- `DISCORD_PUBLIC_KEY`
-- `WAKE_SECRET`
-- `BOT_INTERACTION_URL` pointing to the Rust service's `/discord/interactions` endpoint
-
-The Rust service exposes:
-- `GET /health`
-- `GET /owner/guilds` (requires `Authorization: Bot <DISCORD_TOKEN>`)
-- `POST /owner/leave` (requires `Authorization: Bot <DISCORD_TOKEN>`)
-
 ## bot-hosting.net deployment
 
-The bot runs on bot-hosting.net as a Linux executable, not as a Render service or a Docker deployment.
+The bot-hosting.net server pulls this repository from GitHub. It should build and run the Rust source directly; do not upload the GitHub Actions executable artifact.
 
-1. Download the `mallow-bot-linux-x86_64` artifact from the successful **Validate Mallow Bot** GitHub Actions run for the migration branch.
-2. Upload the executable to the bot server's working directory and make it executable with `chmod +x mallow-bot-linux-x86_64` if the panel provides a shell.
-3. Set the server startup command to `./mallow-bot-linux-x86_64`.
-4. Configure the environment variables listed above in the server's Startup/Variables panel. Set `MALLOW_DATA_DIR` to a persistent directory provided by the server, such as `/home/container/data`, if that path is writable and persistent.
-5. Keep the existing Python startup active until the Rust executable has been uploaded, configured, and tested. Do not run both bot processes with the same Discord token.
-6. Keep `ENABLE_LAVALINK=true` and set the existing Lavalink URI/password to retain music playback.
+Set the bot-hosting.net startup command to:
 
-The migration branch's CI produces a Linux x86_64 executable artifact intended for this deployment. The bot-hosting.net panel must provide a compatible 64-bit Linux environment. Confirm the server's persistent data path in the panel before cutover.
+```sh
+bash start.sh
+```
+
+The script:
+1. Uses the Rust toolchain already installed on the container, or installs Rust stable under the container user's home directory if Cargo is missing.
+2. Runs `cargo build --release` inside `rust-bot/`.
+3. Starts `rust-bot/target/release/mallow-bot`.
+
+Configure the environment variables listed above in the host panel. Set `MALLOW_DATA_DIR` to a writable persistent directory provided by bot-hosting.net. Keep the existing Lavalink URI/password if music playback should remain enabled.
+
+The old Python startup command (`pip install ... requirements.txt && python3 ...`) must be replaced with `bash start.sh`. Rust dependencies are managed by `rust-bot/Cargo.toml`; they are fetched and compiled by Cargo, not pip. Do not start the old Python process alongside Rust using the same Discord token.
 
 ## Data persistence
 
