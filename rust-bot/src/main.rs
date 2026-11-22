@@ -10,7 +10,7 @@ use serenity::{
     prelude::*,
 };
 use std::{env, sync::Arc, time::Instant};
-use tokio::sync::RwLock;
+use serenity::client::Context as DiscordContext;
 use tracing::{error, info, warn};
 
 struct BotState {
@@ -25,7 +25,7 @@ struct Handler {
 
 #[async_trait]
 impl EventHandler for Handler {
-    async fn ready(&self, ctx: Context, ready: Ready) {
+    async fn ready(&self, ctx: DiscordContext, ready: Ready) {
         info!(user = %ready.user.name, "Mallow Bot Rust gateway connected");
         let commands = vec![
             CreateCommand::new("ping").description("Check Mallow Bot's response time"),
@@ -53,7 +53,7 @@ impl EventHandler for Handler {
     }
 }
 
-async fn handle_command(ctx: &Context, command: &CommandInteraction, state: &BotState) {
+async fn handle_command(ctx: &DiscordContext, command: &CommandInteraction, state: &BotState) {
     use serenity::builder::{CreateInteractionResponse, CreateInteractionResponseMessage};
     let content = match command.data.name.as_str() {
         "ping" => format!("Pong! Gateway latency is managed by Discord; process is responsive."),
