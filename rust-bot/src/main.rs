@@ -116,6 +116,37 @@ impl EventHandler for Handler {
                 }
             }
         }
+        if !is_prefix && cfg.messages_config.get("auto_reply_enabled").and_then(|v| v.as_bool()) == Some(true) {
+            if let Some(items) = cfg.messages_config.get("auto_replies").and_then(|v| v.as_array()) {
+                for item in items.iter().take(30) {
+                    let trigger = item.get("trigger").and_then(|v| v.as_str()).unwrap_or("").trim();
+                    let response = item.get("response").and_then(|v| v.as_str()).unwrap_or("").trim();
+                    let contains = item.get("match_type").and_then(|v| v.as_str()) == Some("contains");
+                    let matched = if contains { content.to_lowercase().contains(&trigger.to_lowercase()) } else { content.eq_ignore_ascii_case(trigger) };
+                    if !trigger.is_empty() && !response.is_empty() && matched {
+                        let _ = message.reply(&ctx.http, response.chars().take(1900).collect::<String>()).await;
+                        break;
+                    }
+                }
+            }
+        }
+        if !is_prefix && cfg.features.get("social").and_then(|v| v.as_bool()).unwrap_or(true) {
+            let video_id = content.split_whitespace().find_map(|part| {
+                if let Some(id) = part.split("youtu.be/").nth(1) { Some(id.chars().take_11().collect::<String>()) }
+                else if let Some(id) = part.split("v=").nth(1) { Some(id.chars().take_11().collect::<String>()) }
+                else { None }
+            }).filter(|id| id.len() == 11);
+            if let Some(video_id) = video_id {
+                let url = format!("https://www.youtube.com/watch?v={video_id}");
+                if let Ok(result) = reqwest::Client::new().get("https://www.youtube.com/oembed").query(&[("url", url.as_str()), ("format", "json")]).send().await {
+                    if let Ok(info) = result.json::<serde_json::Value>().await {
+                        let title = info.get("title").and_then(|v| v.as_str()).unwrap_or("YouTube video");
+                        let channel = info.get("author_name").and_then(|v| v.as_str()).unwrap_or("Unknown");
+                        let _ = message.reply(&ctx.http, format!("**{title}**\nChannel: {channel}\n{url}")).await;
+                    }
+                }
+            }
+        }
         if !is_prefix && cfg.features.get("swear_counter").and_then(|v| v.as_bool()).unwrap_or(true) && !cfg.swear_words.is_empty() {
             let normalize = |value: &str| -> Vec<String> {
                 let mut mapped = String::new();
