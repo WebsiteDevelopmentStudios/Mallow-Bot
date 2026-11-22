@@ -182,6 +182,15 @@ pub fn commands() -> Vec<CreateCommand> {
                 .add_option(CreateCommandOption::new(CommandOptionType::User, "member", "Member to message").required(true))
                 .add_option(CreateCommandOption::new(CommandOptionType::String, "message", "Message to send").required(true)),
             "volume" => command.add_option(CreateCommandOption::new(CommandOptionType::Integer, "level", "Volume from 0 to 100").min_int_value(0).max_int_value(100).required(true)),
+            "vanity" => command.add_option(CreateCommandOption::new(CommandOptionType::String, "tagline", "New server tagline (leave blank to view)").required(false)),
+            "sticky" => command.add_option(CreateCommandOption::new(CommandOptionType::String, "message", "Sticky text (leave blank to clear)").required(false)),
+            "embed" => command
+                .add_option(CreateCommandOption::new(CommandOptionType::String, "title", "Embed title").required(true))
+                .add_option(CreateCommandOption::new(CommandOptionType::String, "description", "Embed text").required(true)),
+            "custom-command" => command
+                .add_option(CreateCommandOption::new(CommandOptionType::String, "action", "Create, list, or delete").required(true).add_string_choice("Create", "create").add_string_choice("List", "list").add_string_choice("Delete", "delete"))
+                .add_option(CreateCommandOption::new(CommandOptionType::String, "name", "Command name").required(false))
+                .add_option(CreateCommandOption::new(CommandOptionType::String, "response", "Command response").required(false)),
             _ => command,
         }
     }).collect()
