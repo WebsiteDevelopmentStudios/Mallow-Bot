@@ -42,7 +42,7 @@ struct Handler {
     state: Arc<BotState>,
 }
 
-fn registered_global_commands() -> Vec<CreateCommand> {
+pub(crate) fn registered_global_commands() -> Vec<CreateCommand> {
     let mut commands = vec![
         CreateCommand::new("ping").description("Check Mallow Bot's response time"),
         CreateCommand::new("uptime").description("Show how long Mallow Bot has been online"),
@@ -327,7 +327,7 @@ impl EventHandler for Handler {
                 let _ = message.reply(&ctx.http, format!("You now have {shown} swear(s) in this server.")).await;
             }
         }
-        if is_prefix && community::handle_prefix(&ctx, &message, &cfg, &self.state.community, &self.state.music, &self.state.premium).await { return; }
+        if is_prefix && community::handle_prefix(&ctx, &message, &cfg, &self.state.community, &self.state.music, &self.state.premium, self.state.started).await { return; }
         if message.message_reference.is_none() && message.mentions.iter().any(|user| user.id == ctx.cache.current_user().id) {
             let descriptions: Vec<&str> = include_str!("../../description.txt").split("\n\n")
                 .map(str::trim).filter(|value| !value.is_empty()).collect();
