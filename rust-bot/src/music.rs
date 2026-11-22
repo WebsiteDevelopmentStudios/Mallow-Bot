@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Context, Result};
-use futures_util::StreamExt;
+use futures_util::{SinkExt, StreamExt};
 use reqwest::Client;
 use serde_json::{json, Value};
 use serenity::{
