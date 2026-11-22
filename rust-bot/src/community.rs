@@ -913,13 +913,22 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
             }
         }
         "ticket-close" => {
-            if store.record("tickets", &command.channel_id.get().to_string()).is_none() { "This channel is not a ticket created by Mallow Bot.".into() }
-            else {
-                match command.channel_id.delete(http).await {
-                    Ok(_) => { store.set_record("tickets", &command.channel_id.get().to_string(), None); "Ticket closed.".into() }
-                    Err(_) => "I couldn't close this ticket. Check my Manage Channels permission.".into()
+            let key = command.channel_id.get().to_string();
+            if let Some(ticket) = store.record("tickets", &key) {
+                let owner = ticket.get("user_id").and_then(Value::as_u64) == Some(user_id);
+                let permissions = command.member.as_ref().and_then(|member| member.permissions).unwrap_or_default();
+                let manage_channels = permissions.manage_channels();
+                let support_roles: Vec<u64> = cfg.tickets_config.get("support_role_ids").and_then(Value::as_array).into_iter().flatten()
+                    .filter_map(|v| v.as_str().and_then(|s| s.parse::<u64>().ok())).collect();
+                let is_support = command.member.as_ref().map(|member| member.roles.iter().any(|role| support_roles.contains(&role.get()))).unwrap_or(false);
+                if !owner && !manage_channels && !is_support { "Only the ticket owner or support staff can close this ticket.".into() }
+                else {
+                    match command.channel_id.delete(http).await {
+                        Ok(_) => { store.set_record("tickets", &key, None); "Ticket closed.".into() }
+                        Err(_) => "I couldn't close this ticket. Check my Manage Channels permission.".into()
+                    }
                 }
-            }
+            } else { "This channel is not a ticket created by Mallow Bot.".into() }
         }
         "backup" => {
             let permitted = command.member.as_ref().and_then(|member| member.permissions).map(|p| p.administrator()).unwrap_or(false);
