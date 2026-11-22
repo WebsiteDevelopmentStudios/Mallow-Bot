@@ -4,11 +4,11 @@ use crate::halloween;
 use crate::premium::PremiumClient;
 use crate::music::MusicManager;
 use serenity::{
-    all::{ChannelType, EmojiId, CommandDataOptionValue, CommandInteraction, CommandOptionType, CreateActionRow, CreateAttachment, CreateButton, CreateChannel, CreateCommand, CreateCommandOption, CreateEmbed, CreateInteractionResponse, CreateInteractionResponseMessage, EditInteractionResponse, CreateMessage, GetMessages, Message, PermissionOverwrite, PermissionOverwriteType, Permissions, ReactionType, RoleId, UserId, ButtonStyle},
+    all::{ChannelType, EmojiId, Command, CommandDataOptionValue, CommandInteraction, CommandOptionType, CreateActionRow, CreateAttachment, CreateButton, CreateChannel, CreateCommand, CreateCommandOption, CreateEmbed, CreateInteractionResponse, CreateInteractionResponseMessage, EditInteractionResponse, CreateMessage, GetMessages, GuildId, Message, PermissionOverwrite, PermissionOverwriteType, Permissions, ReactionType, RoleId, UserId, ButtonStyle},
     http::Http,
     prelude::Context,
 };
-use std::{fs, path::PathBuf, sync::{Arc, Mutex}, time::{SystemTime, UNIX_EPOCH}};
+use std::{fs, path::PathBuf, sync::{Arc, Mutex}, time::{Instant, SystemTime, UNIX_EPOCH}};
 use tracing::warn;
 use unicode_normalization::{char::is_combining_mark, UnicodeNormalization};
 
@@ -355,7 +355,7 @@ pub fn bliss_commands() -> Vec<CreateCommand> {
     ]
 }
 
-pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, store: &CommunityStore, music: &MusicManager, premium: &PremiumClient) -> bool {
+pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, store: &CommunityStore, music: &MusicManager, premium: &PremiumClient, started: Instant) -> bool {
     let Some(guild_id) = message.guild_id.map(|id| id.get()) else { return false };
     let Some(rest) = message.content.strip_prefix(&cfg.prefix) else { return false };
     let mut parts = rest.trim().splitn(2, char::is_whitespace);
@@ -370,7 +370,7 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
         "vibecheck" | "ship" | "fortune" | "wyr" => Some("fun"),
         "youtube" => Some("social"),
         "play" | "join" | "leave" | "pause" | "resume" | "skip" | "stop" | "queue" | "volume" | "lyrics" => Some("music"),
-        "commands" | "help" | "update" | "uptime" | "sync" | "tos" | "say" | "countdown" | "ticket" | "ticket-panel" | "ticket-close" | "backup" | "embed" | "vanity" | "custom-command" | "premium-status" | "announcement" | "event" | "rules" | "autorole" | "reaction-role" => Some("utility"),
+        "commands" | "help" | "update" | "uptime" | "sync" | "tos" | "terms" | "terms-of-service" | "say" | "countdown" | "ticket" | "ticket-panel" | "ticket-close" | "backup" | "embed" | "vanity" | "custom-command" | "premium-status" | "announcement" | "event" | "rules" | "autorole" | "reaction-role" => Some("utility"),
         _ => None,
     };
     if cfg.disabled_commands.iter().any(|name| name == &command)
@@ -383,6 +383,14 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
         return true;
     }
     let premium_commands = ["embed", "snipe", "sticky", "backup", "custom-command", "vanity"];
+    if ["tos", "terms", "terms-of-service"].contains(&command.as_str()) {
+        let embed = CreateEmbed::new()
+            .title("Mallow Bot Terms of Service")
+            .description(include_str!("../../TERMS_OF_SERVICE.md").chars().take(4000).collect::<String>())
+            .colour(serenity::all::Colour::BLURPLE);
+        let _ = message.channel_id.send_message(&ctx.http, CreateMessage::new().embed(embed)).await;
+        return true;
+    }
     if command == "countdown" {
         let embed = halloween::build_embed();
         match message.channel_id.send_message(&ctx.http, CreateMessage::new().embed(embed)).await {
@@ -594,6 +602,41 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
     }
     let starting = cfg.economy_config.get("starting_money").and_then(Value::as_i64).unwrap_or(100);
     let response = match command.as_str() {
+        "uptime" => {
+            let elapsed = started.elapsed();
+            format!("I have been online for {}d {:02}h {:02}m {:02}s.",
+                elapsed.as_secs() / 86_400,
+                (elapsed.as_secs() / 3_600) % 24,
+                (elapsed.as_secs() / 60) % 60,
+                elapsed.as_secs() % 60)
+        }
+        "sync" => {
+            let permitted = message.member.as_ref().and_then(|member| member.permissions).map(|p| p.administrator()).unwrap_or(false);
+            if !permitted {
+                "You need Administrator permission to use this command.".into()
+            } else {
+                match Command::set_global_commands(&ctx.http, crate::registered_global_commands()).await {
+                    Ok(synced) => {
+                        let guild = GuildId::new(guild_id);
+                        let guild_result = if guild_id == 1544628300217978932 {
+                            guild.set_commands(&ctx.http, bliss_commands()).await
+                        } else {
+                            guild.set_commands(&ctx.http, Vec::new()).await
+                        };
+                        if guild_result.is_err() {
+                            "I could not fully reset this server's duplicate commands. Check my application-command permissions and try again.".into()
+                        } else {
+                            let premium_names = ["embed", "snipe", "sticky", "backup", "custom-command", "vanity", "premium-status"];
+                            let premium_count = synced.iter().filter(|item| premium_names.contains(&item.name.as_str())).count();
+                            let standard_count = synced.len().saturating_sub(premium_count);
+                            format!("Synced {standard_count} commands and {premium_count} Premium commands. Global slash-command updates can take a little while to appear.")
+                        }
+                    }
+                    Err(_) => "I could not refresh the application commands. Check my application-command permissions and try again.".into()
+                }
+            }
+        }
+
         "play" => {
             if let Some(channel) = music.voice_channel_for_user(guild_id, user_id).await {
                 music.request_voice_channel(guild_id, Some(channel)).await;
