@@ -408,6 +408,144 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
             return true;
         }
     }
+    if command == "embed" {
+        let permitted = message.member.as_ref().and_then(|member| member.permissions).map(|p| p.manage_messages()).unwrap_or(false);
+        if !permitted { let _ = message.reply(&ctx.http, "You need Manage Messages permission to use this command.").await; return true; }
+        let parts: Vec<&str> = argument.splitn(4, '|').map(str::trim).collect();
+        if parts.len() < 2 || parts[0].is_empty() || parts[1].is_empty() {
+            let _ = message.reply(&ctx.http, "Usage: -mb embed <title> | <description> [| #hexcolor] [| #channel or channel ID]").await;
+            return true;
+        }
+        let color_text = parts.get(2).copied().filter(|v| !v.is_empty()).unwrap_or("#8B5CF6").trim_start_matches('#');
+        let Ok(color) = u32::from_str_radix(color_text, 16) else {
+            let _ = message.reply(&ctx.http, "Use a valid hex color such as #8B5CF6.").await;
+            return true;
+        };
+        if color > 0xFFFFFF { let _ = message.reply(&ctx.http, "Use a valid hex color such as #8B5CF6.").await; return true; }
+        let target = if let Some(value) = parts.get(3).copied().filter(|v| !v.is_empty()) {
+            let id = value.trim_start_matches("<#").trim_end_matches('>').parse::<u64>().ok();
+            id.map(serenity::all::ChannelId::new).unwrap_or(message.channel_id)
+        } else { message.channel_id };
+        let embed = CreateEmbed::new().title(parts[0].chars().take(256).collect::<String>())
+            .description(parts[1].chars().take(4000).collect::<String>())
+            .colour(serenity::all::Colour::new(color));
+        let result = target.send_message(&ctx.http, CreateMessage::new().embed(embed)).await;
+        let reply = if result.is_ok() { format!("Embed sent to <#{target}>.") } else { "I couldn't send the embed. Check my channel permissions.".into() };
+        let _ = message.reply(&ctx.http, reply).await;
+        return true;
+    }
+    if command == "snipe" {
+        let entry = store.record("snipes", &message.channel_id.get().to_string());
+        let embed = match entry {
+            Some(value) => CreateEmbed::new().title("Recently deleted message")
+                .description(value.get("content").and_then(Value::as_str).unwrap_or("[No text content]").chars().take(4000).collect::<String>())
+                .field("Author", value.get("author").and_then(Value::as_str).unwrap_or("Unknown"), false)
+                .colour(serenity::all::Colour::ORANGE),
+            None => {
+                let _ = message.reply(&ctx.http, "There is no recently deleted message saved for this channel.").await;
+                return true;
+            }
+        };
+        let _ = message.channel_id.send_message(&ctx.http, CreateMessage::new().embed(embed)).await;
+        return true;
+    }
+    if command == "sticky" {
+        let permitted = message.member.as_ref().and_then(|member| member.permissions).map(|p| p.manage_messages()).unwrap_or(false);
+        if !permitted { let _ = message.reply(&ctx.http, "You need Manage Messages permission to use this command.").await; return true; }
+        let key = message.channel_id.get().to_string();
+        if argument.is_empty() {
+            store.set_record("sticky_messages", &key, None);
+            let _ = message.reply(&ctx.http, "Sticky message cleared for this channel.").await;
+        } else {
+            let content: String = argument.chars().take(1800).collect();
+            match message.channel_id.say(&ctx.http, &content).await {
+                Ok(posted) => {
+                    store.set_record("sticky_messages", &key, Some(json!({"guild_id":guild_id,"content":content,"message_id":posted.id.get()})));
+                    let _ = message.reply(&ctx.http, "Sticky message set. Use -mb sticky without text to clear it.").await;
+                }
+                Err(_) => { let _ = message.reply(&ctx.http, "I couldn't post the sticky message. Check my channel permissions.").await; }
+            }
+        }
+        return true;
+    }
+    if command == "custom-command" {
+        let permitted = message.member.as_ref().and_then(|member| member.permissions).map(|p| p.manage_guild()).unwrap_or(false);
+        if !permitted { let _ = message.reply(&ctx.http, "You need Manage Server permission to use this command.").await; return true; }
+        let mut parts = argument.splitn(3, char::is_whitespace);
+        let action = parts.next().unwrap_or("").to_lowercase();
+        let name: String = parts.next().unwrap_or("").to_lowercase().chars().filter(|ch| ch.is_ascii_alphanumeric() || *ch == '-' || *ch == '_').take(32).collect();
+        let response = parts.next().unwrap_or("").trim();
+        let reply = match action.as_str() {
+            "list" => { let names = store.custom_commands(guild_id); format!("Custom commands: {}", if names.is_empty() { "none".into() } else { names.join(", ") }) }
+            "delete" if !name.is_empty() && store.custom_command(guild_id, &name).is_some() => { store.set_custom_command(guild_id, &name, None); format!("Deleted custom command {name}.") }
+            "create" if !name.is_empty() && !response.is_empty() => { store.set_custom_command(guild_id, &name, Some(&response.chars().take(1500).collect::<String>())); format!("Created custom command {name}. Members can use {} {name}.", cfg.prefix) }
+            _ => "Usage: -mb custom-command create <name> <response> | list | delete <name>".into()
+        };
+        let _ = message.reply(&ctx.http, reply).await;
+        return true;
+    }
+    if command == "vanity" {
+        let permitted = message.member.as_ref().and_then(|member| member.permissions).map(|p| p.manage_guild()).unwrap_or(false);
+        if !permitted { let _ = message.reply(&ctx.http, "You need Manage Server permission to use this command.").await; return true; }
+        if !argument.is_empty() { store.set_record("vanity", &guild_id.to_string(), Some(json!(argument.chars().take(160).collect::<String>()))); }
+        let current = store.record("vanity", &guild_id.to_string()).and_then(|v| v.as_str().map(str::to_owned)).unwrap_or_else(|| "No tagline set.".into());
+        let _ = message.reply(&ctx.http, format!("{} tagline: {current}", message.guild_id.unwrap())).await;
+        return true;
+    }
+    if command == "set-log" {
+        if user_id != 1021068313071210498 { let _ = message.reply(&ctx.http, "Only the bot developer can configure DM logs.").await; return true; }
+        let id = if argument.is_empty() { Some(message.channel_id.get()) } else {
+            argument.trim_start_matches("<#").trim_end_matches('>').parse::<u64>().ok()
+        };
+        if let Some(channel) = id {
+            store.set_record("log_channels", &guild_id.to_string(), Some(json!(channel)));
+            let _ = message.reply(&ctx.http, format!("DM conversations will be logged to <#{channel}>.")).await;
+        } else { let _ = message.reply(&ctx.http, "Usage: -mb set-log [#channel]").await; }
+        return true;
+    }
+    if command == "dm" {
+        let permitted = message.member.as_ref().and_then(|member| member.permissions).map(|p| p.manage_messages()).unwrap_or(false);
+        if !permitted { let _ = message.reply(&ctx.http, "You need Manage Messages permission to use this command.").await; return true; }
+        let Some(target) = message.mentions.first().filter(|user| !user.bot && user.id.get() != user_id) else {
+            let _ = message.reply(&ctx.http, "Usage: -mb dm @member <message>").await; return true;
+        };
+        let text = argument.splitn(2, char::is_whitespace).nth(1).unwrap_or("").trim();
+        let Some(log_channel) = store.record("log_channels", &guild_id.to_string()).and_then(|v| v.as_u64()) else {
+            let _ = message.reply(&ctx.http, "This server needs a DM log channel. Ask the bot developer to configure it with -mb set-log.").await; return true;
+        };
+        if text.is_empty() || text.len() > 1900 { let _ = message.reply(&ctx.http, "Provide a message of 1,900 characters or fewer.").await; return true; }
+        let dm_result = match target.id.create_dm_channel(&ctx.http).await {
+            Ok(channel) => channel.say(&ctx.http, text).await.map(|_| ()),
+            Err(error) => Err(error),
+        };
+        if dm_result.is_err() { let _ = message.reply(&ctx.http, "I couldn't DM that member. They may have DMs disabled.").await; return true; }
+        store.set_record("dm_routes", &target.id.get().to_string(), Some(json!({"guild_id":guild_id,"channel_id":log_channel,"set_by":user_id,"updated_at":now_seconds()})));
+        let _ = message.reply(&ctx.http, format!("Sent a DM to <@{}>. Their replies will be forwarded only to <#{log_channel}>.", target.id.get())).await;
+        return true;
+    }
+    if command == "youtube" {
+        let candidate = argument.split_whitespace().find(|part| part.contains("youtube.com") || part.contains("youtu.be")).unwrap_or("");
+        let video_id = if let Some(id) = candidate.split("youtu.be/").nth(1) { id.split(['?', '&']).next().unwrap_or("") }
+            else if let Some(id) = candidate.split("v=").nth(1) { id.split('&').next().unwrap_or("") }
+            else if let Some(id) = candidate.split("/shorts/").nth(1) { id.split(['?', '&']).next().unwrap_or("") } else { "" };
+        if video_id.len() != 11 {
+            let _ = message.reply(&ctx.http, "Usage: -mb youtube <YouTube URL>").await;
+            return true;
+        }
+        let url = format!("https://www.youtube.com/watch?v={video_id}");
+        let result = reqwest::Client::new().get("https://www.youtube.com/oembed").query(&[("url", url.as_str()), ("format", "json")]).send().await;
+        let reply = match result {
+            Ok(response) if response.status().is_success() => match response.json::<Value>().await {
+                Ok(info) => CreateEmbed::new().title(info.get("title").and_then(Value::as_str).unwrap_or("YouTube video"))
+                    .url(&url).field("Channel", info.get("author_name").and_then(Value::as_str).unwrap_or("Unknown"), false)
+                    .colour(serenity::all::Colour::RED),
+                _ => { let _ = message.reply(&ctx.http, "YouTube returned invalid video information.").await; return true; }
+            },
+            _ => { let _ = message.reply(&ctx.http, "I couldn't look up that video right now.").await; return true; }
+        };
+        let _ = message.channel_id.send_message(&ctx.http, CreateMessage::new().embed(reply)).await;
+        return true;
+    }
     let starting = cfg.economy_config.get("starting_money").and_then(Value::as_i64).unwrap_or(100);
     let response = match command.as_str() {
         "play" => {
