@@ -827,16 +827,29 @@ def setup(bot):
         await interaction.response.defer(ephemeral=True, thinking=True)
         event_at = datetime.now(timezone.utc) + timedelta(days=int(date.value), minutes=int(time.value))
         timestamp = int(event_at.timestamp())
-        content = (
-            "📢 **BLISS SMP ANNOUNCEMENT** 📢\n\n"
-            f"{news.strip()}\n\n"
-            f"🗓️ **Date:** <t:{timestamp}:D>\n"
-            f"⏰ **Time:** <t:{timestamp}:t> · <t:{timestamp}:R>\n"
-            f"👑 Code in <#{BLISS_REALM_CODE_CHANNEL_ID}>\n\n"
-            "React with 💎 if you're joining!"
+        embed = discord.Embed(
+            title="📢  BLISS SMP ANNOUNCEMENT  📢",
+            description=f"━━━━━━━━━━━━━━━━━━━━━━\n\n{news.strip()}\n\n━━━━━━━━━━━━━━━━━━━━━━",
+            color=discord.Color.from_rgb(104, 86, 255),
+            timestamp=event_at,
         )
+        embed.add_field(name="🗓️ Date", value=f"<t:{timestamp}:D>", inline=True)
+        embed.add_field(name="⏰ Time", value=f"<t:{timestamp}:t>\n<t:{timestamp}:R>", inline=True)
+        embed.add_field(
+            name="👑 Realm Code",
+            value=f"Find the code in <#{BLISS_REALM_CODE_CHANNEL_ID}>",
+            inline=False,
+        )
+        embed.add_field(
+            name="💎 Want to join?",
+            value="React to this announcement with 💎 if you're joining!",
+            inline=False,
+        )
+        if interaction.guild and interaction.guild.icon:
+            embed.set_thumbnail(url=interaction.guild.icon.url)
+        embed.set_footer(text="BLISS SMP  •  Community Announcement")
         try:
-            posted = await channel.send(content, allowed_mentions=discord.AllowedMentions.none())
+            posted = await channel.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
             await posted.add_reaction("💎")
         except (discord.Forbidden, discord.HTTPException):
             await interaction.followup.send("I couldn't publish the announcement or add its 💎 reaction. Check my Send Messages and Add Reactions permissions.", ephemeral=True)
@@ -891,18 +904,30 @@ def setup(bot):
         prize_text = prize.strip() if prize and prize.strip() else "No prize announced"
         event_at = datetime.now(timezone.utc) + timedelta(days=int(date.value), minutes=int(time.value))
         timestamp = int(event_at.timestamp())
-        content = (
-            "🎪 **BLISS SMP EVENT** 🎪\n\n"
-            f"**Event:** {name.strip()}\n"
-            f"**Date:** <t:{timestamp}:D>\n"
-            f"**Time:** <t:{timestamp}:t> · <t:{timestamp}:R>\n"
-            f"**Prize:** {prize_text}\n\n"
-            "**How to join:**\n"
-            "React with 🎪 to join!\n"
-            f"Winner announced in <#{BLISS_ANNOUNCEMENTS_CHANNEL_ID}>"
+        embed = discord.Embed(
+            title="🎪  BLISS SMP EVENT  🎪",
+            description=f"━━━━━━━━━━━━━━━━━━━━━━\n\n**{name.strip()}**\n\n━━━━━━━━━━━━━━━━━━━━━━",
+            color=discord.Color.from_rgb(255, 145, 64),
+            timestamp=event_at,
         )
+        embed.add_field(name="🗓️ Date", value=f"<t:{timestamp}:D>", inline=True)
+        embed.add_field(name="⏰ Time", value=f"<t:{timestamp}:t>\n<t:{timestamp}:R>", inline=True)
+        embed.add_field(name="🏆 Prize", value=prize_text, inline=False)
+        embed.add_field(
+            name="🎟️ How to join",
+            value="React to this event with 🎪 to enter!",
+            inline=False,
+        )
+        embed.add_field(
+            name="📣 Winner announcement",
+            value=f"The winner will be announced in <#{BLISS_ANNOUNCEMENTS_CHANNEL_ID}>",
+            inline=False,
+        )
+        if interaction.guild and interaction.guild.icon:
+            embed.set_thumbnail(url=interaction.guild.icon.url)
+        embed.set_footer(text="BLISS SMP  •  Community Event")
         try:
-            posted = await channel.send(content, allowed_mentions=discord.AllowedMentions.none())
+            posted = await channel.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
             await posted.add_reaction("🎪")
         except (discord.Forbidden, discord.HTTPException):
             await interaction.followup.send("I couldn't publish the event or add its 🎪 reaction. Check my Send Messages and Add Reactions permissions.", ephemeral=True)
