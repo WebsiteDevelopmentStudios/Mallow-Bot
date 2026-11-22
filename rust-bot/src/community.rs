@@ -161,6 +161,8 @@ pub fn commands() -> Vec<CreateCommand> {
         ("xp", "Show your XP and level"),
         ("leaderboard", "Show the server XP leaderboard"),
         ("balance", "Show your virtual Mallow Coins"),
+        ("pay", "Give virtual Mallow Coins to a member"),
+        ("rob", "Try to steal virtual Mallow Coins from a member"),
         ("daily", "Claim your daily Mallow Coins"),
         ("work", "Work to earn virtual Mallow Coins"),
         ("gamble", "Bet virtual Mallow Coins on a coin flip"),
@@ -202,6 +204,11 @@ pub fn commands() -> Vec<CreateCommand> {
                 .add_option(CreateCommandOption::new(CommandOptionType::User, "member", "Member to message").required(true))
                 .add_option(CreateCommandOption::new(CommandOptionType::String, "message", "Message to send").required(true)),
             "volume" => command.add_option(CreateCommandOption::new(CommandOptionType::Integer, "level", "Volume from 0 to 100").min_int_value(0).max_int_value(100).required(true)),
+            "gamble" | "coinflip" | "slots" | "roulette" | "dice" | "blackjack" => command.add_option(CreateCommandOption::new(CommandOptionType::Integer, "bet", "Amount of virtual coins to wager").min_int_value(1).required(false)),
+            "pay" => command
+                .add_option(CreateCommandOption::new(CommandOptionType::User, "member", "Member to pay").required(true))
+                .add_option(CreateCommandOption::new(CommandOptionType::Integer, "amount", "Amount of Mallow Coins").min_int_value(1).required(true)),
+            "rob" => command.add_option(CreateCommandOption::new(CommandOptionType::User, "member", "Member to rob").required(true)),
             "vanity" => command.add_option(CreateCommandOption::new(CommandOptionType::String, "tagline", "New server tagline (leave blank to view)").required(false)),
             "sticky" => command.add_option(CreateCommandOption::new(CommandOptionType::String, "message", "Sticky text (leave blank to clear)").required(false)),
             "embed" => command
