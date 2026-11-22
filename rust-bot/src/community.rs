@@ -1214,6 +1214,7 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
         "ticket-panel" => {
             let permitted = command.member.as_ref().and_then(|member| member.permissions).map(|p| p.manage_guild()).unwrap_or(false);
             if !permitted { "You need Manage Server permission to post a ticket panel.".into() }
+            else if cfg.tickets_config.get("enabled").and_then(Value::as_bool) != Some(true) { "Tickets are disabled for this server. Enable them in the Mallow dashboard first.".into() }
             else {
                 let open_button = CreateActionRow::Buttons(vec![
                     CreateButton::new("mallow:ticket:open").label("Open a ticket").style(ButtonStyle::Primary)
