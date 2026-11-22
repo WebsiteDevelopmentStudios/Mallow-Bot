@@ -30,6 +30,6 @@ services:
       - key: MCXBROADCAST_PING_INTERVAL
         value: "300"
       - key: MALLOW_DATA_DIR
-        value: /tmp/mallow-data
+        value: /app
       - key: RUST_LOG
         value: info
