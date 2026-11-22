@@ -241,9 +241,7 @@ pub fn commands() -> Vec<CreateCommand> {
         ("rules", "Configure reaction-based rules verification"),
         ("autorole", "Configure automatic member roles"),
         ("reaction-role", "Configure reaction role panels"),
-        ("announcement", "Post a Bliss SMP announcement"),
-        ("event", "Post a Bliss SMP event"),
-        ("embed", "Create and send a custom embed (Premium)"),
+                ("embed", "Create and send a custom embed (Premium)"),
         ("snipe", "Show the most recently deleted message (Premium)"),
         ("sticky", "Set or clear a sticky message (Premium)"),
         ("backup", "Export this server's roles and channel layout (Premium)"),
@@ -275,7 +273,11 @@ pub fn commands() -> Vec<CreateCommand> {
             "sticky" => command.add_option(CreateCommandOption::new(CommandOptionType::String, "message", "Sticky text (leave blank to clear)").required(false)),
             "embed" => command
                 .add_option(CreateCommandOption::new(CommandOptionType::String, "title", "Embed title").required(true))
-                .add_option(CreateCommandOption::new(CommandOptionType::String, "description", "Embed text").required(true)),
+                .add_option(CreateCommandOption::new(CommandOptionType::String, "description", "Embed text").required(true))
+                .add_option(CreateCommandOption::new(CommandOptionType::String, "color", "Hex color such as #8B5CF6").required(false))
+                .add_option(CreateCommandOption::new(CommandOptionType::Channel, "channel", "Where to send the embed").required(false)),
+            "vibecheck" => command.add_option(CreateCommandOption::new(CommandOptionType::User, "member", "Who should get their vibe checked? Leave empty for yourself.").required(false)),
+            "ship" => command.add_option(CreateCommandOption::new(CommandOptionType::User, "member", "The other half of this pairing").required(true)),
             "custom-command" => command
                 .add_option(CreateCommandOption::new(CommandOptionType::String, "action", "Create, list, or delete").required(true).add_string_choice("Create", "create").add_string_choice("List", "list").add_string_choice("Delete", "delete"))
                 .add_option(CreateCommandOption::new(CommandOptionType::String, "name", "Command name").required(false))
@@ -308,6 +310,30 @@ pub fn commands() -> Vec<CreateCommand> {
             _ => command,
         }
     }).collect()
+}
+
+pub fn bliss_commands() -> Vec<CreateCommand> {
+    let date = || CreateCommandOption::new(CommandOptionType::Integer, "date", "Days from today")
+        .required(true)
+        .add_int_choice("Today", 0).add_int_choice("Tomorrow", 1)
+        .add_int_choice("In 2 days", 2).add_int_choice("In 3 days", 3)
+        .add_int_choice("In 1 week", 7).add_int_choice("In 2 weeks", 14)
+        .add_int_choice("In 1 month", 30);
+    let time = || CreateCommandOption::new(CommandOptionType::Integer, "time", "Minutes from now")
+        .required(true)
+        .add_int_choice("In 5 minutes", 5).add_int_choice("In 15 minutes", 15)
+        .add_int_choice("In 30 minutes", 30).add_int_choice("In 1 hour", 60)
+        .add_int_choice("In 2 hours", 120).add_int_choice("In 6 hours", 360)
+        .add_int_choice("In 12 hours", 720).add_int_choice("In 24 hours", 1440);
+    vec![
+        CreateCommand::new("announcement").description("Post a Bliss SMP announcement")
+            .add_option(date()).add_option(time())
+            .add_option(CreateCommandOption::new(CommandOptionType::String, "news", "Announcement text").required(true)),
+        CreateCommand::new("event").description("Post a Bliss SMP event")
+            .add_option(CreateCommandOption::new(CommandOptionType::String, "name", "Event name").required(true))
+            .add_option(date()).add_option(time())
+            .add_option(CreateCommandOption::new(CommandOptionType::String, "prize", "Optional event prize").required(false)),
+    ]
 }
 
 pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, store: &CommunityStore, music: &MusicManager) -> bool {
@@ -454,8 +480,25 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
                 } else { "The robbery failed. You got away empty-handed.".into() }
             } else { "Mention a member to rob. Usage: -mb rob @member".into() }
         }
-        "vibecheck" => format!("Vibe scan complete: {}% vibe.", pseudo_roll(101)),
-        "ship" => format!("Compatibility scan: {}%. This result is entirely unscientific.", pseudo_roll(101)),
+        "vibecheck" => {
+            let target = command.data.options.iter().find_map(|o| if o.name == "member" { if let CommandDataOptionValue::User(id) = o.value { Some(id.get()) } else { None } } else { None }).unwrap_or(user_id);
+            let score = pseudo_roll(101);
+            let verdict = if score >= 90 { "legendary energy" } else if score >= 70 { "main-character energy" } else if score >= 40 { "mysterious side-character energy" } else { "needs a snack and a nap" };
+            format!("Vibe scan for <@{target}>: **{score}/100** — {verdict}.")
+        },
+        "ship" => {
+            let target = command.data.options.iter().find_map(|o| if o.name == "member" { if let CommandDataOptionValue::User(id) = o.value { Some(id.get()) } else { None } } else { None });
+            if let Some(target) = target {
+                if target == user_id { "Choose another member. This is just for fun!".into() }
+                else {
+                    let pair = format!("{}:{}:{}", user_id.min(target), user_id.max(target), guild_id);
+                    let hash = pair.bytes().fold(2166136261u64, |acc, byte| (acc ^ byte as u64).wrapping_mul(16777619));
+                    let score = hash % 101;
+                    let verdict = if score >= 90 { "cinematic soulmates" } else if score >= 70 { "power couple material" } else if score >= 40 { "chaotic duo" } else { "unlikely pairing" };
+                    format!("<@{user_id}> + <@{target}> = **{score}%** — {verdict}. (For fun only!)")
+                }
+            } else { "Choose another member to ship with.".into() }
+        },
         "help" | "commands" => "Commands: xp, leaderboard, balance, daily, work, gamble, coinflip, fortune, vibecheck, ship, update.".into(),
         "update" => std::fs::read_to_string("update.txt").unwrap_or_else(|_| "No update log is available right now.".into()).chars().take(1900).collect::<String>(),
         _ => return false,
@@ -668,7 +711,19 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
             let fortunes = ["A pleasant surprise is closer than you think.", "Your next idea will be your best one yet.", "Patience will pay off.", "A small win is still a win.", "Today is a good day to try something new."];
             fortunes[pseudo_roll(fortunes.len() as u64) as usize].to_string()
         }
-        "wyr" => "Would you rather explore the deepest ocean or travel to the edge of space?".into(),
+        "wyr" => {
+            let questions = [
+                "Would you rather be able to pause time or rewind it by one minute?",
+                "Would you rather explore the deepest ocean or travel to the edge of space?",
+                "Would you rather speak every language or play every instrument?",
+                "Would you rather have unlimited free travel or a fully paid dream home?",
+                "Would you rather know the answer to every question or be able to solve any puzzle?",
+                "Would you rather live one year in the past or one year in the future?",
+                "Would you rather have a personal chef or a personal driver?",
+                "Would you rather always be ten minutes early or never wait in a queue again?",
+            ];
+            questions[pseudo_roll(questions.len() as u64) as usize].to_string()
+        },
         "premium-status" => {
             if user_id == 1021068313071210498 { "Mallow Premium: developer access is enabled.".into() }
             else { let (_, active, expires) = premium.status(user_id).await; if active { format!("Mallow Premium is active. Expires: {}.", expires.unwrap_or_else(|| "unknown".into())) } else { "Mallow Premium is not active for your Discord account. Get Premium at https://mallowbot.kz.ci/subscriptions.html".into() } }
