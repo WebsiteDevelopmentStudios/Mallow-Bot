@@ -1,6 +1,7 @@
 use serde_json::{json, Value};
+use crate::config::GuildConfig;
 use serenity::{
-    all::{CommandInteraction, CommandOptionType, CreateCommand, CreateCommandOption, CreateInteractionResponse, CreateInteractionResponseMessage},
+    all::{CommandInteraction, CommandOptionType, CreateCommand, CreateCommandOption, CreateInteractionResponse, CreateInteractionResponseMessage, Message},
     prelude::Context,
 };
 use std::{collections::HashMap, fs, path::PathBuf, sync::{Arc, Mutex}, time::{SystemTime, UNIX_EPOCH}};
@@ -144,6 +145,57 @@ pub fn commands() -> Vec<CreateCommand> {
             _ => command,
         }
     }).collect()
+}
+
+pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, store: &CommunityStore) -> bool {
+    let Some(guild_id) = message.guild_id.map(|id| id.get()) else { return false };
+    let Some(rest) = message.content.strip_prefix(&cfg.prefix) else { return false };
+    let mut parts = rest.trim().splitn(2, char::is_whitespace);
+    let command = parts.next().unwrap_or("").to_lowercase();
+    let argument = parts.next().unwrap_or("").trim();
+    let user_id = message.author.id.get();
+    let starting = cfg.economy_config.get("starting_money").and_then(Value::as_i64).unwrap_or(100);
+    let response = match command.as_str() {
+        "xp" | "level" => {
+            let xp = store.xp(guild_id, user_id);
+            let lvl = level(xp);
+            format!("Level {lvl} · {xp} XP · {} XP to next level.", ((lvl + 1) * (lvl + 1) * 100 - xp).max(0))
+        }
+        "leaderboard" => {
+            let rows = store.leaderboard(guild_id);
+            if rows.is_empty() { "No XP has been earned yet.".into() }
+            else { rows.iter().enumerate().map(|(i, (id, xp))| format!("{}. <@{id}> — **{xp} XP** · Level {}", i + 1, level(*xp))).collect::<Vec<_>>().join("\\n") }
+        }
+        "balance" => format!("You have {} Mallow Coins.", store.balance(guild_id, user_id, starting)),
+        "daily" => {
+            if store.daily_claimed(guild_id, user_id, now_seconds()) { "You have already claimed your daily reward. Come back in 24 hours.".into() }
+            else { let reward = cfg.economy_config.get("daily_reward").and_then(Value::as_i64).unwrap_or(100); let next = store.balance(guild_id, user_id, starting) + reward; store.set_balance(guild_id, user_id, next); format!("You claimed {reward} Mallow Coins. Balance: {next}.") }
+        }
+        "work" => {
+            let min = cfg.economy_config.get("work_min").and_then(Value::as_i64).unwrap_or(20);
+            let max = cfg.economy_config.get("work_max").and_then(Value::as_i64).unwrap_or(80).max(min);
+            let earned = min + pseudo_roll((max - min + 1) as u64) as i64;
+            let next = store.balance(guild_id, user_id, starting) + earned;
+            store.set_balance(guild_id, user_id, next);
+            format!("You worked a shift and earned {earned} Mallow Coins. Balance: {next}.")
+        }
+        "gamble" | "coinflip" => {
+            let bet = argument.parse::<i64>().unwrap_or(10);
+            let balance = store.balance(guild_id, user_id, starting);
+            if bet < 1 || bet > balance { format!("Bet must be between 1 and your balance ({balance}).") }
+            else { let won = pseudo_roll(2) == 0; let next = if won { balance + bet } else { balance - bet }; store.set_balance(guild_id, user_id, next); format!("{} Balance: {next} Mallow Coins.", if won { format!("You won {bet} Mallow Coins.") } else { format!("You lost {bet} Mallow Coins.") }) }
+        }
+        "fortune" => {
+            let fortunes = ["A pleasant surprise is closer than you think.", "Your next idea will be your best one yet.", "Patience will pay off.", "A small win is still a win."];
+            fortunes[pseudo_roll(fortunes.len() as u64) as usize].to_string()
+        }
+        "vibecheck" => format!("Vibe scan complete: {}% vibe.", pseudo_roll(101)),
+        "ship" => format!("Compatibility scan: {}%. This result is entirely unscientific.", pseudo_roll(101)),
+        "help" | "commands" => "Commands: xp, leaderboard, balance, daily, work, gamble, coinflip, fortune, vibecheck, ship.".into(),
+        _ => return false,
+    };
+    if let Err(error) = message.reply(&ctx.http, response).await { warn!(%error, command, "Could not respond to prefix command"); }
+    true
 }
 
 fn level(xp: i64) -> i64 { ((xp.max(0) as f64 / 100.0).sqrt()) as i64 }
