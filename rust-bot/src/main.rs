@@ -1,11 +1,12 @@
 mod config;
+mod community;
 mod dashboard;
 mod health;
 mod premium;
 
 use anyhow::{Context, Result};
 use serenity::{
-    all::{Command, CommandInteraction, CreateCommand, Interaction, Ready},
+    all::{Command, CommandInteraction, CreateCommand, Interaction, Message, Ready},
     async_trait,
     prelude::*,
 };
@@ -17,6 +18,7 @@ struct BotState {
     started: Instant,
     dashboard: dashboard::DashboardClient,
     premium: premium::PremiumClient,
+    community: community::CommunityStore,
 }
 
 struct Handler {
@@ -27,14 +29,33 @@ struct Handler {
 impl EventHandler for Handler {
     async fn ready(&self, ctx: DiscordContext, ready: Ready) {
         info!(user = %ready.user.name, "Mallow Bot Rust gateway connected");
-        let commands = vec![
+        let mut commands = vec![
             CreateCommand::new("ping").description("Check Mallow Bot's response time"),
             CreateCommand::new("uptime").description("Show how long Mallow Bot has been online"),
             CreateCommand::new("commands").description("Show the main Mallow Bot command groups"),
             CreateCommand::new("tos").description("Show Mallow Bot acceptable-use rules"),
         ];
+        commands.extend(community::commands());
         if let Err(err) = Command::set_global_commands(&ctx.http, commands).await {
             error!(%err, "Could not register initial Rust migration commands");
+        }
+    }
+
+    async fn message(&self, _ctx: DiscordContext, message: Message) {
+        if message.author.bot { return; }
+        let Some(guild_id) = message.guild_id.map(|id| id.get()) else { return };
+        let cfg = self.state.dashboard.guild_config(guild_id).await;
+        if cfg.features.get("xp").and_then(|v| v.as_bool()).unwrap_or(true) && !message.content.trim().is_empty() {
+            let old = self.state.community.xp(guild_id, message.author.id.get());
+            let add = 10 + (message.id.get() % 11) as i64;
+            let new = self.state.community.add_xp(guild_id, message.author.id.get(), add);
+            let old_level = ((old.max(0) as f64 / 100.0).sqrt()) as i64;
+            let new_level = ((new.max(0) as f64 / 100.0).sqrt()) as i64;
+            if new_level > old_level && cfg.xp_config.get("announce_level_up").and_then(|v| v.as_bool()).unwrap_or(true) {
+                if let Some(channel) = message.channel_id.to_channel(&_ctx.http).await.ok().and_then(|c| c.guild()) {
+                    let _ = channel.say(&_ctx.http, format!("<@{}> reached level {}.", message.author.id.get(), new_level)).await;
+                }
+            }
         }
     }
 
@@ -49,7 +70,9 @@ impl EventHandler for Handler {
             let _ = command.create_response(&ctx.http, builder).await;
             return;
         }
-        handle_command(&ctx, &command, &self.state).await;
+        if !community::handle(&ctx, &command, &self.state.community).await {
+            handle_command(&ctx, &command, &self.state).await;
+        }
     }
 }
 
@@ -89,6 +112,7 @@ async fn main() -> Result<()> {
         started: Instant::now(),
         dashboard: dashboard::DashboardClient::from_env()?,
         premium: premium::PremiumClient::from_env()?,
+        community: community::CommunityStore::open(),
     });
 
     let port = env::var("PORT").or_else(|_| env::var("SERVER_PORT")).unwrap_or_else(|_| "25572".into());
