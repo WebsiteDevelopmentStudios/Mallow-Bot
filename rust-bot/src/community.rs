@@ -387,7 +387,7 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
         let embed = CreateEmbed::new()
             .title("Mallow Bot Terms of Service")
             .description(include_str!("../../TERMS_OF_SERVICE.md").chars().take(4000).collect::<String>())
-            .colour(serenity::all::Colour::BLURPLE);
+            .colour(serenity::all::Colour::new(0x5865F2));
         let _ = message.channel_id.send_message(&ctx.http, CreateMessage::new().embed(embed)).await;
         return true;
     }
@@ -798,7 +798,7 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
                 format!("**{} + {}** = **{score}%** — {verdict}. (For fun only!)", first.name, second.name)
             }
         },
-        "help" | "commands" => "Music: play, join, leave, pause, resume, skip, queue, volume, lyrics, stop.\nCommunity: xp, level, leaderboard, swears, swear-leaderboard, balance, daily, work, gamble, coinflip, slots, roulette, dice, blackjack, pay, rob.\nFun: vibecheck, ship, fortune, wyr.\nUtilities: youtube, premium-status, embed, snipe, sticky, backup, custom-command, vanity, dm, set-log, timeout-minutes, update.".into(),
+        "help" | "commands" => "Music: play, join, leave, pause, resume, skip, queue, volume, lyrics, stop.\nCommunity: xp, level, leaderboard, swears, swear-leaderboard, balance, daily, work, gamble, coinflip, slots, roulette, dice, blackjack, pay, rob.\nFun: vibecheck, ship, fortune, wyr.\nUtilities: uptime, update, sync, tos, countdown, commands, youtube, dm, set-log, timeout-minutes, purge, ticket, ticket-panel, ticket-close, embed, snipe, sticky, backup, custom-command, vanity, premium-status.".into(),
         "update" => match reqwest::get("https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/updates.txt").await {
             Ok(response) if response.status().is_success() => response.text().await.unwrap_or_else(|_| "No update log is available right now.".into()).chars().take(1900).collect::<String>(),
             _ => "No update log is available right now.".into()
