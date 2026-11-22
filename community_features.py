@@ -7,7 +7,7 @@ import time
 import io
 import unicodedata
 from pathlib import Path
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 import aiohttp
 from PIL import Image, ImageDraw, ImageFont, ImageOps
@@ -781,12 +781,40 @@ def setup(bot):
     @bot.tree.command(name="announcement", description="Post a Bliss SMP announcement.")
     @app_commands.guilds(discord.Object(id=BLISS_GUILD_ID))
     @app_commands.checks.has_permissions(manage_messages=True)
+    @app_commands.choices(
+        date=[
+            app_commands.Choice(name="Today", value="0"),
+            app_commands.Choice(name="Tomorrow", value="1"),
+            app_commands.Choice(name="In 2 days", value="2"),
+            app_commands.Choice(name="In 3 days", value="3"),
+            app_commands.Choice(name="In 4 days", value="4"),
+            app_commands.Choice(name="In 5 days", value="5"),
+            app_commands.Choice(name="In 6 days", value="6"),
+            app_commands.Choice(name="In 1 week", value="7"),
+            app_commands.Choice(name="In 2 weeks", value="14"),
+            app_commands.Choice(name="In 3 weeks", value="21"),
+            app_commands.Choice(name="In 1 month", value="30"),
+        ],
+        time=[
+            app_commands.Choice(name="In 5 minutes", value="5"),
+            app_commands.Choice(name="In 10 minutes", value="10"),
+            app_commands.Choice(name="In 15 minutes", value="15"),
+            app_commands.Choice(name="In 30 minutes", value="30"),
+            app_commands.Choice(name="In 45 minutes", value="45"),
+            app_commands.Choice(name="In 1 hour", value="60"),
+            app_commands.Choice(name="In 2 hours", value="120"),
+            app_commands.Choice(name="In 3 hours", value="180"),
+            app_commands.Choice(name="In 6 hours", value="360"),
+            app_commands.Choice(name="In 12 hours", value="720"),
+            app_commands.Choice(name="In 24 hours", value="1440"),
+        ],
+    )
     @app_commands.describe(
-        date="Date of the announcement",
-        time="Time of the announcement",
+        date="Choose the day",
+        time="Choose how long from now",
         news="The announcement/news message to publish",
     )
-    async def bliss_announcement(interaction: discord.Interaction, date: str, time: str, news: str):
+    async def bliss_announcement(interaction: discord.Interaction, date: app_commands.Choice[str], time: app_commands.Choice[str], news: str):
         if not news.strip():
             await interaction.response.send_message("Please provide the announcement news.", ephemeral=True)
             return
@@ -797,11 +825,13 @@ def setup(bot):
         if channel is None:
             return
         await interaction.response.defer(ephemeral=True, thinking=True)
+        event_at = datetime.now(timezone.utc) + timedelta(days=int(date.value), minutes=int(time.value))
+        timestamp = int(event_at.timestamp())
         content = (
             "📢 **BLISS SMP ANNOUNCEMENT** 📢\n\n"
             f"{news.strip()}\n\n"
-            f"🗓️ **Date:** {date.strip()}\n"
-            f"⏰ **Time:** {time.strip()}\n"
+            f"🗓️ **Date:** <t:{timestamp}:D>\n"
+            f"⏰ **Time:** <t:{timestamp}:t> · <t:{timestamp}:R>\n"
             f"👑 Code in <#{BLISS_REALM_CODE_CHANNEL_ID}>\n\n"
             "React with 💎 if you're joining!"
         )
@@ -816,13 +846,41 @@ def setup(bot):
     @bot.tree.command(name="event", description="Post a Bliss SMP event.")
     @app_commands.guilds(discord.Object(id=BLISS_GUILD_ID))
     @app_commands.checks.has_permissions(manage_messages=True)
+    @app_commands.choices(
+        date=[
+            app_commands.Choice(name="Today", value="0"),
+            app_commands.Choice(name="Tomorrow", value="1"),
+            app_commands.Choice(name="In 2 days", value="2"),
+            app_commands.Choice(name="In 3 days", value="3"),
+            app_commands.Choice(name="In 4 days", value="4"),
+            app_commands.Choice(name="In 5 days", value="5"),
+            app_commands.Choice(name="In 6 days", value="6"),
+            app_commands.Choice(name="In 1 week", value="7"),
+            app_commands.Choice(name="In 2 weeks", value="14"),
+            app_commands.Choice(name="In 3 weeks", value="21"),
+            app_commands.Choice(name="In 1 month", value="30"),
+        ],
+        time=[
+            app_commands.Choice(name="In 5 minutes", value="5"),
+            app_commands.Choice(name="In 10 minutes", value="10"),
+            app_commands.Choice(name="In 15 minutes", value="15"),
+            app_commands.Choice(name="In 30 minutes", value="30"),
+            app_commands.Choice(name="In 45 minutes", value="45"),
+            app_commands.Choice(name="In 1 hour", value="60"),
+            app_commands.Choice(name="In 2 hours", value="120"),
+            app_commands.Choice(name="In 3 hours", value="180"),
+            app_commands.Choice(name="In 6 hours", value="360"),
+            app_commands.Choice(name="In 12 hours", value="720"),
+            app_commands.Choice(name="In 24 hours", value="1440"),
+        ],
+    )
     @app_commands.describe(
         name="Name of the event",
-        date="Date of the event",
-        time="Time of the event",
+        date="Choose the day",
+        time="Choose how long from now",
         prize="Optional event prize (for example, 500 gems)",
     )
-    async def bliss_event(interaction: discord.Interaction, name: str, date: str, time: str, prize: str | None = None):
+    async def bliss_event(interaction: discord.Interaction, name: str, date: app_commands.Choice[str], time: app_commands.Choice[str], prize: str | None = None):
         if not name.strip() or len(name) > 150:
             await interaction.response.send_message("Please provide an event name (150 characters or fewer).", ephemeral=True)
             return
@@ -831,11 +889,13 @@ def setup(bot):
             return
         await interaction.response.defer(ephemeral=True, thinking=True)
         prize_text = prize.strip() if prize and prize.strip() else "No prize announced"
+        event_at = datetime.now(timezone.utc) + timedelta(days=int(date.value), minutes=int(time.value))
+        timestamp = int(event_at.timestamp())
         content = (
             "🎪 **BLISS SMP EVENT** 🎪\n\n"
             f"**Event:** {name.strip()}\n"
-            f"**Date:** {date.strip()}\n"
-            f"**Time:** {time.strip()}\n"
+            f"**Date:** <t:{timestamp}:D>\n"
+            f"**Time:** <t:{timestamp}:t> · <t:{timestamp}:R>\n"
             f"**Prize:** {prize_text}\n\n"
             "**How to join:**\n"
             "React with 🎪 to join!\n"
