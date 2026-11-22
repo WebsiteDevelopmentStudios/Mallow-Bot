@@ -1,0 +1,27 @@
+name: Rust migration checks
+
+on:
+  push:
+    branches: [migration/full-rust-bot]
+    paths:
+      - "rust-bot/**"
+      - ".github/workflows/rust-migration.yml"
+  pull_request:
+    paths:
+      - "rust-bot/**"
+      - ".github/workflows/rust-migration.yml"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust-bot
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all -- --check
+      - run: cargo check --all-targets
