@@ -2,7 +2,7 @@ use serde_json::{json, Value};
 use crate::config::GuildConfig;
 use crate::premium::PremiumClient;
 use serenity::{
-    all::{CommandDataOptionValue, CommandInteraction, CommandOptionType, CreateCommand, CreateAttachment, CreateCommandOption, CreateEmbed, CreateInteractionResponse, CreateInteractionResponseMessage, EditInteractionResponse, CreateMessage, GetMessages, Message, ReactionType},
+    all::{ChannelType, CommandDataOptionValue, CommandInteraction, CommandOptionType, CreateAttachment, CreateChannel, CreateCommand, CreateCommandOption, CreateEmbed, CreateInteractionResponse, CreateInteractionResponseMessage, EditInteractionResponse, CreateMessage, GetMessages, Message, PermissionOverwrite, PermissionOverwriteType, Permissions, ReactionType, RoleId, UserId},
     http::Http,
     prelude::Context,
 };
@@ -612,8 +612,8 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
             let permitted = command.member.as_ref().and_then(|member| member.permissions).map(|p| p.manage_messages()).unwrap_or(false);
             if !permitted { "You need Manage Messages permission to use this command.".into() }
             else {
-                let target = command.data.options.iter().find_map(|o| if o.name == "member" { if let CommandDataOptionValue::User(id) = o.value { Some(id) } else { None } });
-                let text = command.data.options.iter().find_map(|o| if o.name == "message" { if let CommandDataOptionValue::String(value) = &o.value { Some(value.as_str()) } else { None } }).unwrap_or("");
+                let target = command.data.options.iter().find_map(|o| if o.name == "member" { if let CommandDataOptionValue::User(id) = o.value { Some(id) } else { None } } else { None });
+                let text = command.data.options.iter().find_map(|o| if o.name == "message" { if let CommandDataOptionValue::String(value) = &o.value { Some(value.as_str()) } else { None } } else { None }).unwrap_or("");
                 let log_channel = store.record("log_channels", &guild_id.to_string()).and_then(|v| v.as_u64());
                 if let (Some(target), Some(log_channel)) = (target, log_channel) {
                     if target.get() == user_id || text.trim().is_empty() || text.len() > 1900 { "Choose another member and provide a message of 1,900 characters or fewer.".into() }
