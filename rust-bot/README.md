@@ -1,6 +1,6 @@
 # Mallow Bot Rust Runtime
 
-This crate is the Rust replacement for the Mallow Bot Discord runtime. It contains no movie or media-hosting features.
+This crate is the Rust replacement for the Mallow Bot Discord runtime.
 
 ## Build
 
@@ -37,6 +37,7 @@ Optional:
 - `dashboard.rs`: cached dashboard runtime configuration
 - `premium.rs`: Premium and ban checks
 - `tasks.rs`: MCXboxBroadcast/Lavalink keep-alives and rotating Discord status
+- `halloween.rs`: persistent Halloween countdown messages and daily facts
 - `health.rs`: HTTP health endpoint
 
 The Rust migration must pass command/event parity checks and deployment validation before it replaces the production runtime.
