@@ -12,7 +12,7 @@ use axum::{extract::State, http::{HeaderMap, StatusCode}, routing::post, Json, R
 use serenity::{
     cache::Cache,
     http::Http,
-    all::{Command, CommandInteraction, ComponentInteraction, CommandOptionType, CreateCommand, CreateCommandOption, CreateAttachment, CreateEmbed, CreateMessage, GuildId, Interaction, Member, Message, Reaction, Ready, RoleId, User, VoiceServerUpdateEvent, VoiceState},
+    all::{Command, CommandInteraction, ComponentInteraction, CommandOptionType, CreateCommand, CreateCommandOption, CreateAttachment, CreateEmbed, CreateMessage, Guild, GuildId, Interaction, Member, Message, Reaction, Ready, RoleId, User, VoiceServerUpdateEvent, VoiceState},
     async_trait,
     prelude::*,
 };
@@ -77,6 +77,18 @@ impl EventHandler for Handler {
         }
         if let Err(err) = Command::set_guild_commands(&ctx.http, GuildId::new(1544628300217978932), community::bliss_commands()).await {
             error!(%err, "Could not register Bliss SMP guild-only commands");
+        }
+    }
+
+    async fn guild_create(&self, ctx: DiscordContext, guild: Guild, _is_new: Option<bool>) {
+        let banned: std::collections::HashSet<u64> = env::var("BANNED_GUILD_IDS").unwrap_or_default()
+            .split(',').filter_map(|item| item.trim().parse::<u64>().ok()).collect();
+        if banned.contains(&guild.id.get()) {
+            if let Err(error) = guild.id.leave(&ctx.http).await {
+                warn!(%error, guild_id = guild.id.get(), "Could not leave a blocked server");
+            } else {
+                info!(guild_id = guild.id.get(), "Left a blocked server");
+            }
         }
     }
 
