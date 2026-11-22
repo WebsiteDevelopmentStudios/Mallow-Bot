@@ -1,5 +1,6 @@
 use serde_json::{json, Value};
 use crate::config::GuildConfig;
+use crate::halloween;
 use crate::premium::PremiumClient;
 use crate::music::MusicManager;
 use serenity::{
@@ -398,6 +399,21 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
         return true;
     }
     let premium_commands = ["embed", "snipe", "sticky", "backup", "custom-command", "vanity"];
+    if command == "countdown" {
+        let embed = halloween::build_embed();
+        match message.channel_id.send_message(&ctx.http, CreateMessage::new().embed(embed)).await {
+            Ok(posted) => {
+                if let Err(error) = halloween::set_target(guild_id, message.channel_id.get(), posted.id.get()) {
+                    warn!(%error, guild_id, "Could not persist Halloween countdown");
+                    let _ = message.reply(&ctx.http, "I created the countdown, but couldn't save its automatic refresh settings.").await;
+                } else {
+                    let _ = message.reply(&ctx.http, "Halloween countdown is set up and will refresh automatically, including after a bot restart.").await;
+                }
+            }
+            Err(_) => { let _ = message.reply(&ctx.http, "I couldn't create the countdown. Check my channel permissions and try again.").await; }
+        }
+        return true;
+    }
     if command == "premium-status" {
         let reply = if user_id == 1021068313071210498 {
             "Mallow Premium: developer access is enabled.".to_string()
