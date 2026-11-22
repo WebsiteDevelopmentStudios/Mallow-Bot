@@ -105,10 +105,6 @@ impl CommunityStore {
         });
     }
 
-    pub fn first_log_channel(&self) -> Option<u64> {
-        self.read(|data| data.get("log_channels").and_then(Value::as_object).and_then(|items| items.values().find_map(Value::as_u64)))
-    }
-
     pub fn record(&self, namespace: &str, key: &str) -> Option<Value> {
         self.read(|data| data.get(namespace).and_then(|v| v.get(key)).cloned())
     }
@@ -789,7 +785,7 @@ pub async fn create_ticket_channel(http: &Http, guild_id: u64, user_id: u64, use
     if cfg.tickets_config.get("enabled").and_then(Value::as_bool) != Some(true) {
         return Err("Tickets are disabled for this server.".into());
     }
-    if let Some(existing) = store.open_ticket(guild_id, user_id) {
+    if let Some(existing) = store.existing_ticket(guild_id, user_id) {
         return Err(format!("You already have an open ticket: <#{existing}>."));
     }
     let guild = serenity::all::GuildId::new(guild_id);
