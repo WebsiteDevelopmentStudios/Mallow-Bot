@@ -6,7 +6,6 @@ COPY rust-bot/src rust-bot/src
 COPY TERMS_OF_SERVICE.md TERMS_OF_SERVICE.md
 COPY halloween_facts.txt halloween_facts.txt
 COPY description.txt description.txt
-COPY description.txt description.txt
 COPY ["status's.txt", "status's.txt"]
 COPY update.txt update.txt
 RUN cargo build --manifest-path rust-bot/Cargo.toml --release
