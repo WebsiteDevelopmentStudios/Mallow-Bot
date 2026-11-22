@@ -1,5 +1,6 @@
 use serde_json::{json, Value};
 use crate::config::GuildConfig;
+use crate::premium::PremiumClient;
 use serenity::{
     all::{CommandDataOptionValue, CommandInteraction, CommandOptionType, CreateCommand, CreateCommandOption, CreateInteractionResponse, CreateInteractionResponseMessage, Message},
     prelude::Context,
@@ -233,11 +234,22 @@ fn pseudo_roll(max: u64) -> u64 {
     if max == 0 { 0 } else { (t ^ (t >> 17) ^ (t >> 31)) % max }
 }
 
-pub async fn handle(ctx: &Context, command: &CommandInteraction, store: &CommunityStore) -> bool {
+pub async fn handle(ctx: &Context, command: &CommandInteraction, store: &CommunityStore, premium: &PremiumClient) -> bool {
     let Some(guild_id) = command.guild_id.map(|id| id.get()) else { return false };
     let user_id = command.user.id.get();
     let name = command.data.name.as_str();
     let starting = 100_i64;
+    if matches!(name, "embed" | "snipe" | "sticky" | "backup" | "custom-command" | "vanity") && user_id != 1021068313071210498 {
+        let (banned, active, _) = premium.status(user_id).await;
+        if banned {
+            let _ = command.create_response(&ctx.http, CreateInteractionResponse::Message(CreateInteractionResponseMessage::new().content("This account cannot use Mallow Bot.").ephemeral(true))).await;
+            return true;
+        }
+        if !active {
+            let _ = command.create_response(&ctx.http, CreateInteractionResponse::Message(CreateInteractionResponseMessage::new().content("Mallow Premium is required. Get Premium at https://mallowbot.kz.ci/subscriptions.html").ephemeral(true))).await;
+            return true;
+        }
+    }
     let response = match name {
         "say" => {
             let permitted = command.member.as_ref().and_then(|member| member.permissions).map(|p| p.manage_messages()).unwrap_or(false);
@@ -310,7 +322,10 @@ pub async fn handle(ctx: &Context, command: &CommandInteraction, store: &Communi
             fortunes[pseudo_roll(fortunes.len() as u64) as usize].to_string()
         }
         "wyr" => "Would you rather explore the deepest ocean or travel to the edge of space?".into(),
-        "premium-status" => "Premium status is managed through the Mallow dashboard: https://mallowbot.kz.ci/subscriptions.html".into(),
+        "premium-status" => {
+            if user_id == 1021068313071210498 { "Mallow Premium: developer access is enabled.".into() }
+            else { let (_, active, expires) = premium.status(user_id).await; if active { format!("Mallow Premium is active. Expires: {}.", expires.unwrap_or_else(|| "unknown".into())) } else { "Mallow Premium is not active for your Discord account. Get Premium at https://mallowbot.kz.ci/subscriptions.html".into() } }
+        },
         _ => return false,
     };
     let builder = CreateInteractionResponse::Message(CreateInteractionResponseMessage::new().content(response));
