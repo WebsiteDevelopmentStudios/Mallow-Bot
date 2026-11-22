@@ -2244,7 +2244,18 @@ setup_community_features(bot)
 # Enforce per-server command switches for slash commands as well as text commands.
 _original_tree_interaction_check = bot.tree.interaction_check
 async def _dashboard_tree_interaction_check(interaction: discord.Interaction) -> bool:
-    if await is_bot_access_banned(interaction.user.id):
+    # Run remote access/config checks concurrently. Both services intentionally
+    # fail open to their existing safe defaults when unavailable; sequential
+    # cold HTTP requests could otherwise exceed Discord's 3-second ACK window.
+    if interaction.guild_id:
+        banned, cfg = await asyncio.gather(
+            is_bot_access_banned(interaction.user.id),
+            get_guild_config(interaction.guild_id),
+        )
+    else:
+        banned = await is_bot_access_banned(interaction.user.id)
+        cfg = None
+    if banned:
         message = "You are banned from using Mallow Bot. Contact the bot owner if you believe this is a mistake."
         if not interaction.response.is_done():
             await interaction.response.send_message(message, ephemeral=True)
@@ -2252,7 +2263,6 @@ async def _dashboard_tree_interaction_check(interaction: discord.Interaction) ->
             await interaction.followup.send(message, ephemeral=True)
         return False
     if interaction.guild_id:
-        cfg = await get_guild_config(interaction.guild_id)
         command = interaction.command
         command_name = getattr(command, "name", "") if command else ""
         name_lower = command_name.lower().replace("_", "-")
