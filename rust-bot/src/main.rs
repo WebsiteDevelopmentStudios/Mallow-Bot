@@ -442,6 +442,9 @@ async fn handle_ticket_component(http: &Http, component: &ComponentInteraction, 
                 respond("Only the ticket creator or configured support staff can close this ticket.".into()).await;
                 return;
             }
+            if let Err(error) = community::export_ticket_transcript(http, component.channel_id, &cfg).await {
+                warn!(%error, channel_id = component.channel_id.get(), "Could not export ticket transcript");
+            }
             respond("Closing this ticket in a moment…".into()).await;
             tokio::time::sleep(std::time::Duration::from_secs(2)).await;
             if component.channel_id.delete(http).await.is_ok() {
