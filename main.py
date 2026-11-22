@@ -2226,7 +2226,11 @@ class MallowBot(commands.Bot):
             )
         try:
             synced = await self.tree.sync()
-            logger.info("Synced %d global slash command(s).", len(synced))
+            bliss_synced = await self.tree.sync(guild=discord.Object(id=1544628300217978932))
+            logger.info(
+                "Synced %d global slash command(s) and %d Bliss SMP guild-only command(s).",
+                len(synced), len(bliss_synced),
+            )
         except (discord.Forbidden, discord.HTTPException) as exc:
             logger.warning("Could not sync global slash commands on startup: %s", exc)
 
@@ -3264,6 +3268,9 @@ async def refresh_application_commands(guild: discord.Guild) -> list:
     bot.tree.clear_commands(guild=guild)
     await bot.tree.sync(guild=guild)
     global_synced = await bot.tree.sync()
+    bliss_guild_id = 1544628300217978932
+    if guild.id != bliss_guild_id:
+        await bot.tree.sync(guild=discord.Object(id=bliss_guild_id))
     premium_names = {"embed", "snipe", "sticky", "backup", "custom-command", "vanity", "premium-status"}
     premium_count = sum(1 for command in global_synced if command.name in premium_names)
     standard_count = len(global_synced) - premium_count
