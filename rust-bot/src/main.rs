@@ -273,8 +273,7 @@ impl EventHandler for Handler {
             return;
         }
         let is_prefix = content.to_lowercase().starts_with(&cfg.prefix.to_lowercase());
-        if is_prefix && community::handle_prefix(&ctx, &message, &cfg, &self.state.community, &self.state.music, &self.state.premium).await { return; }
-        if !is_prefix && !content.is_empty() && cfg.features.get("xp").and_then(|v| v.as_bool()).unwrap_or(true) {
+        if !content.is_empty() && cfg.features.get("xp").and_then(|v| v.as_bool()).unwrap_or(true) {
             let cooldown = cfg.xp_config.get("cooldown_seconds").and_then(|v| v.as_u64()).unwrap_or(60);
             let min_xp = cfg.xp_config.get("min_xp").and_then(serde_json::Value::as_i64).unwrap_or(10).max(0);
             let max_xp = cfg.xp_config.get("max_xp").and_then(serde_json::Value::as_i64).unwrap_or(20).max(min_xp);
@@ -287,7 +286,7 @@ impl EventHandler for Handler {
                 }
             }
         }
-        if !is_prefix && cfg.messages_config.get("auto_reply_enabled").and_then(|v| v.as_bool()) == Some(true) {
+        if cfg.messages_config.get("auto_reply_enabled").and_then(|v| v.as_bool()) == Some(true) {
             if let Some(items) = cfg.messages_config.get("auto_replies").and_then(|v| v.as_array()) {
                 for item in items.iter().take(30) {
                     let trigger = item.get("trigger").and_then(|v| v.as_str()).unwrap_or("").trim();
@@ -301,7 +300,7 @@ impl EventHandler for Handler {
                 }
             }
         }
-        if !is_prefix && cfg.features.get("social").and_then(|v| v.as_bool()).unwrap_or(true) {
+        if cfg.features.get("social").and_then(|v| v.as_bool()).unwrap_or(true) {
             let video_id = content.split_whitespace().find_map(|part| {
                 if let Some(id) = part.split("youtu.be/").nth(1) { Some(id.chars().take(11).collect::<String>()) }
                 else if let Some(id) = part.split("v=").nth(1) { Some(id.chars().take(11).collect::<String>()) }
@@ -318,7 +317,7 @@ impl EventHandler for Handler {
                 }
             }
         }
-        if !is_prefix && cfg.features.get("swear_counter").and_then(|v| v.as_bool()).unwrap_or(true) && !cfg.swear_words.is_empty() {
+        if cfg.features.get("swear_counter").and_then(|v| v.as_bool()).unwrap_or(true) && !cfg.swear_words.is_empty() {
             let hits = community::count_swear_hits(content, &cfg.swear_words);
             if hits > 0 {
                 let total = self.state.community.add_swears(guild_id, message.author.id.get(), hits);
@@ -327,6 +326,7 @@ impl EventHandler for Handler {
                 let _ = message.reply(&ctx.http, format!("You now have {shown} swear(s) in this server.")).await;
             }
         }
+        if is_prefix && community::handle_prefix(&ctx, &message, &cfg, &self.state.community, &self.state.music, &self.state.premium).await { return; }
         if message.message_reference.is_none() && message.mentions.iter().any(|user| user.id == ctx.cache.current_user().id) {
             let descriptions: Vec<&str> = include_str!("../../description.txt").split("\n\n")
                 .map(str::trim).filter(|value| !value.is_empty()).collect();
