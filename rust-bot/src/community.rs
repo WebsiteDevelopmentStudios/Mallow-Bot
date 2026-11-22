@@ -45,7 +45,7 @@ impl CommunityStore {
         self.mutate(|data| {
             let key = format!("{guild}:{user}");
             let now = now_seconds();
-            let last = data.get("last_xp").and_then(|v| v.get(&key)).and_then(Value::as_u64).unwrap_or(0);
+            let last = data.get("last_xp").and_then(|v| v.get(&key)).and_then(Value::as_f64).map(|v| v.max(0.0) as u64).unwrap_or(0);
             if now.saturating_sub(last) < cooldown { return None; }
             let old = data.get("xp").and_then(|v| v.get(&key)).and_then(Value::as_i64).unwrap_or(0);
             let new = old.saturating_add(amount.max(0));
@@ -80,19 +80,10 @@ impl CommunityStore {
     pub fn daily_claimed(&self, guild: u64, user: u64, now: u64) -> bool {
         self.mutate(|data| {
             let key = format!("{guild}:{user}");
-            let previous = data.get("daily_claims").and_then(|v| v.get(&key)).and_then(Value::as_u64).unwrap_or(0);
+            let previous = data.get("daily_claims").and_then(|v| v.get(&key)).and_then(Value::as_f64).map(|v| v.max(0.0) as u64).unwrap_or(0);
             if now.saturating_sub(previous) < 86_400 { return true; }
             data["daily_claims"][key] = json!(now);
             false
-        })
-    }
-
-    pub fn custom_commands(&self, guild: u64) -> Vec<(String, String)> {
-        self.read(|data| {
-            let prefix = format!("{guild}:");
-            data.get("custom_commands").and_then(Value::as_object).into_iter().flatten()
-                .filter_map(|(key, value)| key.strip_prefix(&prefix).and_then(|name| value.as_str().map(|response| (name.to_string(), response.to_string()))))
-                .collect()
         })
     }
 
