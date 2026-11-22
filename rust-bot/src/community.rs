@@ -133,16 +133,6 @@ impl CommunityStore {
         });
     }
 
-    pub fn open_ticket(&self, guild: u64, user: u64) -> Option<u64> {
-        self.read(|data| {
-            data.get("tickets")?.as_object()?.iter().find_map(|(channel, ticket)| {
-                let matches = ticket.get("guild_id").and_then(Value::as_u64) == Some(guild)
-                    && ticket.get("user_id").and_then(Value::as_u64) == Some(user);
-                if matches { channel.parse::<u64>().ok() } else { None }
-            })
-        })
-    }
-
     pub fn try_cooldown(&self, name: &str, guild: u64, user: u64, seconds: u64) -> Option<u64> {
         self.mutate(|data| {
             let key = format!("{guild}:{user}");
