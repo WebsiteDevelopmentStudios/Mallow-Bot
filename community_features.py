@@ -1721,9 +1721,9 @@ def setup(bot):
                 embed = discord.Embed(
                     title="📢  BLISS SMP  •  NEW MEMBER",
                     description=(
-                        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\n"
-                        f"## ✨ Welcome {member.mention}! ✨\\n"
-                        "We're glad you've joined the realm. Get verified and jump into the adventure!\\n"
+                        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                        f"## ✨ Welcome {member.mention}! ✨\n"
+                        "We're glad you've joined the realm. Get verified and jump into the adventure!\n"
                         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
                     ),
                     color=discord.Color.from_rgb(104, 86, 255),
