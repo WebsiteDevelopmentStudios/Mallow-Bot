@@ -196,7 +196,8 @@ impl EventHandler for Handler {
             folded.contains("discord.gg/") || folded.contains("discord.com/invite/") || folded.contains("discordapp.com/invite/")
         });
         let exempt = message.member.as_ref()
-            .map(|member| member.permissions(&ctx.cache).map(|permissions| permissions.manage_messages()).unwrap_or(false))
+            .and_then(|member| member.permissions)
+            .map(|permissions| permissions.manage_messages())
             .unwrap_or(false);
         if cfg.features.get("moderation").and_then(|v| v.as_bool()).unwrap_or(true) && has_invite && !exempt {
             let minutes = self.state.community.timeout_minutes(guild_id);
