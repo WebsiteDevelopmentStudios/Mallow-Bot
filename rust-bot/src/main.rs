@@ -477,6 +477,12 @@ async fn owner_leave(
     let Ok(guild_id) = id.parse::<u64>() else {
         return (StatusCode::BAD_REQUEST, Json(serde_json::json!({"error":"Invalid Discord server ID."})));
     };
+    let Some(cache) = state.discord_cache.read().await.clone() else {
+        return (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({"error":"Mallow Bot is still starting."})));
+    };
+    if cache.guild(GuildId::new(guild_id)).is_none() {
+        return (StatusCode::NOT_FOUND, Json(serde_json::json!({"error":"Mallow is not in that server anymore."})));
+    }
     let Some(http) = state.discord_http.read().await.clone() else {
         return (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({"error":"Mallow Bot is still starting."})));
     };
