@@ -86,6 +86,15 @@ impl CommunityStore {
         })
     }
 
+    pub fn custom_commands(&self, guild: u64) -> Vec<(String, String)> {
+        self.read(|data| {
+            let prefix = format!("{guild}:");
+            data.get("custom_commands").and_then(Value::as_object).into_iter().flatten()
+                .filter_map(|(key, value)| key.strip_prefix(&prefix).and_then(|name| value.as_str().map(|response| (name.to_string(), response.to_string()))))
+                .collect()
+        })
+    }
+
     pub fn existing_ticket(&self, guild: u64, user: u64) -> Option<u64> {
         self.read(|data| {
             data.get("tickets").and_then(Value::as_object)?.iter().find_map(|(channel, ticket)| {
@@ -699,7 +708,7 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
                 let name = values.get(1).copied().unwrap_or("").to_lowercase();
                 let key = format!("{guild_id}:{name}");
                 match action {
-                    "list" => "Custom commands are stored for this server.".into(),
+                    "list" => { let items = store.custom_commands(guild_id); if items.is_empty() { "No custom commands are configured.".into() } else { items.iter().map(|(name, _)| format!("-mb {name}")).collect::<Vec<_>>().join("\\n") } },
                     "delete" => { store.set_record("custom_commands", &key, None); format!("Deleted custom command {name}.") }
                     "create" if !name.is_empty() && values.get(2).is_some() => {
                         store.set_record("custom_commands", &key, Some(json!(values[2].chars().take(1500).collect::<String>())));
