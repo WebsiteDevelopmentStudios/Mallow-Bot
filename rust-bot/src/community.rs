@@ -774,7 +774,7 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
 }
 
 pub async fn export_ticket_transcript(http: &Http, channel_id: serenity::all::ChannelId, cfg: &GuildConfig) -> Result<(), String> {
-    let Some(destination) = cfg.tickets_config.get("transcript_channel_id").and_then(Value::as_str).and_then(|v| v.parse::<u64>().ok()) else { return Ok(()) };
+    let Some(destination) = cfg.tickets_config.get("transcript_channel_id").and_then(|v| v.as_u64().or_else(|| v.as_str().and_then(|s| s.parse::<u64>().ok()))) else { return Ok(()) };
     let messages = channel_id.messages(http, GetMessages::new().limit(100)).await.map_err(|_| "could not read ticket history".to_string())?;
     let mut messages = messages;
     messages.reverse();
@@ -809,7 +809,7 @@ pub async fn create_ticket_channel(http: &Http, guild_id: u64, user_id: u64, use
         PermissionOverwrite { allow: Permissions::VIEW_CHANNEL | Permissions::SEND_MESSAGES | Permissions::READ_MESSAGE_HISTORY, deny: Permissions::empty(), kind: PermissionOverwriteType::Member(bot.id) },
     ];
     if let Some(roles) = cfg.tickets_config.get("support_role_ids").and_then(Value::as_array) {
-        for role in roles.iter().filter_map(Value::as_str).filter_map(|v| v.parse::<u64>().ok()).take(20) {
+        for role in roles.iter().filter_map(|v| v.as_u64().or_else(|| v.as_str().and_then(|s| s.parse::<u64>().ok()))).take(20) {
             overwrites.push(PermissionOverwrite { allow: Permissions::VIEW_CHANNEL | Permissions::SEND_MESSAGES | Permissions::READ_MESSAGE_HISTORY, deny: Permissions::empty(), kind: PermissionOverwriteType::Role(RoleId::new(role)) });
         }
     }
@@ -819,7 +819,7 @@ pub async fn create_ticket_channel(http: &Http, guild_id: u64, user_id: u64, use
         .permissions(overwrites)
         .topic(format!("mallow-ticket:{user_id}:{guild_id}"))
         .audit_log_reason("Mallow Bot support ticket");
-    if let Some(category) = cfg.tickets_config.get("category_id").and_then(Value::as_str).and_then(|v| v.parse::<u64>().ok()) {
+    if let Some(category) = cfg.tickets_config.get("category_id").and_then(|v| v.as_u64().or_else(|| v.as_str().and_then(|s| s.parse::<u64>().ok()))) {
         builder = builder.category(serenity::all::ChannelId::new(category));
     }
     let channel = guild.create_channel(http, builder).await.map_err(|_| "I couldn't create the private ticket channel. Check Manage Channels and permission settings.".to_string())?;
