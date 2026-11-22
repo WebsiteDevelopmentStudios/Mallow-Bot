@@ -27,7 +27,7 @@ impl Default for GuildConfig {
             disabled_commands: vec![],
             features: json!({
                 "economy": true, "xp": true, "moderation": true, "music": true,
-                "fun": true, "movies": true, "utility": true, "social": true,
+                "fun": true, "utility": true, "social": true,
                 "swear_counter": true
             }),
             economy_config: json!({"starting_money":100,"daily_reward":100,"work_min":20,"work_max":80}),
