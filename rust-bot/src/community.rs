@@ -347,10 +347,12 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
         "balance" | "daily" | "gamble" | "coinflip" | "slots" | "roulette" | "dice" | "blackjack" | "work" | "pay" | "rob" => Some("economy"),
         "xp" | "level" | "leaderboard" => Some("xp"),
         "swears" | "swear-leaderboard" => Some("swear_counter"),
-        "timeout-minutes" | "dm" | "set-log" => Some("moderation"),
+        "timeout-minutes" | "dm" | "set-log" | "purge" | "snipe" | "sticky" => Some("moderation"),
+        "swears" | "swear-leaderboard" => Some("swear_counter"),
         "vibecheck" | "ship" | "fortune" | "wyr" => Some("fun"),
         "youtube" => Some("social"),
         "play" | "join" | "leave" | "pause" | "resume" | "skip" | "stop" | "queue" | "volume" | "lyrics" => Some("music"),
+        "commands" | "help" | "update" | "uptime" | "sync" | "tos" | "say" | "ticket" | "ticket-panel" | "ticket-close" | "backup" | "embed" | "vanity" | "custom-command" | "premium-status" | "announcement" | "event" | "rules" | "autorole" | "reaction-role" => Some("utility"),
         _ => None,
     };
     if cfg.disabled_commands.iter().any(|name| name == &command)
@@ -576,7 +578,9 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
         "xp" | "leaderboard" => Some("xp"),
         "vibecheck" | "ship" | "fortune" | "wyr" => Some("fun"),
         "youtube" => Some("social"),
-        "dm" | "set-log" | "purge" => Some("moderation"),
+        "dm" | "set-log" | "purge" | "snipe" | "sticky" | "rules" | "autorole" | "reaction-role" => Some("moderation"),
+        "play" | "join" | "leave" | "pause" | "resume" | "skip" | "stop" | "queue" | "volume" | "lyrics" => Some("music"),
+        "uptime" | "update" | "commands" | "sync" | "tos" | "say" | "ticket" | "ticket-panel" | "ticket-close" | "backup" | "embed" | "custom-command" | "vanity" | "premium-status" | "announcement" | "event" => Some("utility"),
         _ => None,
     };
     if feature.and_then(|key| cfg.features.get(key).and_then(Value::as_bool)).unwrap_or(true) == false {
