@@ -492,6 +492,39 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
         let _ = message.reply(&ctx.http, format!("{} tagline: {current}", message.guild_id.unwrap())).await;
         return true;
     }
+    if command == "backup" {
+        let permitted = message.member.as_ref().and_then(|member| member.permissions).map(|p| p.administrator()).unwrap_or(false);
+        if !permitted { let _ = message.reply(&ctx.http, "You need Administrator permission to use this command.").await; return true; }
+        let guild = serenity::all::GuildId::new(guild_id);
+        match (guild.channels(&ctx.http).await, guild.roles(&ctx.http).await) {
+            (Ok(channels), Ok(roles)) => {
+                let payload = json!({
+                    "guild_id": guild_id.to_string(),
+                    "created_at": now_seconds(),
+                    "channels": channels.values().map(|channel| json!({
+                        "id": channel.id.get(), "name": channel.name, "type": format!("{:?}", channel.kind),
+                        "position": channel.position, "parent_id": channel.parent_id.map(|id| id.get()), "topic": channel.topic
+                    })).collect::<Vec<_>>(),
+                    "roles": roles.values().filter(|role| role.id.get() != guild_id).map(|role| json!({
+                        "id": role.id.get(), "name": role.name, "permissions": role.permissions.bits(),
+                        "colour": role.colour.0, "position": role.position, "hoist": role.hoist, "mentionable": role.mentionable
+                    })).collect::<Vec<_>>()
+                });
+                match serde_json::to_vec_pretty(&payload) {
+                    Ok(bytes) => {
+                        let file = CreateAttachment::bytes(bytes, format!("mallow-backup-{guild_id}.json"));
+                        let result = message.channel_id.send_message(&ctx.http, CreateMessage::new()
+                            .content("Server layout export attached. This is not a full message or permission restore backup.")
+                            .add_file(file)).await;
+                        if result.is_err() { let _ = message.reply(&ctx.http, "I couldn't attach the server backup. Check my channel permissions.").await; }
+                    }
+                    Err(_) => { let _ = message.reply(&ctx.http, "I couldn't serialize the server backup.").await; }
+                }
+            }
+            _ => { let _ = message.reply(&ctx.http, "I couldn't read this server's channel and role layout. Check my permissions.").await; }
+        }
+        return true;
+    }
     if command == "set-log" {
         if user_id != 1021068313071210498 { let _ = message.reply(&ctx.http, "Only the bot developer can configure DM logs.").await; return true; }
         let id = if argument.is_empty() { Some(message.channel_id.get()) } else {
