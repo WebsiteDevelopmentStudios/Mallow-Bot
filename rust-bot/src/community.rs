@@ -83,6 +83,34 @@ impl CommunityStore {
         })
     }
 
+    pub fn set_autorole(&self, guild: u64, role: Option<u64>) {
+        self.mutate(|data| {
+            if let Some(role) = role { data["autoroles"][guild.to_string()] = json!(role); }
+            else if let Some(values) = data.get_mut("autoroles").and_then(Value::as_object_mut) { values.remove(&guild.to_string()); }
+        });
+    }
+
+    pub fn autorole(&self, guild: u64) -> Option<u64> {
+        self.read(|data| data.get("autoroles").and_then(|v| v.get(guild.to_string())).and_then(Value::as_u64))
+    }
+
+    pub fn set_reaction_role(&self, guild: u64, message: u64, emoji: &str, role: Option<u64>) {
+        self.mutate(|data| {
+            let key = message.to_string();
+            data["reaction_roles"][&key]["guild_id"] = json!(guild.to_string());
+            if let Some(role) = role { data["reaction_roles"][&key]["roles"][emoji] = json!(role); }
+            else if let Some(roles) = data["reaction_roles"][&key].get_mut("roles").and_then(Value::as_object_mut) { roles.remove(emoji); }
+        });
+    }
+
+    pub fn reaction_role(&self, guild: u64, message: u64, emoji: &str) -> Option<u64> {
+        self.read(|data| {
+            let panel = data.get("reaction_roles")?.get(message.to_string())?;
+            if panel.get("guild_id")?.as_str()? != guild.to_string() { return None; }
+            panel.get("roles")?.get(emoji)?.as_u64()
+        })
+    }
+
     pub fn leaderboard(&self, guild: u64) -> Vec<(u64, i64)> {
         self.read(|data| {
             let prefix = format!("{guild}:");
