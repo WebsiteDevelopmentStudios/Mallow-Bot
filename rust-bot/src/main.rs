@@ -5,7 +5,7 @@ mod premium;
 
 use anyhow::{Context, Result};
 use serenity::{
-    all::{Command, CommandInteraction, CommandOptionType, CreateCommand, CreateCommandOption, Interaction, Ready},
+    all::{Command, CommandInteraction, CreateCommand, Interaction, Ready},
     async_trait,
     prelude::*,
 };
@@ -38,7 +38,7 @@ impl EventHandler for Handler {
         }
     }
 
-    async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
+    async fn interaction_create(&self, ctx: DiscordContext, interaction: Interaction) {
         let Interaction::Command(command) = interaction else { return };
         if self.state.premium.is_banned(command.user.id.get()).await {
             let builder = serenity::builder::CreateInteractionResponse::Message(
