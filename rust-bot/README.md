@@ -1,31 +1,42 @@
-# Mallow Bot — Rust runtime migration
+# Mallow Bot Rust Runtime
 
-This crate is the Rust replacement runtime for Mallow Bot. Movie/media-hosting features are explicitly excluded and will not be ported. The runtime does not connect to Cloudflare D1. The existing dashboard remains a separate Pages application; the bot reads its runtime configuration through `/api/runtime-config` and checks premium bans through `/api/premium-check`.
-
-## Current status
-
-This is an initial executable migration slice, not feature parity. It includes:
-- Rust Discord gateway startup and initial smoke-test slash commands
-- HTTP health endpoint on `PORT` / `SERVER_PORT`
-- Cached dashboard runtime-config client with bounded request timeouts
-- Cached premium-ban client with bounded request timeouts
-- Graceful fallback when dashboard/access services are unavailable
-
-The production Python entry point remains unchanged until every retained feature has been ported and tested. See the repository-root `MIGRATION.md` for the full parity checklist.
+This crate is the Rust replacement for the Mallow Bot Discord runtime. It contains no movie or media-hosting features.
 
 ## Build
 
 ```sh
-cd rust-bot
 cargo build --release
 ```
 
-Required environment:
+## Required configuration
+
 - `DISCORD_TOKEN`
-- `MALLOW_DASHBOARD_CONFIG_SECRET` (same value as Cloudflare Pages `RUNTIME_CONFIG_SECRET`)
+- `WAKE_SECRET` for the authenticated Cloudflare interaction and owner bridge
+- `MALLOW_DASHBOARD_CONFIG_SECRET` for dashboard runtime configuration
 
 Optional:
-- `MALLOW_DASHBOARD_CONFIG_URL` (defaults to `https://mallowbot.kz.ci/api/runtime-config`)
-- `PREMIUM_CHECK_URL` (defaults to `https://mallowbot.kz.ci/api/premium-check`)
-- `PORT` or `SERVER_PORT` (defaults to 25572)
+- `MALLOW_DASHBOARD_CONFIG_URL`
+- `PREMIUM_CHECK_URL`
+- `ENABLE_LAVALINK`, `LAVALINK_URI`, and `LAVALINK_PASSWORD`
+- `MCXBROADCAST_URL` and `MCXBROADCAST_PING_INTERVAL`
+- `MALLOW_DATA_DIR`
+- `PORT` or `SERVER_PORT`
 - `RUST_LOG`
+
+## HTTP routes
+
+- `GET /health`
+- `POST /discord/interactions` (requires `X-Mallow-Bot-Secret` or `X-Mochi-Bot-Secret` matching `WAKE_SECRET`)
+- `GET /owner/guilds` (requires `Authorization: Bot <DISCORD_TOKEN>`)
+- `POST /owner/leave` (requires `Authorization: Bot <DISCORD_TOKEN>`)
+
+## Runtime modules
+
+- `community.rs`: XP, economy, fun, swear counters, moderation settings, server tools, and persistent community state
+- `music.rs`: Lavalink v4 WebSocket, voice-state synchronization, queues, Spotify metadata lookup, playback controls, and LRCLIB synchronized lyrics
+- `dashboard.rs`: cached dashboard runtime configuration
+- `premium.rs`: Premium and ban checks
+- `tasks.rs`: MCXboxBroadcast/Lavalink keep-alives and rotating Discord status
+- `health.rs`: HTTP health endpoint
+
+The Rust migration must pass command/event parity checks and deployment validation before it replaces the production runtime.
