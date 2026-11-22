@@ -1,11 +1,9 @@
- 🎬 I'm here to make this server a little more entertaining. I can help with YouTube links, XP, levels, leaderboards, Mallow Coins, and mini-games. Try -mb help or /commands to see the full command list.
+Hello, I'm Mallow Bot. I can help with music playback, XP and leaderboards, Mallow Coins, games, moderation, and server utilities. Use -mb help or /commands to see what I can do.
 
- 🍿 Your friendly neighborhood movie assistant, running entirely on code and questionable amounts of popcorn. I can look up YouTube videos, track XP and levels, show leaderboards, and run Mallow Coins games. Try -mb help or /commands for commands.
+I'm Mallow Bot, your server's all-purpose assistant. I can play music, track XP, manage community games, count configured words, and help with server tools. Try -mb help or /commands.
 
- 🎥 I do a bit of everything around here: YouTube lookups, XP and leaderboard tracking, virtual Mallow Coins, games, and server utilities. Need the command menu? Use -mb help or /commands.
+Need a hand around the server? I can help with music, member roles, tickets, moderation, community games, and utility commands. Use -mb help or /commands to get started.
 
- 🎞️ I'm Mallow Bot, a small bundle of code with a big list of tricks. I can show YouTube info, track your server XP, display the leaderboard, and run fun Mallow Coins games. Check -mb help or /commands to see what I can do.
+I'm a small bundle of code with a useful set of server tools. I can show XP, run Mallow Coins games, manage support tickets, and play music. Check -mb help or /commands for the full list.
 
- 🍿 I may not be a real movie critic, but I can help with YouTube links, levels, leaderboards, virtual currency, and mini-games. Type -mb help or /commands to explore my features.
-
- 🎬 Thanks for the ping! I can help you discover commands for YouTube lookups, XP, leaderboards, Mallow Coins, games, and other server features. Try -mb help or /commands and let's get this show on the road.
+Thanks for the mention. I can help with music, YouTube information, XP, leaderboards, virtual currency, and server utilities. Try -mb help or /commands to explore the available features.
