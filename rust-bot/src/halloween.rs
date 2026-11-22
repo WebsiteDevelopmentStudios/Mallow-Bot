@@ -1,4 +1,4 @@
-use chrono::{Datelike, Utc};
+use chrono::{Datelike, TimeZone, Utc};
 use chrono_tz::America::Los_Angeles;
 use serde::{Deserialize, Serialize};
 use serenity::{
@@ -68,7 +68,7 @@ fn daily_fact() -> String {
     let used: Vec<String> = state.get("used").and_then(serde_json::Value::as_array)
         .map(|values| values.iter().filter_map(serde_json::Value::as_str).map(str::to_owned).collect())
         .unwrap_or_default();
-    let fact = facts.iter().find(|fact| !used.iter().any(|item| item.as_str() == *fact)).copied()
+    let fact = facts.iter().find(|fact| !used.iter().any(|item| item.as_str() == **fact)).copied()
         .unwrap_or("All listed Halloween facts have been used. Add more facts to halloween_facts.txt.");
     let mut used = used;
     if facts.contains(&fact) { used.push(fact.to_string()); }
