@@ -86,6 +86,16 @@ impl CommunityStore {
         })
     }
 
+    pub fn existing_ticket(&self, guild: u64, user: u64) -> Option<u64> {
+        self.read(|data| {
+            data.get("tickets").and_then(Value::as_object)?.iter().find_map(|(channel, ticket)| {
+                (ticket.get("guild_id").and_then(Value::as_u64) == Some(guild)
+                    && ticket.get("user_id").and_then(Value::as_u64) == Some(user))
+                    .then(|| channel.parse::<u64>().ok()).flatten()
+            })
+        })
+    }
+
     pub fn set_record(&self, namespace: &str, key: &str, value: Option<Value>) {
         self.mutate(|data| {
             if let Some(value) = value { data[namespace][key] = value; }
