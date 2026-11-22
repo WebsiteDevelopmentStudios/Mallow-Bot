@@ -12,7 +12,7 @@ pub struct PremiumClient {
 }
 
 #[derive(Deserialize)]
-struct PremiumStatus { #[serde(default)] banned: bool }
+struct PremiumStatus { #[serde(default)] banned: bool, #[serde(default)] active: bool, expires_at: Option<String> }
 
 impl PremiumClient {
     pub fn from_env() -> anyhow::Result<Self> {
@@ -24,6 +24,17 @@ impl PremiumClient {
             .pool_idle_timeout(Duration::from_secs(90))
             .build()?;
         Ok(Self { http, url, cache: Arc::new(RwLock::new(HashMap::new())) })
+    }
+
+    pub async fn status(&self, user_id: u64) -> (bool, bool, Option<String>) {
+        match self.http.get(&self.url).query(&[("discord_id", user_id)]).send().await {
+            Ok(response) if response.status().is_success() => match response.json::<PremiumStatus>().await {
+                Ok(status) => (status.banned, status.active, status.expires_at),
+                Err(error) => { warn!(%error, "Premium status response was invalid"); (false, false, None) }
+            },
+            Ok(response) => { warn!(status = %response.status(), "Premium status request failed"); (false, false, None) }
+            Err(error) => { warn!(%error, "Premium status request unavailable"); (false, false, None) }
+        }
     }
 
     pub async fn is_banned(&self, user_id: u64) -> bool {
