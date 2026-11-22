@@ -7,7 +7,7 @@ mod tasks;
 
 use anyhow::{Context, Result};
 use serenity::{
-    all::{Command, CommandInteraction, CreateCommand, CreateEmbed, CreateMessage, GuildId, Interaction, Member, Message, Ready, User},
+    all::{Command, CommandInteraction, CreateCommand, CreateEmbed, CreateMessage, GuildId, Interaction, Member, Message, Ready, RoleId, User},
     async_trait,
     prelude::*,
 };
@@ -44,6 +44,11 @@ impl EventHandler for Handler {
 
     async fn guild_member_addition(&self, ctx: DiscordContext, member: Member) {
         let guild_id = member.guild_id.get();
+        if let Some(role_id) = self.state.community.autorole(guild_id) {
+            if let Err(error) = member.add_role(&ctx.http, RoleId::new(role_id)).await {
+                warn!(%error, guild_id, role_id, "Could not apply configured auto-role");
+            }
+        }
         let cfg = self.state.dashboard.guild_config(guild_id).await;
         let messages = &cfg.messages_config;
         if messages.get("welcome_enabled").and_then(|v| v.as_bool()) != Some(true) { return; }
