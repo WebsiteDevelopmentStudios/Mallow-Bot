@@ -32,6 +32,7 @@ struct BotState {
     discord_http: Arc<RwLock<Option<Arc<Http>>>>,
     discord_cache: Arc<RwLock<Option<Arc<Cache>>>>,
     owner_token: String,
+    ready: Arc<AtomicBool>,
 }
 
 struct Handler {
@@ -43,6 +44,7 @@ impl EventHandler for Handler {
     async fn ready(&self, ctx: DiscordContext, ready: Ready) {
         info!(user = %ready.user.name, "Mallow Bot Rust gateway connected");
         if !STATUS_ROTATION_STARTED.swap(true, Ordering::SeqCst) { tasks::spawn_status_rotation(ctx.shard.clone()); }
+        self.state.ready.store(true, Ordering::Relaxed);
         *self.state.discord_http.write().await = Some(ctx.http.clone());
         *self.state.discord_cache.write().await = Some(ctx.cache.clone());
         self.state.music.set_shard(ctx.shard.clone()).await;
@@ -533,10 +535,11 @@ async fn main() -> Result<()> {
         discord_http: Arc::new(RwLock::new(None)),
         discord_cache: Arc::new(RwLock::new(None)),
         owner_token: token.clone(),
+        ready: Arc::new(AtomicBool::new(false)),
     });
 
     let port = env::var("PORT").or_else(|_| env::var("SERVER_PORT")).unwrap_or_else(|_| "25572".into());
-    let health_state = health::HealthState { started: state.started };
+    let health_state = health::HealthState { started: state.started, ready: state.ready.clone() };
     let bridge_app = Router::new()
         .route("/discord/interactions", post(http_interaction))
         .route("/owner/guilds", axum::routing::get(owner_guilds))
