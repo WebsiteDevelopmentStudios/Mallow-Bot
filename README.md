@@ -77,9 +77,18 @@ The Rust service exposes:
 - `GET /owner/guilds` (requires `Authorization: Bot <DISCORD_TOKEN>`)
 - `POST /owner/leave` (requires `Authorization: Bot <DISCORD_TOKEN>`)
 
-## Deployment
+## bot-hosting.net deployment
 
-The Render service uses `bot.Dockerfile` to build and run the Rust executable. The root `Dockerfile` and `application.yml` are for the separate Lavalink service.
+The bot runs on bot-hosting.net as a Linux executable, not as a Render service or a Docker deployment.
+
+1. Download the `mallow-bot-linux-x86_64` artifact from the successful **Validate Mallow Bot** GitHub Actions run for the migration branch.
+2. Upload the executable to the bot server's working directory and make it executable with `chmod +x mallow-bot-linux-x86_64` if the panel provides a shell.
+3. Set the server startup command to `./mallow-bot-linux-x86_64`.
+4. Configure the environment variables listed above in the server's Startup/Variables panel. Set `MALLOW_DATA_DIR` to a persistent directory provided by the server, such as `/home/container/data`, if that path is writable and persistent.
+5. Keep the existing Python startup active until the Rust executable has been uploaded, configured, and tested. Do not run both bot processes with the same Discord token.
+6. Keep `ENABLE_LAVALINK=true` and set the existing Lavalink URI/password to retain music playback.
+
+The migration branch's CI produces a Linux x86_64 executable artifact intended for this deployment. The bot-hosting.net panel must provide a compatible 64-bit Linux environment. Confirm the server's persistent data path in the panel before cutover.
 
 ## Data persistence
 
