@@ -132,7 +132,7 @@ impl MusicManager {
     }
 
     pub async fn voice_state_update(&self, state: &VoiceState) {
-        let Some(guild_id) = state.guild_id.map(GuildId::get) else { return };
+        let Some(guild_id) = state.guild_id.map(|id| id.get()) else { return };
         if Some(state.user_id.get()) != *self.bot_user_id.read().await { return; }
         let mut voices = self.voices.write().await;
         let voice = voices.entry(guild_id).or_default();
@@ -143,13 +143,13 @@ impl MusicManager {
     }
 
     pub async fn voice_server_update(&self, event: &VoiceServerUpdateEvent) {
+        let Some(guild_id) = event.guild_id.map(|id| id.get()) else { return };
         let mut voices = self.voices.write().await;
-        let voice = voices.entry(event.guild_id.get()).or_default();
-        voice.token = event.token.clone();
+        let voice = voices.entry(guild_id).or_default();
+        voice.token = Some(event.token.clone());
         voice.endpoint = event.endpoint.clone();
-        let guild = event.guild_id.get();
         drop(voices);
-        self.try_start(guild).await;
+        self.try_start(guild_id).await;
     }
 
     pub fn request_voice_channel(ctx: &DiscordContext, guild: u64, channel: Option<u64>) {
