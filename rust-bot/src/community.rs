@@ -3,7 +3,7 @@ use crate::config::GuildConfig;
 use crate::premium::PremiumClient;
 use crate::music::MusicManager;
 use serenity::{
-    all::{ChannelType, CommandDataOptionValue, CommandInteraction, CommandOptionType, CreateAttachment, CreateChannel, CreateCommand, CreateCommandOption, CreateEmbed, CreateInteractionResponse, CreateInteractionResponseMessage, EditInteractionResponse, CreateMessage, GetMessages, Message, PermissionOverwrite, PermissionOverwriteType, Permissions, ReactionType, RoleId, UserId},
+    all::{ChannelType, CommandDataOptionValue, CommandInteraction, CommandOptionType, CreateActionRow, CreateAttachment, CreateButton, CreateChannel, CreateCommand, CreateCommandOption, CreateEmbed, CreateInteractionResponse, CreateInteractionResponseMessage, EditInteractionResponse, CreateMessage, GetMessages, Message, PermissionOverwrite, PermissionOverwriteType, Permissions, ReactionType, RoleId, UserId, ButtonStyle},
     http::Http,
     prelude::Context,
 };
@@ -99,6 +99,16 @@ impl CommunityStore {
 
     pub fn record(&self, namespace: &str, key: &str) -> Option<Value> {
         self.read(|data| data.get(namespace).and_then(|v| v.get(key)).cloned())
+    }
+
+    pub fn open_ticket(&self, guild: u64, user: u64) -> Option<u64> {
+        self.read(|data| {
+            data.get("tickets")?.as_object()?.iter().find_map(|(channel, ticket)| {
+                let matches = ticket.get("guild_id").and_then(Value::as_u64) == Some(guild)
+                    && ticket.get("user_id").and_then(Value::as_u64) == Some(user);
+                if matches { channel.parse::<u64>().ok() } else { None }
+            })
+        })
     }
 
     pub fn timeout_minutes(&self, guild: u64) -> u64 {
@@ -439,6 +449,9 @@ async fn create_ticket_channel(http: &Http, guild_id: u64, user_id: u64, usernam
     if cfg.tickets_config.get("enabled").and_then(Value::as_bool) != Some(true) {
         return Err("Tickets are disabled for this server.".into());
     }
+    if let Some(existing) = store.open_ticket(guild_id, user_id) {
+        return Err(format!("You already have an open ticket: <#{existing}>."));
+    }
     let guild = serenity::all::GuildId::new(guild_id);
     let bot = http.get_current_user().await.map_err(|_| "I couldn't identify the bot account.".to_string())?;
     let mut overwrites = vec![
@@ -455,13 +468,19 @@ async fn create_ticket_channel(http: &Http, guild_id: u64, user_id: u64, usernam
     let mut builder = CreateChannel::new(format!("ticket-{}", if slug.is_empty() { user_id.to_string() } else { slug }))
         .kind(ChannelType::Text)
         .permissions(overwrites)
+        .topic(format!("mallow-ticket:{user_id}:{guild_id}"))
         .audit_log_reason("Mallow Bot support ticket");
     if let Some(category) = cfg.tickets_config.get("category_id").and_then(Value::as_str).and_then(|v| v.parse::<u64>().ok()) {
         builder = builder.category(serenity::all::ChannelId::new(category));
     }
     let channel = guild.create_channel(http, builder).await.map_err(|_| "I couldn't create the private ticket channel. Check Manage Channels and permission settings.".to_string())?;
     let welcome = cfg.tickets_config.get("welcome_message").and_then(Value::as_str).unwrap_or("Thanks for opening a ticket. A staff member will be with you soon.");
-    let _ = channel.id.say(http, format!("<@{user_id}>\n{welcome}")).await;
+    let close_button = CreateActionRow::Buttons(vec![
+        CreateButton::new("mallow:ticket:close").label("Close ticket").style(ButtonStyle::Danger)
+    ]);
+    let _ = channel.id.send_message(http, CreateMessage::new()
+        .content(format!("<@{user_id}>\n{welcome}"))
+        .components(vec![close_button])).await;
     store.set_record("tickets", &channel.id.get().to_string(), Some(json!({"guild_id":guild_id,"user_id":user_id,"opened_at":now_seconds()})));
     Ok(channel.id.get())
 }
@@ -882,7 +901,12 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
             let permitted = command.member.as_ref().and_then(|member| member.permissions).map(|p| p.manage_guild()).unwrap_or(false);
             if !permitted { "You need Manage Server permission to post a ticket panel.".into() }
             else {
-                match command.channel_id.send_message(http, CreateMessage::new().embed(CreateEmbed::new().title("Mallow Bot Support").description("Need help? Use /ticket to open a private support channel with the server's support team."))).await {
+                let open_button = CreateActionRow::Buttons(vec![
+                    CreateButton::new("mallow:ticket:open").label("Open a ticket").style(ButtonStyle::Primary)
+                ]);
+                match command.channel_id.send_message(http, CreateMessage::new()
+                    .embed(CreateEmbed::new().title("Mallow Bot Support").description("Need help? Click below to open a private support channel with the server's support team."))
+                    .components(vec![open_button])).await {
                     Ok(_) => "Support ticket panel posted.".into(),
                     Err(_) => "I couldn't post the ticket panel in this channel.".into()
                 }
