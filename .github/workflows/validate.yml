@@ -31,3 +31,26 @@ jobs:
       - name: Build production Docker image
         working-directory: .
         run: docker build -f bot.Dockerfile -t mallow-bot-rust:ci .
+
+  bot-hosting-binary:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust-bot -> target
+      - name: Build bot-hosting.net Linux executable
+        working-directory: rust-bot
+        run: cargo build --release --locked
+      - name: Package executable
+        run: |
+          mkdir -p artifact
+          cp rust-bot/target/release/mallow-bot artifact/mallow-bot-linux-x86_64
+          chmod +x artifact/mallow-bot-linux-x86_64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mallow-bot-linux-x86_64
+          path: artifact/mallow-bot-linux-x86_64
+          if-no-files-found: error
+          retention-days: 30
