@@ -2,7 +2,8 @@ use serde_json::{json, Value};
 use crate::config::GuildConfig;
 use crate::premium::PremiumClient;
 use serenity::{
-    all::{CommandDataOptionValue, CommandInteraction, CommandOptionType, CreateCommand, CreateAttachment, CreateCommandOption, CreateEmbed, CreateInteractionResponse, CreateInteractionResponseMessage, CreateMessage, Message, ReactionType},
+    all::{CommandDataOptionValue, CommandInteraction, CommandOptionType, CreateCommand, CreateAttachment, CreateCommandOption, CreateEmbed, CreateInteractionResponse, CreateInteractionResponseMessage, EditInteractionResponse, CreateMessage, Message, ReactionType},
+    http::Http,
     prelude::Context,
 };
 use std::{fs, path::PathBuf, sync::{Arc, Mutex}, time::{SystemTime, UNIX_EPOCH}};
@@ -406,12 +407,21 @@ fn pseudo_roll(max: u64) -> u64 {
     if max == 0 { 0 } else { (t ^ (t >> 17) ^ (t >> 31)) % max }
 }
 
-pub async fn handle(ctx: &Context, command: &CommandInteraction, store: &CommunityStore, premium: &PremiumClient, cfg: &GuildConfig) -> bool {
+async fn respond(http: &Http, command: &CommandInteraction, content: String, ephemeral: bool, deferred: bool) {
+    if deferred {
+        let _ = command.edit_response(http, EditInteractionResponse::new().content(content)).await;
+    } else {
+        let builder = CreateInteractionResponse::Message(CreateInteractionResponseMessage::new().content(content).ephemeral(ephemeral));
+        let _ = command.create_response(http, builder).await;
+    }
+}
+
+pub async fn handle(http: &Http, command: &CommandInteraction, store: &CommunityStore, premium: &PremiumClient, cfg: &GuildConfig) -> bool {
     let Some(guild_id) = command.guild_id.map(|id| id.get()) else { return false };
     let user_id = command.user.id.get();
     let name = command.data.name.as_str();
     if cfg.disabled_commands.iter().any(|disabled| disabled == name) {
-        let _ = command.create_response(&ctx.http, CreateInteractionResponse::Message(CreateInteractionResponseMessage::new().content(format!("The {name} command is disabled in this server.")).ephemeral(true))).await;
+        let _ = respond(http, command, format!("The {name} command is disabled in this server."), true, false).await;
         return true;
     }
     let feature = match name {
@@ -423,7 +433,7 @@ pub async fn handle(ctx: &Context, command: &CommandInteraction, store: &Communi
         _ => None,
     };
     if feature.and_then(|key| cfg.features.get(key).and_then(Value::as_bool)).unwrap_or(true) == false {
-        let _ = command.create_response(&ctx.http, CreateInteractionResponse::Message(CreateInteractionResponseMessage::new().content(format!("The {name} feature is disabled in this server.")).ephemeral(true))).await;
+        let _ = command.create_response(&http, CreateInteractionResponse::Message(CreateInteractionResponseMessage::new().content(format!("The {name} feature is disabled in this server.")).ephemeral(true))).await;
         return true;
     }
     let starting = cfg.economy_config.get("starting_money").and_then(Value::as_i64).unwrap_or(100);
@@ -767,7 +777,7 @@ pub async fn handle(ctx: &Context, command: &CommandInteraction, store: &Communi
             }
         }
         "ticket" => {
-            match create_ticket_channel(ctx, guild_id, user_id, &command.user.name, cfg, store).await {
+            match create_ticket_channel(http, guild_id, user_id, &command.user.name, cfg, store).await {
                 Ok(channel) => format!("Your private support ticket has been created: <#{channel}>."),
                 Err(error) => error
             }
