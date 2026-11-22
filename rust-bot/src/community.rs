@@ -693,6 +693,51 @@ pub async fn handle(ctx: &Context, command: &CommandInteraction, store: &Communi
                 }
             }
         }
+        "announcement" | "event" => {
+            let permitted = command.member.as_ref().and_then(|member| member.permissions).map(|p| p.manage_messages()).unwrap_or(false);
+            if guild_id != 1544628300217978932 { "This command is only available in Bliss SMP.".into() }
+            else if !permitted { "You need Manage Messages permission to publish Bliss SMP announcements.".into() }
+            else {
+                let days = command.data.options.iter().find_map(|o| if o.name == "date" { if let CommandDataOptionValue::Integer(v) = o.value { Some(v) } else { None } } else { None }).unwrap_or(0).max(0) as u64;
+                let minutes = command.data.options.iter().find_map(|o| if o.name == "time" { if let CommandDataOptionValue::Integer(v) = o.value { Some(v) } else { None } } else { None }).unwrap_or(5).max(0) as u64;
+                let timestamp = now_seconds() + days * 86_400 + minutes * 60;
+                let channel = serenity::all::ChannelId::new(1574140545570181141);
+                if name == "announcement" {
+                    let news = command.data.options.iter().find_map(|o| if o.name == "news" { if let CommandDataOptionValue::String(v) = &o.value { Some(v.as_str()) } else { None } } else { None }).unwrap_or("");
+                    if news.trim().is_empty() || news.len() > 1500 { "Announcement text must be between 1 and 1,500 characters.".into() }
+                    else {
+                        let embed = CreateEmbed::new().title("BLISS SMP ANNOUNCEMENT")
+                            .description(format!("━━━━━━━━━━━━━━━━━━━━━━\n\n{}\n\n━━━━━━━━━━━━━━━━━━━━━━", news.trim()))
+                            .field("Date", format!("<t:{timestamp}:D>"), true)
+                            .field("Time", format!("<t:{timestamp}:t>\n<t:{timestamp}:R>"), true)
+                            .field("Realm Code", "Find the code in <#1544638277179678730>", false)
+                            .field("Want to join?", "React to this announcement with 💎 if you're joining!", false)
+                            .footer(serenity::builder::CreateEmbedFooter::new("BLISS SMP • Community Announcement"));
+                        match channel.send_message(&ctx.http, CreateMessage::new().embed(embed)).await {
+                            Ok(posted) => { let _ = channel.create_reaction(&ctx.http, posted.id, ReactionType::Unicode("💎".into())).await; "Bliss SMP announcement posted.".into() }
+                            Err(_) => "I couldn't publish the announcement. Check my channel permissions.".into()
+                        }
+                    }
+                } else {
+                    let event_name = command.data.options.iter().find_map(|o| if o.name == "name" { if let CommandDataOptionValue::String(v) = &o.value { Some(v.as_str()) } else { None } } else { None }).unwrap_or("");
+                    let prize = command.data.options.iter().find_map(|o| if o.name == "prize" { if let CommandDataOptionValue::String(v) = &o.value { Some(v.as_str()) } else { None } } else { None }).filter(|v| !v.trim().is_empty()).unwrap_or("No prize announced");
+                    if event_name.trim().is_empty() || event_name.len() > 150 { "Event name must be between 1 and 150 characters.".into() }
+                    else {
+                        let embed = CreateEmbed::new().title("BLISS SMP EVENT")
+                            .description(format!("━━━━━━━━━━━━━━━━━━━━━━\n\n**{}**\n\n━━━━━━━━━━━━━━━━━━━━━━", event_name.trim()))
+                            .field("Date", format!("<t:{timestamp}:D>"), true)
+                            .field("Time", format!("<t:{timestamp}:t>\n<t:{timestamp}:R>"), true)
+                            .field("Prize", prize, false)
+                            .field("How to join", "React to this event with 🎪 to enter!", false)
+                            .footer(serenity::builder::CreateEmbedFooter::new("BLISS SMP • Community Event"));
+                        match channel.send_message(&ctx.http, CreateMessage::new().embed(embed)).await {
+                            Ok(posted) => { let _ = channel.create_reaction(&ctx.http, posted.id, ReactionType::Unicode("🎪".into())).await; "Bliss SMP event posted.".into() }
+                            Err(_) => "I couldn't publish the event. Check my channel permissions.".into()
+                        }
+                    }
+                }
+            }
+        }
         "ticket" => {
             match create_ticket_channel(ctx, guild_id, user_id, &command.user.name, cfg, store).await {
                 Ok(channel) => format!("Your private support ticket has been created: <#{channel}>."),
