@@ -384,6 +384,30 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
         let _ = message.reply(&ctx.http, response.chars().take(1900).collect::<String>()).await;
         return true;
     }
+    let premium_commands = ["embed", "snipe", "sticky", "backup", "custom-command", "vanity"];
+    if command == "premium-status" {
+        let reply = if user_id == 1021068313071210498 {
+            "Mallow Premium: developer access is enabled.".to_string()
+        } else {
+            let (banned, active, expires) = premium.status(user_id).await;
+            if banned { "This account cannot use Mallow Bot.".to_string() }
+            else if active { format!("Mallow Premium is active. Expires: {}.", expires.unwrap_or_else(|| "unknown".into())) }
+            else { "Mallow Premium is not active for your Discord account. Get Premium at https://mallowbot.kz.ci/subscriptions.html".to_string() }
+        };
+        let _ = message.reply(&ctx.http, reply).await;
+        return true;
+    }
+    if premium_commands.contains(&command.as_str()) && user_id != 1021068313071210498 {
+        let (banned, active, _) = premium.status(user_id).await;
+        if banned {
+            let _ = message.reply(&ctx.http, "This account cannot use Mallow Bot.").await;
+            return true;
+        }
+        if !active {
+            let _ = message.reply(&ctx.http, "Mallow Premium is required. Get Premium at https://mallowbot.kz.ci/subscriptions.html").await;
+            return true;
+        }
+    }
     let starting = cfg.economy_config.get("starting_money").and_then(Value::as_i64).unwrap_or(100);
     let response = match command.as_str() {
         "play" => {
