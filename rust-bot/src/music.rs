@@ -4,6 +4,7 @@ use reqwest::Client;
 use serde_json::{json, Value};
 use serenity::{
     all::{GuildId, VoiceServerUpdateEvent, VoiceState},
+    http::Http,
     prelude::Context as DiscordContext,
 };
 use std::{collections::{HashMap, VecDeque}, env, sync::Arc, time::Duration};
@@ -45,6 +46,7 @@ pub struct MusicManager {
     password: String,
     enabled: bool,
     bot_user_id: Arc<RwLock<Option<u64>>>,
+    discord_http: Arc<RwLock<Option<Arc<Http>>>>,
     node_session: Arc<RwLock<Option<String>>>,
     voices: Arc<RwLock<HashMap<u64, VoiceInfo>>>,
     players: Arc<Mutex<HashMap<u64, GuildPlayer>>>,
@@ -61,6 +63,7 @@ impl MusicManager {
         Ok(Self {
             client, base_url, websocket_url, password, enabled,
             bot_user_id: Arc::new(RwLock::new(None)),
+            discord_http: Arc::new(RwLock::new(None)),
             node_session: Arc::new(RwLock::new(None)),
             voices: Arc::new(RwLock::new(HashMap::new())),
             players: Arc::new(Mutex::new(HashMap::new())),
@@ -69,6 +72,8 @@ impl MusicManager {
     }
 
     pub fn enabled(&self) -> bool { self.enabled && !self.base_url.is_empty() && !self.password.is_empty() }
+
+    pub async fn set_discord_http(&self, http: Arc<Http>) { *self.discord_http.write().await = Some(http); }
 
     pub async fn set_bot_user_id(&self, id: u64) {
         *self.bot_user_id.write().await = Some(id);
@@ -239,6 +244,7 @@ impl MusicManager {
         let Some(track) = track else { return };
         let voice = self.voices.read().await.get(&guild).cloned().unwrap_or_default();
         let Some(channel_id) = voice.channel_id else { return };
+        let Some(discord_http) = self.discord_http.read().await.clone() else { return };
         let response = self.client.get("https://lrclib.net/api/get")
             .query(&[("artist_name", track.artist.as_str()), ("track_name", track.title.as_str())])
             .send().await;
@@ -260,14 +266,14 @@ impl MusicManager {
         let Ok(player_url) = self.player_url(guild).await else { return };
         let mut index = 0usize;
         loop {
-            let current = self.players.lock().await.get(&guild).and_then(|p| p.current.as_ref()).map(|t| t.encoded == encoded && p.lyrics_enabled).unwrap_or(false);
+            let current = self.players.lock().await.get(&guild).map(|p| p.current.as_ref().map(|t| t.encoded == encoded).unwrap_or(false) && p.lyrics_enabled).unwrap_or(false);
             if !current { return; }
             let position = match self.client.get(&player_url).header("Authorization", &self.password).send().await {
                 Ok(response) => response.json::<Value>().await.ok().and_then(|v| v.get("state").and_then(|s| s.get("position")).and_then(Value::as_u64)).unwrap_or(0) / 1000,
                 Err(_) => 0,
             };
             while index < lines.len() && lines[index].0 <= position {
-                let _ = serenity::all::ChannelId::new(channel_id).say(&self.client_http(), format!("**{}**", lines[index].1)).await;
+                let _ = serenity::all::ChannelId::new(channel_id).say(&discord_http.as_ref(), format!("**{}**", lines[index].1)).await;
                 index += 1;
             }
             if index >= lines.len() { return; }
