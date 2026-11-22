@@ -347,7 +347,19 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
             format!("You have {} swear(s) in this server.", (total + adjustment).max(0))
         }
         "swear-leaderboard" => {
-            let rows = store.swear_leaderboard(guild_id);
+            let mut rows = store.swear_leaderboard(guild_id);
+            let adjustments = cfg.swear_count_adjustments.as_object();
+            if let Some(adjustments) = adjustments {
+                for (id, adjustment) in adjustments {
+                    if let (Ok(user), Some(delta)) = (id.parse::<u64>(), adjustment.as_i64()) {
+                        if let Some(row) = rows.iter_mut().find(|row| row.0 == user) { row.1 = (row.1 + delta).max(0); }
+                        else if delta > 0 { rows.push((user, delta)); }
+                    }
+                }
+            }
+            rows.retain(|row| row.1 > 0);
+            rows.sort_by(|a, b| b.1.cmp(&a.1));
+            rows.truncate(10);
             if rows.is_empty() { "No swear counts have been recorded yet.".into() }
             else { rows.iter().enumerate().map(|(i, (id, count))| format!("{}. <@{id}> — {} swear(s)", i + 1, count)).collect::<Vec<_>>().join("\\n") }
         }
