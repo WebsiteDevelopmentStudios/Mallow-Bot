@@ -3,10 +3,9 @@ members = ["rust-bot"]
 default-members = ["rust-bot"]
 resolver = "2"
 
-# Keep release builds practical on low-resource game-hosting containers.
-# Level 1 retains release-mode behavior while avoiding the much slower
-# level-3 optimization pass across the bot's dependency graph.
+# Keep builds and cached artifacts small on constrained hosting disks.
 [profile.release]
 opt-level = 1
 debug = 0
-incremental = true
+incremental = false
+strip = true
