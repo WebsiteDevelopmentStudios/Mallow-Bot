@@ -50,7 +50,7 @@ impl EventHandler for Handler {
         let Some(channel) = messages.get("welcome_channel_id").and_then(|v| v.as_str()).and_then(|v| v.parse::<u64>().ok()) else { return };
         let guild = member.guild_id.to_partial_guild(&ctx.http).await.ok();
         let server = guild.as_ref().map(|g| g.name.as_str()).unwrap_or("the server");
-        let count = guild.as_ref().and_then(|g| g.member_count).unwrap_or(0);
+        let count = guild.as_ref().and_then(|g| g.approximate_member_count).unwrap_or(0);
         let user = format!("<@{}>", member.user.id.get());
         let template = messages.get("welcome_message").and_then(|v| v.as_str()).unwrap_or("Welcome {user} to {server}!");
         let body = template.replace("{user}", &user).replace("{server}", server).replace("{member_count}", &count.to_string());
