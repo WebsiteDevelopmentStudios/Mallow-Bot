@@ -34,6 +34,7 @@ struct GuildPlayer {
     current: Option<Track>,
     volume: u16,
     paused: bool,
+    lyrics_enabled: bool,
 }
 
 #[derive(Clone)]
@@ -47,6 +48,7 @@ pub struct MusicManager {
     node_session: Arc<RwLock<Option<String>>>,
     voices: Arc<RwLock<HashMap<u64, VoiceInfo>>>,
     players: Arc<Mutex<HashMap<u64, GuildPlayer>>>,
+    lyrics_tasks: Arc<Mutex<HashMap<u64, tokio::task::JoinHandle<()>>>>,
 }
 
 impl MusicManager {
@@ -62,6 +64,7 @@ impl MusicManager {
             node_session: Arc::new(RwLock::new(None)),
             voices: Arc::new(RwLock::new(HashMap::new())),
             players: Arc::new(Mutex::new(HashMap::new())),
+            lyrics_tasks: Arc::new(Mutex::new(HashMap::new())),
         })
     }
 
@@ -218,6 +221,57 @@ impl MusicManager {
             warn!(%error, guild, "Could not start Lavalink track");
         } else {
             info!(guild, title = %track.title, "Lavalink track started");
+            let lyrics_enabled = self.players.lock().await.get(&guild).map(|p| p.lyrics_enabled).unwrap_or(false);
+            if lyrics_enabled { self.spawn_lyrics(guild, track.encoded.clone()).await; }
+        }
+    }
+
+    async fn spawn_lyrics(&self, guild: u64, encoded: String) {
+        let mut tasks = self.lyrics_tasks.lock().await;
+        if let Some(old) = tasks.remove(&guild) { old.abort(); }
+        let manager = self.clone();
+        let task = tokio::spawn(async move { manager.lyrics_loop(guild, encoded).await; });
+        tasks.insert(guild, task);
+    }
+
+    async fn lyrics_loop(&self, guild: u64, encoded: String) {
+        let track = self.players.lock().await.get(&guild).and_then(|p| p.current.clone());
+        let Some(track) = track else { return };
+        let voice = self.voices.read().await.get(&guild).cloned().unwrap_or_default();
+        let Some(channel_id) = voice.channel_id else { return };
+        let response = self.client.get("https://lrclib.net/api/get")
+            .query(&[("artist_name", track.artist.as_str()), ("track_name", track.title.as_str())])
+            .send().await;
+        let Ok(response) = response else { return };
+        let Ok(payload) = response.json::<Value>().await else { return };
+        let Some(raw) = payload.get("syncedLyrics").and_then(Value::as_str) else { return };
+        let mut lines: Vec<(u64, String)> = Vec::new();
+        for line in raw.lines() {
+            let Some(close) = line.find(']') else { continue };
+            if !line.starts_with('[') { continue; }
+            let stamp = &line[1..close];
+            let mut parts = stamp.split(':');
+            let minutes = parts.next().and_then(|v| v.parse::<u64>().ok()).unwrap_or(0);
+            let seconds = parts.next().and_then(|v| v.split('.').next()).and_then(|v| v.parse::<u64>().ok()).unwrap_or(0);
+            let text = line[close + 1..].trim();
+            if !text.is_empty() { lines.push((minutes * 60 + seconds, text.to_string())); }
+        }
+        if lines.is_empty() { return; }
+        let Ok(player_url) = self.player_url(guild).await else { return };
+        let mut index = 0usize;
+        loop {
+            let current = self.players.lock().await.get(&guild).and_then(|p| p.current.as_ref()).map(|t| t.encoded == encoded && p.lyrics_enabled).unwrap_or(false);
+            if !current { return; }
+            let position = match self.client.get(&player_url).header("Authorization", &self.password).send().await {
+                Ok(response) => response.json::<Value>().await.ok().and_then(|v| v.get("state").and_then(|s| s.get("position")).and_then(Value::as_u64)).unwrap_or(0) / 1000,
+                Err(_) => 0,
+            };
+            while index < lines.len() && lines[index].0 <= position {
+                let _ = serenity::all::ChannelId::new(channel_id).say(&self.client_http(), format!("**{}**", lines[index].1)).await;
+                index += 1;
+            }
+            if index >= lines.len() { return; }
+            tokio::time::sleep(Duration::from_millis(250)).await;
         }
     }
 
@@ -258,6 +312,22 @@ impl MusicManager {
         self.client.patch(url).header("Authorization", &self.password).json(&json!({"volume":volume})).send().await?;
         if let Some(player) = self.players.lock().await.get_mut(&guild) { player.volume = volume; }
         Ok(format!("Music volume set to {volume}%."))
+    }
+
+    pub async fn set_lyrics(&self, guild: u64, enabled: Option<bool>) -> String {
+        let (enabled, encoded) = {
+            let mut players = self.players.lock().await;
+            let player = players.entry(guild).or_insert_with(|| GuildPlayer { volume: 100, ..Default::default() });
+            player.lyrics_enabled = enabled.unwrap_or(!player.lyrics_enabled);
+            (player.lyrics_enabled, player.current.as_ref().map(|t| t.encoded.clone()))
+        };
+        if enabled {
+            if let Some(encoded) = encoded { self.spawn_lyrics(guild, encoded).await; }
+            "Synchronized lyrics enabled. Lyrics will appear in your voice channel when available.".into()
+        } else {
+            if let Some(task) = self.lyrics_tasks.lock().await.remove(&guild) { task.abort(); }
+            "Synchronized lyrics disabled.".into()
+        }
     }
 
     pub async fn queue_text(&self, guild: u64) -> String {
