@@ -39,6 +39,28 @@ struct Handler {
     state: Arc<BotState>,
 }
 
+fn registered_global_commands() -> Vec<CreateCommand> {
+    let mut commands = vec![
+        CreateCommand::new("ping").description("Check Mallow Bot's response time"),
+        CreateCommand::new("uptime").description("Show how long Mallow Bot has been online"),
+        CreateCommand::new("commands").description("Show the main Mallow Bot command groups"),
+        CreateCommand::new("sync").description("Refresh Mallow Bot slash command registrations"),
+        CreateCommand::new("tos").description("Show Mallow Bot acceptable-use rules"),
+        CreateCommand::new("play").description("Play a song or Spotify track in your voice channel").add_option(CreateCommandOption::new(CommandOptionType::String, "song", "Song name or URL").required(true)),
+        CreateCommand::new("join").description("Join your current voice channel"),
+        CreateCommand::new("leave").description("Leave the voice channel and clear the queue"),
+        CreateCommand::new("pause").description("Pause the current song"),
+        CreateCommand::new("resume").description("Resume the paused song"),
+        CreateCommand::new("skip").description("Skip the currently playing song"),
+        CreateCommand::new("queue").description("Show the current music queue"),
+        CreateCommand::new("stop").description("Stop music and clear the queue"),
+        CreateCommand::new("volume").description("Set the music volume").add_option(CreateCommandOption::new(CommandOptionType::Integer, "level", "Volume from 0 to 100").min_int_value(0).max_int_value(100).required(true)),
+        CreateCommand::new("lyrics").description("Toggle synchronized lyrics on or off").add_option(CreateCommandOption::new(CommandOptionType::Boolean, "enabled", "Enable or disable synchronized lyrics").required(false)),
+    ];
+    commands.extend(community::commands());
+    commands
+}
+
 #[async_trait]
 impl EventHandler for Handler {
     async fn ready(&self, ctx: DiscordContext, ready: Ready) {
@@ -50,26 +72,11 @@ impl EventHandler for Handler {
         self.state.music.set_shard(ctx.shard.clone()).await;
         self.state.music.set_bot_user_id(ready.user.id.get()).await;
         self.state.music.set_discord_http(ctx.http.clone()).await;
-        let mut commands = vec![
-            CreateCommand::new("ping").description("Check Mallow Bot's response time"),
-            CreateCommand::new("uptime").description("Show how long Mallow Bot has been online"),
-            CreateCommand::new("commands").description("Show the main Mallow Bot command groups"),
-            CreateCommand::new("sync").description("Refresh Mallow Bot slash command registrations"),
-            CreateCommand::new("tos").description("Show Mallow Bot acceptable-use rules"),
-            CreateCommand::new("play").description("Play a song or Spotify track in your voice channel").add_option(CreateCommandOption::new(CommandOptionType::String, "song", "Song name or URL").required(true)),
-            CreateCommand::new("join").description("Join your current voice channel"),
-            CreateCommand::new("leave").description("Leave the voice channel and clear the queue"),
-            CreateCommand::new("pause").description("Pause the current song"),
-            CreateCommand::new("resume").description("Resume the paused song"),
-            CreateCommand::new("skip").description("Skip the currently playing song"),
-            CreateCommand::new("queue").description("Show the current music queue"),
-            CreateCommand::new("stop").description("Stop music and clear the queue"),
-            CreateCommand::new("volume").description("Set the music volume").add_option(CreateCommandOption::new(CommandOptionType::Integer, "level", "Volume from 0 to 100").min_int_value(0).max_int_value(100).required(true)),
-            CreateCommand::new("lyrics").description("Toggle synchronized lyrics on or off").add_option(CreateCommandOption::new(CommandOptionType::Boolean, "enabled", "Enable or disable synchronized lyrics").required(false)),
-        ];
-        commands.extend(community::commands());
-        if let Err(err) = Command::set_global_commands(&ctx.http, commands).await {
-            error!(%err, "Could not register initial Rust migration commands");
+        if let Err(err) = Command::set_global_commands(&ctx.http, registered_global_commands()).await {
+            error!(%err, "Could not register global Mallow Bot commands");
+        }
+        if let Err(err) = Command::set_guild_commands(&ctx.http, GuildId::new(1544628300217978932), community::bliss_commands()).await {
+            error!(%err, "Could not register Bliss SMP guild-only commands");
         }
     }
 
@@ -471,7 +478,24 @@ async fn handle_command(http: &Http, command: &CommandInteraction, state: &BotSt
                 (elapsed.as_secs() / 60) % 60,
                 elapsed.as_secs() % 60)
         }
-        "sync" => "Slash commands are automatically registered when Mallow Bot connects to Discord. The current command set is active.".to_string(),
+        "sync" => {
+            let permitted = command.member.as_ref().and_then(|member| member.permissions).map(|permissions| permissions.administrator()).unwrap_or(false);
+            if !permitted { "You need Administrator permission to refresh slash commands.".into() }
+            else if let Some(guild) = command.guild_id {
+                if guild.get() != 1544628300217978932 {
+                    if let Err(error) = Command::set_guild_commands(http, guild, Vec::new()).await {
+                        warn!(%error, "Could not clear stale guild command registrations");
+                    }
+                }
+                match Command::set_global_commands(http, registered_global_commands()).await {
+                    Ok(_) => {
+                        let _ = Command::set_guild_commands(http, GuildId::new(1544628300217978932), community::bliss_commands()).await;
+                        "Global commands refreshed. Bliss SMP commands remain registered only in Bliss SMP.".into()
+                    }
+                    Err(error) => format!("Could not refresh slash commands: {error}"),
+                }
+            } else { "Use this command in a server.".into() }
+        },
         "commands" => "Music: /play, /join, /leave, /pause, /resume, /skip, /queue, /volume, /lyrics, /stop.\nCommunity: /xp, /leaderboard, /balance, /daily, /work, /pay, /rob, /gamble, /coinflip, /slots, /roulette, /dice, /blackjack, /vibecheck, /ship, /fortune, /wyr.\nUtility: /ping, /uptime, /commands, /sync, /tos, /say, /update, /youtube, /purge.\nServer: /rules, /autorole, /reaction-role, /announcement, /event, /ticket, /ticket-panel, /ticket-close.\nPremium: /embed, /snipe, /sticky, /backup, /custom-command, /vanity, /premium-status.".to_string(),
         "tos" => include_str!("../../TERMS_OF_SERVICE.md").chars().take(4000).collect::<String>(),
         _ => return,
