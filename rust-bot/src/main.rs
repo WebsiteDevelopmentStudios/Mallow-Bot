@@ -86,6 +86,7 @@ impl EventHandler for Handler {
         let cfg = self.state.dashboard.guild_config(guild_id).await;
         let content = message.content.trim();
         let is_prefix = content.to_lowercase().starts_with(&cfg.prefix.to_lowercase());
+        if is_prefix && community::handle_prefix(&ctx, &message, &cfg, &self.state.community).await { return; }
         if !is_prefix && !content.is_empty() && cfg.features.get("xp").and_then(|v| v.as_bool()).unwrap_or(true) {
             let cooldown = cfg.xp_config.get("cooldown_seconds").and_then(|v| v.as_u64()).unwrap_or(60);
             let add = 10 + (message.id.get() % 11) as i64;
