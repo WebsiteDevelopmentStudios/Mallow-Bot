@@ -17,11 +17,12 @@ use serenity::{
     async_trait,
     prelude::*,
 };
-use std::{env, sync::{Arc, atomic::{AtomicBool, Ordering}}, time::Instant};
+use std::{env, sync::{Arc, atomic::{AtomicBool, AtomicUsize, Ordering}}, time::Instant};
 use tokio::sync::RwLock;
 
 static STATUS_ROTATION_STARTED: AtomicBool = AtomicBool::new(false);
 static COUNTDOWN_STARTED: AtomicBool = AtomicBool::new(false);
+static LAST_DESCRIPTION: AtomicUsize = AtomicUsize::new(usize::MAX);
 use serenity::client::Context as DiscordContext;
 use tracing::{error, info, warn};
 use unicode_normalization::{char::is_combining_mark, UnicodeNormalization};
@@ -328,6 +329,16 @@ impl EventHandler for Handler {
                 let adjustment = cfg.swear_count_adjustments.get(message.author.id.get().to_string()).and_then(|v| v.as_i64()).unwrap_or(0);
                 let shown = (total + adjustment).max(0);
                 let _ = message.reply(&ctx.http, format!("You now have {shown} swear(s) in this server.")).await;
+            }
+        }
+        if message.reference.is_none() && message.mentions.iter().any(|user| user.id == ctx.cache.current_user().id) {
+            let descriptions: Vec<&str> = include_str!("../../description.txt").split("\\n\\n")
+                .map(str::trim).filter(|value| !value.is_empty()).collect();
+            if !descriptions.is_empty() {
+                let mut index = rand::Rng::gen_range(&mut rand::thread_rng(), 0..descriptions.len());
+                let previous = LAST_DESCRIPTION.swap(index, Ordering::SeqCst);
+                if index == previous && descriptions.len() > 1 { index = (index + 1) % descriptions.len(); LAST_DESCRIPTION.store(index, Ordering::SeqCst); }
+                let _ = message.reply(&ctx.http, descriptions[index].chars().take(1900).collect::<String>()).await;
             }
         }
     }
