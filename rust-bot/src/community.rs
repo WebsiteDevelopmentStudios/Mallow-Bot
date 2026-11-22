@@ -1,7 +1,7 @@
 use serde_json::{json, Value};
 use crate::config::GuildConfig;
 use serenity::{
-    all::{CommandInteraction, CommandOptionType, CreateCommand, CreateCommandOption, CreateInteractionResponse, CreateInteractionResponseMessage, Message},
+    all::{CommandDataOptionValue, CommandInteraction, CommandOptionType, CreateCommand, CreateCommandOption, CreateInteractionResponse, CreateInteractionResponseMessage, Message},
     prelude::Context,
 };
 use std::{fs, path::PathBuf, sync::{Arc, Mutex}, time::{SystemTime, UNIX_EPOCH}};
@@ -211,6 +211,31 @@ pub async fn handle(ctx: &Context, command: &CommandInteraction, store: &Communi
     let name = command.data.name.as_str();
     let starting = 100_i64;
     let response = match name {
+        "say" => {
+            let permitted = command.member.as_ref().and_then(|member| member.permissions).map(|p| p.manage_messages()).unwrap_or(false);
+            if !permitted { "You need Manage Messages permission to use this command.".to_string() }
+            else {
+                let text = command.data.options.iter().find_map(|option| match &option.value { CommandDataOptionValue::String(value) => Some(value.as_str()), _ => None }).unwrap_or("");
+                if text.trim().is_empty() { "Provide a message to send.".into() }
+                else {
+                    if let Err(error) = command.channel_id.say(&ctx.http, text.chars().take(1900).collect::<String>()).await { warn!(%error, "Could not send /say message"); }
+                    "Message sent.".into()
+                }
+            }
+        }
+        "youtube" => {
+            let url = command.data.options.iter().find_map(|option| match &option.value { CommandDataOptionValue::String(value) => Some(value.as_str()), _ => None }).unwrap_or("");
+            if !url.starts_with("https://www.youtube.com/") && !url.starts_with("https://youtu.be/") { "Provide a valid YouTube video URL.".into() }
+            else {
+                match reqwest::Client::new().get("https://www.youtube.com/oembed").query(&[("url", url), ("format", "json")]).send().await {
+                    Ok(result) if result.status().is_success() => match result.json::<Value>().await {
+                        Ok(info) => format!("**{}**\nChannel: {}\n{}", info.get("title").and_then(Value::as_str).unwrap_or("YouTube video"), info.get("author_name").and_then(Value::as_str).unwrap_or("Unknown"), url),
+                        _ => "YouTube returned invalid video information.".into(),
+                    },
+                    _ => "I couldn't look up that YouTube video right now.".into(),
+                }
+            }
+        }
         "xp" => {
             let xp = store.xp(guild_id, user_id);
             let lvl = level(xp);
