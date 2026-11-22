@@ -2,7 +2,7 @@ use serde_json::{json, Value};
 use crate::config::GuildConfig;
 use crate::premium::PremiumClient;
 use serenity::{
-    all::{CommandDataOptionValue, CommandInteraction, CommandOptionType, CreateCommand, CreateCommandOption, CreateInteractionResponse, CreateInteractionResponseMessage, Message},
+    all::{CommandDataOptionValue, CommandInteraction, CommandOptionType, CreateCommand, CreateAttachment, CreateCommandOption, CreateEmbed, CreateInteractionResponse, CreateInteractionResponseMessage, Message},
     prelude::Context,
 };
 use std::{fs, path::PathBuf, sync::{Arc, Mutex}, time::{SystemTime, UNIX_EPOCH}};
