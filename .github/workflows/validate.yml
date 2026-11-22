@@ -21,3 +21,6 @@ jobs:
       - run: cargo check --all-targets
       - run: cargo test --all-targets
       - run: cargo build --release
+      - name: Build production Docker image
+        working-directory: .
+        run: docker build -f bot.Dockerfile -t mallow-bot-rust:ci .
