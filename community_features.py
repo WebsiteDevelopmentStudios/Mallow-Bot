@@ -1703,18 +1703,18 @@ def setup(bot):
             image_url = mc.get("welcome_image_url") or "https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/dashboard/Welcome.png"
             if is_bliss_smp:
                 welcomer_section = (
-                    "📢 **BLISS SMP NEW MEMBER** 📢\\n"
-                    f"**WELCOME {member.mention} TO THE SERVER**\\n\\n"
-                    "Rules: <#1544630280118206496>\\n"
-                    "**REACT TO THE MESSAGE TO GET ACCESS TO THE SERVER**\\n"
-                    "REALM CODE IN: <#1544638277179678730>\\n\\n"
+                    "📢 **BLISS SMP NEW MEMBER** 📢\n"
+                    f"**WELCOME {member.mention} TO THE SERVER**\n\n"
+                    "Rules: <#1544630280118206496>\n"
+                    "**REACT TO THE MESSAGE TO GET ACCESS TO THE SERVER**\n"
+                    "REALM CODE IN: <#1544638277179678730>\n\n"
                     "React with 💎 in Rules tab!"
                 )
             else:
                 welcomer_section = (
-                    "╭─〔 👤 **Welcomer** 〕─╮\\n"
-                    f"│ WELCOME {member.mention} TO {discord.utils.escape_markdown(member.guild.name)}!!\\n"
-                    f"│ we now have {member.guild.member_count or 1} members!!!\\n"
+                    "╭─〔 👤 **Welcomer** 〕─╮\n"
+                    f"│ WELCOME {member.mention} TO {discord.utils.escape_markdown(member.guild.name)}!!\n"
+                    f"│ we now have {member.guild.member_count or 1} members!!!\n"
                     "╰──────────────────────────╯"
                 )
             embed = discord.Embed(
