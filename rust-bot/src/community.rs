@@ -40,7 +40,7 @@ impl CommunityStore {
         self.mutate(|data| {
             let key = format!("{guild}:{user}");
             let entry = data.pointer_mut(&format!("/xp/{key}"));
-            let old = entry.and_then(Value::as_i64).unwrap_or(0);
+            let old = entry.and_then(|value| value.as_i64()).unwrap_or(0);
             let new = old.saturating_add(amount.max(0));
             data["xp"][key] = json!(new);
             new
