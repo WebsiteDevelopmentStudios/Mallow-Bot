@@ -101,6 +101,14 @@ impl CommunityStore {
         self.read(|data| data.get(namespace).and_then(|v| v.get(key)).cloned())
     }
 
+    pub fn timeout_minutes(&self, guild: u64) -> u64 {
+        self.read(|data| data.get("timeout_minutes").and_then(|v| v.get(guild.to_string())).and_then(Value::as_u64).unwrap_or(10).clamp(1, 10_080))
+    }
+
+    pub fn set_timeout_minutes(&self, guild: u64, minutes: u64) {
+        self.set_record("timeout_minutes", &guild.to_string(), Some(json!(minutes.clamp(1, 10_080))));
+    }
+
     pub fn set_autorole(&self, guild: u64, role: Option<u64>) {
         self.mutate(|data| {
             if let Some(role) = role { data["autoroles"][guild.to_string()] = json!(role); }
@@ -309,6 +317,14 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
         "lyrics" => {
             let enabled = match argument.to_lowercase().as_str() { "on" | "true" | "enable" => Some(true), "off" | "false" | "disable" => Some(false), _ => None };
             music.set_lyrics(guild_id, enabled).await
+        }
+        "timeout-minutes" => {
+            let permitted = message.member.as_ref().and_then(|member| member.permissions).map(|p| p.manage_guild()).unwrap_or(false);
+            if !permitted { "You need Manage Server permission to change this setting.".into() }
+            else if let Ok(minutes) = argument.parse::<u64>() {
+                if !(1..=10_080).contains(&minutes) { "Usage: -mb timeout-minutes 1-10080".into() }
+                else { store.set_timeout_minutes(guild_id, minutes); format!("Discord invite timeout set to {minutes} minutes.") }
+            } else { "Usage: -mb timeout-minutes 1-10080".into() }
         }
         "swears" => {
             let total = store.swears(guild_id, user_id);
