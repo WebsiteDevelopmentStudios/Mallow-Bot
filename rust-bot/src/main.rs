@@ -251,7 +251,9 @@ impl EventHandler for Handler {
         if is_prefix && community::handle_prefix(&ctx, &message, &cfg, &self.state.community, &self.state.music).await { return; }
         if !is_prefix && !content.is_empty() && cfg.features.get("xp").and_then(|v| v.as_bool()).unwrap_or(true) {
             let cooldown = cfg.xp_config.get("cooldown_seconds").and_then(|v| v.as_u64()).unwrap_or(60);
-            let add = 10 + (message.id.get() % 11) as i64;
+            let min_xp = cfg.xp_config.get("min_xp").and_then(serde_json::Value::as_i64).unwrap_or(10).max(0);
+            let max_xp = cfg.xp_config.get("max_xp").and_then(serde_json::Value::as_i64).unwrap_or(20).max(min_xp);
+            let add = min_xp + (message.id.get() % (max_xp - min_xp + 1).max(1) as u64) as i64;
             if let Some((old, new)) = self.state.community.add_xp(guild_id, message.author.id.get(), add, cooldown) {
                 let old_level = ((old.max(0) as f64 / 100.0).sqrt()) as i64;
                 let new_level = ((new.max(0) as f64 / 100.0).sqrt()) as i64;
