@@ -684,6 +684,31 @@ pub async fn handle(ctx: &Context, command: &CommandInteraction, store: &Communi
                 }
             }
         }
+        "ticket" => {
+            match create_ticket_channel(ctx, guild_id, user_id, &command.user.name, cfg, store).await {
+                Ok(channel) => format!("Your private support ticket has been created: <#{channel}>."),
+                Err(error) => error
+            }
+        }
+        "ticket-panel" => {
+            let permitted = command.member.as_ref().and_then(|member| member.permissions).map(|p| p.manage_guild()).unwrap_or(false);
+            if !permitted { "You need Manage Server permission to post a ticket panel.".into() }
+            else {
+                match command.channel_id.send_message(&ctx.http, CreateMessage::new().embed(CreateEmbed::new().title("Mallow Bot Support").description("Need help? Use /ticket to open a private support channel with the server's support team."))).await {
+                    Ok(_) => "Support ticket panel posted.".into(),
+                    Err(_) => "I couldn't post the ticket panel in this channel.".into()
+                }
+            }
+        }
+        "ticket-close" => {
+            if store.record("tickets", &command.channel_id.get().to_string()).is_none() { "This channel is not a ticket created by Mallow Bot.".into() }
+            else {
+                match command.channel_id.delete(&ctx.http).await {
+                    Ok(_) => { store.set_record("tickets", &command.channel_id.get().to_string(), None); "Ticket closed.".into() }
+                    Err(_) => "I couldn't close this ticket. Check my Manage Channels permission.".into()
+                }
+            }
+        }
         "backup" => {
             let permitted = command.member.as_ref().and_then(|member| member.permissions).map(|p| p.administrator()).unwrap_or(false);
             if !permitted { "You need Administrator permission to use this command.".into() }
