@@ -2,6 +2,7 @@ mod config;
 mod community;
 mod dashboard;
 mod health;
+mod halloween;
 mod music;
 mod member_cards;
 mod premium;
@@ -20,6 +21,7 @@ use std::{env, sync::{Arc, atomic::{AtomicBool, Ordering}}, time::Instant};
 use tokio::sync::RwLock;
 
 static STATUS_ROTATION_STARTED: AtomicBool = AtomicBool::new(false);
+static COUNTDOWN_STARTED: AtomicBool = AtomicBool::new(false);
 use serenity::client::Context as DiscordContext;
 use tracing::{error, info, warn};
 use unicode_normalization::{char::is_combining_mark, UnicodeNormalization};
@@ -67,6 +69,7 @@ impl EventHandler for Handler {
     async fn ready(&self, ctx: DiscordContext, ready: Ready) {
         info!(user = %ready.user.name, "Mallow Bot Rust gateway connected");
         if !STATUS_ROTATION_STARTED.swap(true, Ordering::SeqCst) { tasks::spawn_status_rotation(ctx.shard.clone()); }
+        if !COUNTDOWN_STARTED.swap(true, Ordering::SeqCst) { halloween::spawn(ctx.http.clone()); }
         self.state.ready.store(true, Ordering::Relaxed);
         *self.state.discord_http.write().await = Some(ctx.http.clone());
         *self.state.discord_cache.write().await = Some(ctx.cache.clone());
