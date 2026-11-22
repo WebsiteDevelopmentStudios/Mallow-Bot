@@ -39,7 +39,7 @@ async function verifyDiscordRequest(request, publicKeyHex) {
 }
 
 function interactionResponse(payload) {
-  if (payload.type === 2) return { type: 5 };
+  if (payload.type === 2) return { type: 5, data: { flags: 64 } };
   if (payload.type === 3) return { type: 5, data: { flags: 64 } };
   if (payload.type === 4) return { type: 8, data: { choices: [] } };
   if (payload.type === 5) return { type: 5 };
