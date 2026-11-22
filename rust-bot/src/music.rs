@@ -17,7 +17,6 @@ struct Track {
     encoded: String,
     title: String,
     artist: String,
-    uri: String,
 }
 
 #[derive(Default, Clone)]
@@ -208,7 +207,6 @@ impl MusicManager {
             encoded: encoded.to_string(),
             title: info.get("title").and_then(Value::as_str).unwrap_or("Unknown track").to_string(),
             artist: info.get("author").and_then(Value::as_str).unwrap_or("Unknown Artist").to_string(),
-            uri: info.get("uri").and_then(Value::as_str).unwrap_or("").to_string(),
         })
     }
 
