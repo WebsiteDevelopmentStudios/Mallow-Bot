@@ -447,6 +447,84 @@ pub async fn handle(ctx: &Context, command: &CommandInteraction, store: &Communi
                 None => "There is no recently deleted message saved for this channel.".into()
             }
         }
+        "autorole" => {
+            let permitted = command.member.as_ref().and_then(|member| member.permissions).map(|p| p.manage_roles()).unwrap_or(false);
+            if !permitted { "You need Manage Roles permission to use this command.".into() }
+            else {
+                let action = command.data.options.iter().find_map(|o| if o.name == "action" { if let CommandDataOptionValue::String(v) = &o.value { Some(v.as_str()) } else { None } } else { None }).unwrap_or("status");
+                let role = command.data.options.iter().find_map(|o| if let CommandDataOptionValue::Role(id) = o.value { Some(id.get()) } else { None });
+                match action {
+                    "set" => if let Some(role) = role { store.set_autorole(guild_id, Some(role)); format!("Auto-role enabled. New members will receive <@&{role}>.") } else { "Choose a role to assign.".into() },
+                    "disable" => { store.set_autorole(guild_id, None); "Auto-role has been disabled for this server.".into() },
+                    _ => store.autorole(guild_id).map(|id| format!("New members will receive <@&{id}>.")).unwrap_or_else(|| "Auto-role is not configured. Use /autorole action:Set to choose a role.".into())
+                }
+            }
+        }
+        "rules" => {
+            let permitted = command.member.as_ref().and_then(|member| member.permissions).map(|p| p.manage_roles()).unwrap_or(false);
+            if !permitted { "You need Manage Roles permission to use this command.".into() }
+            else {
+                let enabled = command.data.options.iter().find_map(|o| if o.name == "enabled" { if let CommandDataOptionValue::Boolean(v) = o.value { Some(v) } else { None } } else { None }).unwrap_or(false);
+                let message_id = command.data.options.iter().find_map(|o| if o.name == "message_id" { if let CommandDataOptionValue::String(v) = &o.value { v.parse::<u64>().ok() } else { None } } else { None });
+                let emoji = command.data.options.iter().find_map(|o| if o.name == "emoji" { if let CommandDataOptionValue::String(v) = &o.value { Some(v.clone()) } else { None } } else { None }).unwrap_or_default();
+                let role = command.data.options.iter().find_map(|o| if o.name == "role" { if let CommandDataOptionValue::Role(id) = o.value { Some(id.get()) } else { None } } else { None });
+                if let (Some(message_id), Some(role)) = (message_id, role) {
+                    if emoji.is_empty() || emoji.len() > 100 { "Enter a valid emoji.".into() }
+                    else {
+                        if enabled {
+                            let reaction = ReactionType::Unicode(emoji.clone());
+                            if let Err(_) = command.channel_id.create_reaction(&ctx.http, serenity::all::MessageId::new(message_id), reaction).await { "I couldn't add the verification reaction in this channel.".into() }
+                            else { store.set_rule(guild_id, message_id, command.channel_id.get(), &emoji, role, enabled); format!("Rules verification enabled for message {message_id}. React with {emoji} to receive <@&{role}>.") }
+                        } else {
+                            store.set_rule(guild_id, message_id, command.channel_id.get(), &emoji, role, false);
+                            format!("Rules verification disabled for message {message_id}.")
+                        }
+                    }
+                } else { "Provide a valid message ID and role.".into() }
+            }
+        }
+        "reaction-role" => {
+            let permitted = command.member.as_ref().and_then(|member| member.permissions).map(|p| p.manage_roles()).unwrap_or(false);
+            if !permitted { "You need Manage Roles permission to use this command.".into() }
+            else {
+                let action = command.data.options.iter().find_map(|o| if o.name == "action" { if let CommandDataOptionValue::String(v) = &o.value { Some(v.as_str()) } else { None } } else { None }).unwrap_or("");
+                let message_id = command.data.options.iter().find_map(|o| if o.name == "message_id" { if let CommandDataOptionValue::String(v) = &o.value { v.parse::<u64>().ok() } else { None } } else { None });
+                let emoji = command.data.options.iter().find_map(|o| if o.name == "emoji" { if let CommandDataOptionValue::String(v) = &o.value { Some(v.clone()) } else { None } } else { None }).unwrap_or_default();
+                let role = command.data.options.iter().find_map(|o| if o.name == "role" { if let CommandDataOptionValue::Role(id) = o.value { Some(id.get()) } else { None } } else { None });
+                match action {
+                    "create" => {
+                        let channel = command.data.options.iter().find_map(|o| if o.name == "channel" { if let CommandDataOptionValue::Channel(id) = o.value { Some(id) } else { None } } else { None }).unwrap_or(command.channel_id);
+                        let title = command.data.options.iter().find_map(|o| if o.name == "title" { if let CommandDataOptionValue::String(v) = &o.value { Some(v.as_str()) } else { None } } else { None }).unwrap_or("Choose your roles");
+                        let description = command.data.options.iter().find_map(|o| if o.name == "description" { if let CommandDataOptionValue::String(v) = &o.value { Some(v.as_str()) } else { None } } else { None }).unwrap_or("React below to get a role. Remove your reaction to remove it.");
+                        match channel.send_message(&ctx.http, CreateMessage::new().embed(CreateEmbed::new().title(title).description(description))).await {
+                            Ok(posted) => { store.set_record("reaction_roles", &posted.id.get().to_string(), Some(json!({"guild_id":guild_id.to_string(),"channel_id":channel.get().to_string(),"roles":{}}))); format!("Reaction-role panel created: https://discord.com/channels/{guild_id}/{}/{}/", channel.get(), posted.id.get()) }
+                            Err(_) => "I couldn't post in that channel. Check my channel permissions.".into()
+                        }
+                    }
+                    "add" | "remove" => {
+                        if let (Some(message_id), Some(role)) = (message_id, role) {
+                            let panel = store.record("reaction_roles", &message_id.to_string());
+                            let channel = panel.as_ref().and_then(|v| v.get("channel_id")).and_then(Value::as_str).and_then(|v| v.parse::<u64>().ok());
+                            if emoji.is_empty() || channel.is_none() { "That panel or emoji was not found.".into() }
+                            else if action == "add" {
+                                let reaction = ReactionType::Unicode(emoji.clone());
+                                if serenity::all::ChannelId::new(channel.unwrap()).create_reaction(&ctx.http, serenity::all::MessageId::new(message_id), reaction).await.is_err() { "I couldn't add that reaction to the panel.".into() }
+                                else { store.set_reaction_role(guild_id, message_id, &emoji, Some(role)); format!("Added {emoji} → <@&{role}>.") }
+                            } else { store.set_reaction_role(guild_id, message_id, &emoji, None); format!("Removed the {emoji} role mapping.") }
+                        } else { "Provide a panel message ID, emoji, and role.".into() }
+                    }
+                    "list" => {
+                        if let Some(message_id) = message_id {
+                            let panel = store.record("reaction_roles", &message_id.to_string());
+                            let roles = panel.and_then(|v| v.get("roles").cloned()).and_then(|v| v.as_object().cloned()).unwrap_or_default();
+                            if roles.is_empty() { "This panel has no role mappings yet.".into() }
+                            else { roles.iter().map(|(emoji, role)| format!("{emoji} → <@&{}>", role.as_u64().unwrap_or(0))).collect::<Vec<_>>().join("\\n") }
+                        } else { "Provide the panel message ID.".into() }
+                    }
+                    _ => "Choose Create, Add, Remove, or List.".into()
+                }
+            }
+        }
         "backup" => {
             let permitted = command.member.as_ref().and_then(|member| member.permissions).map(|p| p.administrator()).unwrap_or(false);
             if !permitted { "You need Administrator permission to use this command.".into() }
