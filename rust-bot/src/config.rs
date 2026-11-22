@@ -21,7 +21,7 @@ impl Default for GuildConfig {
     fn default() -> Self {
         Self {
             prefix: "-mb".into(),
-            greeting: "hey! i'm Mallow Bot ☁️".into(),
+            greeting: "Hey! I'm Mallow Bot.".into(),
             greetings: true,
             mention_only: true,
             disabled_commands: vec![],
