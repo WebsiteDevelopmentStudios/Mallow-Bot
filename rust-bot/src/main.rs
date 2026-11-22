@@ -141,6 +141,16 @@ impl EventHandler for Handler {
         if let Err(error) = result { warn!(%error, guild_id = guild_id.get(), user_id = user_id.get(), role_id, "Could not apply reaction-role change"); }
     }
 
+    async fn message_delete(&self, _ctx: DiscordContext, channel_id: serenity::all::ChannelId, deleted_message_id: serenity::all::MessageId, guild_id: Option<GuildId>) {
+        if guild_id.is_none() { return; }
+        let key = channel_id.get().to_string();
+        if let Some(history) = self.state.community.record("recent_messages", &key).and_then(|v| v.as_array().cloned()) {
+            if let Some(deleted) = history.iter().find(|entry| entry.get("id").and_then(serde_json::Value::as_u64) == Some(deleted_message_id.get())) {
+                self.state.community.set_record("snipes", &key, Some(deleted.clone()));
+            }
+        }
+    }
+
     async fn message(&self, ctx: DiscordContext, message: Message) {
         if message.author.bot { return; }
         let Some(guild_id) = message.guild_id.map(|id| id.get()) else {
@@ -162,6 +172,11 @@ impl EventHandler for Handler {
             return;
         };
         let cfg = self.state.dashboard.guild_config(guild_id).await;
+        let history_key = message.channel_id.get().to_string();
+        let mut history = self.state.community.record("recent_messages", &history_key).and_then(|v| v.as_array().cloned()).unwrap_or_default();
+        history.push(serde_json::json!({"id":message.id.get(),"content":message.content,"author":message.author.name}));
+        if history.len() > 20 { history.drain(0..history.len() - 20); }
+        self.state.community.set_record("recent_messages", &history_key, Some(serde_json::Value::Array(history)));
         if let Some(sticky) = self.state.community.record("sticky_messages", &message.channel_id.get().to_string()) {
             let text = sticky.get("content").and_then(serde_json::Value::as_str).unwrap_or("");
             let old_id = sticky.get("message_id").and_then(serde_json::Value::as_u64);
