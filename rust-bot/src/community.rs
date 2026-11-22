@@ -331,6 +331,22 @@ pub async fn handle(ctx: &Context, command: &CommandInteraction, store: &Communi
     let Some(guild_id) = command.guild_id.map(|id| id.get()) else { return false };
     let user_id = command.user.id.get();
     let name = command.data.name.as_str();
+    if cfg.disabled_commands.iter().any(|disabled| disabled == name) {
+        let _ = command.create_response(&ctx.http, CreateInteractionResponse::Message(CreateInteractionResponseMessage::new().content(format!("The {name} command is disabled in this server.")).ephemeral(true))).await;
+        return true;
+    }
+    let feature = match name {
+        "balance" | "daily" | "gamble" | "coinflip" | "slots" | "roulette" | "dice" | "blackjack" | "work" | "pay" | "rob" => Some("economy"),
+        "xp" | "leaderboard" => Some("xp"),
+        "vibecheck" | "ship" | "fortune" | "wyr" => Some("fun"),
+        "youtube" => Some("social"),
+        "dm" | "set-log" | "purge" => Some("moderation"),
+        _ => None,
+    };
+    if feature.and_then(|key| cfg.features.get(key).and_then(Value::as_bool)).unwrap_or(true) == false {
+        let _ = command.create_response(&ctx.http, CreateInteractionResponse::Message(CreateInteractionResponseMessage::new().content(format!("The {name} feature is disabled in this server.")).ephemeral(true))).await;
+        return true;
+    }
     let starting = cfg.economy_config.get("starting_money").and_then(Value::as_i64).unwrap_or(100);
     if matches!(name, "embed" | "snipe" | "sticky" | "backup" | "custom-command" | "vanity") && user_id != 1021068313071210498 {
         let (banned, active, _) = premium.status(user_id).await;
