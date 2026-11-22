@@ -648,6 +648,10 @@ async fn http_interaction(
         handle_ticket_component(http.as_ref(), &component, &state, true).await;
         return (StatusCode::OK, Json(serde_json::json!({"ok":true})));
     }
+    let interaction_type = payload.get("type").and_then(serde_json::Value::as_u64).unwrap_or(0);
+    if interaction_type != 2 && interaction_type != 3 {
+        return (StatusCode::OK, Json(serde_json::json!({"ok":true})));
+    }
     let command: CommandInteraction = match serde_json::from_value(payload) {
         Ok(command) => command,
         Err(error) => {
