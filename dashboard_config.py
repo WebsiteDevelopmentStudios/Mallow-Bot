@@ -16,7 +16,9 @@ DASHBOARD_CONFIG_URL = os.getenv(
 ).strip()
 DASHBOARD_CONFIG_SECRET = os.getenv("MALLOW_DASHBOARD_CONFIG_SECRET", "").strip()
 _CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
-_CACHE_TTL = 3.0
+_CACHE_TTL = 15.0
+_FAILURE_BACKOFF = 60.0
+_FAILURE_UNTIL: dict[str, float] = {}
 _LOCKS: dict[str, asyncio.Lock] = {}
 
 
@@ -43,6 +45,10 @@ async def get_guild_config(guild_id: int | str) -> dict[str, Any]:
     cached = _CACHE.get(key)
     if cached and now - cached[0] < _CACHE_TTL:
         return cached[1]
+    # Avoid repeatedly waiting on an unreachable dashboard API. During a short
+    # outage, keep serving the last known config (or safe defaults on cold start).
+    if now < _FAILURE_UNTIL.get(key, 0.0):
+        return cached[1] if cached else default_config()
     if not DASHBOARD_CONFIG_SECRET or not DASHBOARD_CONFIG_URL:
         import logging
         logging.getLogger("mallow-config").error(
@@ -56,6 +62,9 @@ async def get_guild_config(guild_id: int | str) -> dict[str, Any]:
         cached = _CACHE.get(key)
         if cached and now - cached[0] < _CACHE_TTL:
             return cached[1]
+        now = time.monotonic()
+        if now < _FAILURE_UNTIL.get(key, 0.0):
+            return cached[1] if cached else default_config()
         try:
             timeout = aiohttp.ClientTimeout(total=1.4, connect=0.8)
             async with aiohttp.ClientSession(timeout=timeout) as session:
@@ -65,6 +74,7 @@ async def get_guild_config(guild_id: int | str) -> dict[str, Any]:
                     headers={"Authorization": f"Bearer {DASHBOARD_CONFIG_SECRET}"},
                 ) as response:
                     if response.status != 200:
+                        _FAILURE_UNTIL[key] = time.monotonic() + _FAILURE_BACKOFF
                         import logging
                         logging.getLogger("mallow-config").error(
                             "Dashboard config request failed for guild %s with HTTP %s.",
@@ -105,8 +115,10 @@ async def get_guild_config(guild_id: int | str) -> dict[str, Any]:
                 if isinstance(values, dict):
                     config[field].update(values)
             _CACHE[key] = (time.monotonic(), config)
+            _FAILURE_UNTIL.pop(key, None)
             return config
         except (aiohttp.ClientError, asyncio.TimeoutError, ValueError, TypeError) as exc:
+            _FAILURE_UNTIL[key] = time.monotonic() + _FAILURE_BACKOFF
             import logging
             logging.getLogger("mallow-config").error(
                 "Dashboard config request failed for guild %s (%s).",
