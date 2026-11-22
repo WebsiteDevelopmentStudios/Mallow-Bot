@@ -129,6 +129,7 @@ impl EventHandler for Handler {
         let guild = guild_id.to_partial_guild(&ctx.http).await.ok();
         let server = guild.as_ref().map(|g| g.name.as_str()).unwrap_or("the server");
         let display_name = member.as_ref().and_then(|m| m.nick.as_deref()).unwrap_or(&user.name);
+        let member_count = ctx.cache.guild(guild_id).map(|g| g.member_count).unwrap_or(1);
         let template = messages.get("goodbye_message").and_then(|v| v.as_str()).unwrap_or("{user} left {server}.");
         let body = template.replace("{user}", display_name).replace("{server}", server).replace("{member_count}", &member_count.to_string());
         let title = messages.get("goodbye_title").and_then(|v| v.as_str()).unwrap_or("");
@@ -136,7 +137,6 @@ impl EventHandler for Handler {
         if !title.is_empty() { embed = embed.title(title.chars().take(256).collect::<String>()); }
         let image_url = messages.get("goodbye_image_url").or_else(|| messages.get("welcome_image_url")).and_then(|v| v.as_str()).unwrap_or("https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/dashboard/Welcome.png");
         let avatar_url = user.avatar_url().unwrap_or_else(|| "https://cdn.discordapp.com/embed/avatars/0.png".into());
-        let member_count = ctx.cache.guild(guild_id).map(|g| g.member_count).unwrap_or(1);
         let member_number = member_count.saturating_add(1).max(1);
         if let Some(card) = member_cards::render(image_url, &avatar_url, display_name, member_number, true).await {
             embed = embed.image("attachment://mallow-member-card.png");
