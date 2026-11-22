@@ -147,6 +147,22 @@ impl CommunityStore {
         })
     }
 
+    pub fn swears(&self, guild: u64, user: u64) -> i64 {
+        self.read(|data| data.get("swears").and_then(|v| v.get(format!("{guild}:{user}"))).and_then(Value::as_i64).unwrap_or(0))
+    }
+
+    pub fn swear_leaderboard(&self, guild: u64) -> Vec<(u64, i64)> {
+        self.read(|data| {
+            let prefix = format!("{guild}:");
+            let mut values: Vec<_> = data.get("swears").and_then(Value::as_object).into_iter().flatten()
+                .filter_map(|(key, value)| key.strip_prefix(&prefix).and_then(|id| id.parse::<u64>().ok())
+                    .and_then(|id| value.as_i64().map(|count| (id, count)))).collect();
+            values.sort_by(|a, b| b.1.cmp(&a.1));
+            values.truncate(10);
+            values
+        })
+    }
+
     pub fn leaderboard(&self, guild: u64) -> Vec<(u64, i64)> {
         self.read(|data| {
             let prefix = format!("{guild}:");
