@@ -331,6 +331,37 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
     true
 }
 
+async fn create_ticket_channel(ctx: &Context, guild_id: u64, user_id: u64, username: &str, cfg: &GuildConfig, store: &CommunityStore) -> Result<u64, String> {
+    if cfg.tickets_config.get("enabled").and_then(Value::as_bool) != Some(true) {
+        return Err("Tickets are disabled for this server.".into());
+    }
+    let guild = serenity::all::GuildId::new(guild_id);
+    let bot = ctx.http.get_current_user().await.map_err(|_| "I couldn't identify the bot account.".to_string())?;
+    let mut overwrites = vec![
+        PermissionOverwrite { allow: Permissions::empty(), deny: Permissions::VIEW_CHANNEL, kind: PermissionOverwriteType::Role(RoleId::new(guild_id)) },
+        PermissionOverwrite { allow: Permissions::VIEW_CHANNEL | Permissions::SEND_MESSAGES | Permissions::READ_MESSAGE_HISTORY, deny: Permissions::empty(), kind: PermissionOverwriteType::Member(UserId::new(user_id)) },
+        PermissionOverwrite { allow: Permissions::VIEW_CHANNEL | Permissions::SEND_MESSAGES | Permissions::READ_MESSAGE_HISTORY, deny: Permissions::empty(), kind: PermissionOverwriteType::Member(bot.id) },
+    ];
+    if let Some(roles) = cfg.tickets_config.get("support_role_ids").and_then(Value::as_array) {
+        for role in roles.iter().filter_map(Value::as_str).filter_map(|v| v.parse::<u64>().ok()).take(20) {
+            overwrites.push(PermissionOverwrite { allow: Permissions::VIEW_CHANNEL | Permissions::SEND_MESSAGES | Permissions::READ_MESSAGE_HISTORY, deny: Permissions::empty(), kind: PermissionOverwriteType::Role(RoleId::new(role)) });
+        }
+    }
+    let slug: String = username.to_lowercase().chars().filter(|ch| ch.is_ascii_alphanumeric() || *ch == '-').take(40).collect();
+    let mut builder = CreateChannel::new(format!("ticket-{}", if slug.is_empty() { user_id.to_string() } else { slug }))
+        .kind(ChannelType::Text)
+        .permissions(overwrites)
+        .audit_log_reason("Mallow Bot support ticket");
+    if let Some(category) = cfg.tickets_config.get("category_id").and_then(Value::as_str).and_then(|v| v.parse::<u64>().ok()) {
+        builder = builder.category(serenity::all::ChannelId::new(category));
+    }
+    let channel = guild.create_channel(&ctx.http, builder).await.map_err(|_| "I couldn't create the private ticket channel. Check Manage Channels and permission settings.".to_string())?;
+    let welcome = cfg.tickets_config.get("welcome_message").and_then(Value::as_str).unwrap_or("Thanks for opening a ticket. A staff member will be with you soon.");
+    let _ = channel.id.say(&ctx.http, format!("<@{user_id}>\n{welcome}")).await;
+    store.set_record("tickets", &channel.id.get().to_string(), Some(json!({"guild_id":guild_id,"user_id":user_id,"opened_at":now_seconds()})));
+    Ok(channel.id.get())
+}
+
 fn level(xp: i64) -> i64 { ((xp.max(0) as f64 / 100.0).sqrt()) as i64 }
 fn now_seconds() -> u64 { SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs() }
 fn pseudo_roll(max: u64) -> u64 {
