@@ -196,6 +196,8 @@ pub fn commands() -> Vec<CreateCommand> {
         ("fortune", "Draw a random Mallow Bot fortune"),
         ("wyr", "Get a Would You Rather question"),
         ("premium-status", "Check your Mallow Premium status"),
+        ("say", "Make the bot post a message in this channel"),
+        ("update", "Post the bot update log in this channel"),
         ("youtube", "Look up a YouTube video link"),
         ("rules", "Configure reaction-based rules verification"),
         ("autorole", "Configure automatic member roles"),
