@@ -32,7 +32,7 @@ function initialResponse(type) {
   switch (Number(type)) {
     case 1: return { type: 1 };
     case 2: return { type: 5, data: { flags: 64 } };
-    case 3: return { type: 6 };
+    case 3: return { type: 5, data: { flags: 64 } };
     case 4: return { type: 8, data: { choices: [] } };
     case 5: return { type: 5, data: { flags: 64 } };
     default: return { type: 5, data: { flags: 64 } };
