@@ -251,6 +251,11 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
     let command = parts.next().unwrap_or("").to_lowercase();
     let argument = parts.next().unwrap_or("").trim();
     let user_id = message.author.id.get();
+    let custom_key = format!("{guild_id}:{command}");
+    if let Some(response) = store.record("custom_commands", &custom_key).and_then(|v| v.as_str().map(str::to_owned)) {
+        let _ = message.reply(&ctx.http, response.chars().take(1900).collect::<String>()).await;
+        return true;
+    }
     let starting = cfg.economy_config.get("starting_money").and_then(Value::as_i64).unwrap_or(100);
     let response = match command.as_str() {
         "xp" | "level" => {
@@ -318,7 +323,8 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
         }
         "vibecheck" => format!("Vibe scan complete: {}% vibe.", pseudo_roll(101)),
         "ship" => format!("Compatibility scan: {}%. This result is entirely unscientific.", pseudo_roll(101)),
-        "help" | "commands" => "Commands: xp, leaderboard, balance, daily, work, gamble, coinflip, fortune, vibecheck, ship.".into(),
+        "help" | "commands" => "Commands: xp, leaderboard, balance, daily, work, gamble, coinflip, fortune, vibecheck, ship, update.".into(),
+        "update" => std::fs::read_to_string("update.txt").unwrap_or_else(|_| "No update log is available right now.".into()).chars().take(1900).collect::<String>(),
         _ => return false,
     };
     if let Err(error) = message.reply(&ctx.http, response).await { warn!(%error, command, "Could not respond to prefix command"); }
