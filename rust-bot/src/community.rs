@@ -4,7 +4,7 @@ use crate::halloween;
 use crate::premium::PremiumClient;
 use crate::music::MusicManager;
 use serenity::{
-    all::{ChannelType, EmojiId, CommandDataOptionValue, CommandInteraction, ComponentInteraction, CommandOptionType, CreateActionRow, CreateAttachment, CreateButton, CreateChannel, CreateCommand, CreateCommandOption, CreateEmbed, CreateInteractionResponse, CreateInteractionResponseMessage, EditInteractionResponse, CreateMessage, GetMessages, Message, PermissionOverwrite, PermissionOverwriteType, Permissions, ReactionType, RoleId, UserId, ButtonStyle},
+    all::{ChannelType, EmojiId, CommandDataOptionValue, CommandInteraction, CommandOptionType, CreateActionRow, CreateAttachment, CreateButton, CreateChannel, CreateCommand, CreateCommandOption, CreateEmbed, CreateInteractionResponse, CreateInteractionResponseMessage, EditInteractionResponse, CreateMessage, GetMessages, Message, PermissionOverwrite, PermissionOverwriteType, Permissions, ReactionType, RoleId, UserId, ButtonStyle},
     http::Http,
     prelude::Context,
 };
@@ -1378,48 +1378,3 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
 }
 
 
-pub async fn handle_component(http: &Http, component: &ComponentInteraction, cfg: &GuildConfig, store: &CommunityStore, deferred: bool) -> bool {
-    let Some(guild_id) = component.guild_id.map(|id| id.get()) else { return false };
-    let user_id = component.user.id.get();
-    let content = match component.data.custom_id.as_str() {
-        "mallow:ticket:open" => {
-            if cfg.tickets_config.get("enabled").and_then(Value::as_bool) != Some(true) {
-                "Tickets are disabled for this server.".to_string()
-            } else if let Some(existing) = store.existing_ticket(guild_id, user_id) {
-                format!("You already have an open ticket: <#{existing}>.")
-            } else {
-                match create_ticket_channel(http, guild_id, user_id, &component.user.name, cfg, store).await {
-                    Ok(channel) => format!("Your private support ticket has been created: <#{channel}>."),
-                    Err(error) => error,
-                }
-            }
-        }
-        "mallow:ticket:close" => {
-            let key = component.channel_id.get().to_string();
-            if let Some(ticket) = store.record("tickets", &key) {
-                let owner = ticket.get("user_id").and_then(Value::as_u64) == Some(user_id);
-                let permissions = component.member.as_ref().and_then(|member| member.permissions).unwrap_or_default();
-                let manage_channels = permissions.manage_channels();
-                let support_roles: Vec<u64> = cfg.tickets_config.get("support_role_ids").and_then(Value::as_array).into_iter().flatten()
-                    .filter_map(|v| v.as_str().and_then(|s| s.parse::<u64>().ok())).collect();
-                let is_support = component.member.as_ref().map(|member| member.roles.iter().any(|role| support_roles.contains(&role.get()))).unwrap_or(false);
-                if !owner && !manage_channels && !is_support {
-                    "Only the ticket owner or support staff can close this ticket.".to_string()
-                } else {
-                    match component.channel_id.delete(http).await {
-                        Ok(_) => { store.set_record("tickets", &key, None); "Ticket closed.".to_string() }
-                        Err(_) => "I couldn't close this ticket. Check my Manage Channels permission.".to_string()
-                    }
-                }
-            } else { "This channel is not a ticket created by Mallow Bot.".to_string() }
-        }
-        _ => return false,
-    };
-    if deferred {
-        let _ = component.edit_response(http, EditInteractionResponse::new().content(content)).await;
-    } else {
-        let builder = CreateInteractionResponse::Message(CreateInteractionResponseMessage::new().content(content).ephemeral(true));
-        let _ = component.create_response(http, builder).await;
-    }
-    true
-}
