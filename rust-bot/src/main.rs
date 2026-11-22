@@ -52,9 +52,7 @@ impl EventHandler for Handler {
             let old_level = ((old.max(0) as f64 / 100.0).sqrt()) as i64;
             let new_level = ((new.max(0) as f64 / 100.0).sqrt()) as i64;
             if new_level > old_level && cfg.xp_config.get("announce_level_up").and_then(|v| v.as_bool()).unwrap_or(true) {
-                if let Some(channel) = message.channel_id.to_channel(&_ctx.http).await.ok().and_then(|c| c.guild()) {
-                    let _ = channel.say(&_ctx.http, format!("<@{}> reached level {}.", message.author.id.get(), new_level)).await;
-                }
+                let _ = message.channel_id.say(&_ctx.http, format!("<@{}> reached level {}.", message.author.id.get(), new_level)).await;
             }
         }
     }
