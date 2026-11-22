@@ -197,6 +197,7 @@ pub fn commands() -> Vec<CreateCommand> {
     ].into_iter().map(|(name, description)| {
         let command = CreateCommand::new(name).description(description);
         match name {
+            "set-log" => command.add_option(CreateCommandOption::new(CommandOptionType::Channel, "channel", "Channel that receives incoming bot DMs").required(true)),
             "youtube" => command.add_option(CreateCommandOption::new(CommandOptionType::String, "url", "YouTube video URL").required(true)),
             "purge" => command.add_option(CreateCommandOption::new(CommandOptionType::Integer, "amount", "Number of messages to delete (1-100)").min_int_value(1).max_int_value(100).required(true)),
             "say" => command.add_option(CreateCommandOption::new(CommandOptionType::String, "message", "Text to post").required(true)),
