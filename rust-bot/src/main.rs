@@ -219,8 +219,8 @@ async fn handle_command(ctx: &DiscordContext, command: &CommandInteraction, stat
                 (elapsed.as_secs() / 60) % 60,
                 elapsed.as_secs() % 60)
         }
-        "commands" => "Mallow Bot commands are being migrated in parity groups. The Python production bot remains active until every command and event is ported.".to_string(),
-        "tos" => "Mallow Bot's acceptable-use rules are published in the repository's TERMS_OF_SERVICE.md.".to_string(),
+        "commands" => "Community: /xp, /leaderboard, /balance, /daily, /work, /gamble, /coinflip, /slots, /roulette, /dice, /blackjack, /vibecheck, /ship, /fortune, /wyr.\nUtility: /ping, /uptime, /commands, /tos, /say, /youtube, /purge.\nServer: /rules, /autorole, /reaction-role, /announcement, /event, /ticket, /ticket-panel, /ticket-close.\nPremium: /embed, /snipe, /sticky, /backup, /custom-command, /vanity, /premium-status.".to_string(),
+        "tos" => include_str!("../../TERMS_OF_SERVICE.md").chars().take(4000).collect::<String>(),
         _ => return,
     };
     let response = CreateInteractionResponse::Message(
