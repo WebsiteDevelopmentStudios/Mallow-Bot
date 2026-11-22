@@ -107,6 +107,10 @@ impl CommunityStore {
         });
     }
 
+    pub fn first_log_channel(&self) -> Option<u64> {
+        self.read(|data| data.get("log_channels").and_then(Value::as_object).and_then(|items| items.values().find_map(Value::as_u64)))
+    }
+
     pub fn record(&self, namespace: &str, key: &str) -> Option<Value> {
         self.read(|data| data.get(namespace).and_then(|v| v.get(key)).cloned())
     }
