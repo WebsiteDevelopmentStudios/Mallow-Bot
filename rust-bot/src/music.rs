@@ -18,7 +18,6 @@ struct Track {
     title: String,
     artist: String,
     uri: String,
-    duration_ms: u64,
 }
 
 #[derive(Default, Clone)]
@@ -210,7 +209,6 @@ impl MusicManager {
             title: info.get("title").and_then(Value::as_str).unwrap_or("Unknown track").to_string(),
             artist: info.get("author").and_then(Value::as_str).unwrap_or("Unknown Artist").to_string(),
             uri: info.get("uri").and_then(Value::as_str).unwrap_or("").to_string(),
-            duration_ms: info.get("length").and_then(Value::as_u64).unwrap_or(0),
         })
     }
 
@@ -362,7 +360,5 @@ impl MusicManager {
         if lines.is_empty() { "The music queue is empty.".into() } else { lines.join("\n") }
     }
 
-    pub async fn current_track(&self, guild: u64) -> Option<(String, String)> {
-        self.players.lock().await.get(&guild).and_then(|p| p.current.as_ref()).map(|t| (t.title.clone(), t.uri.clone()))
-    }
+
 }
