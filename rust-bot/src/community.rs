@@ -773,6 +773,27 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
     true
 }
 
+pub async fn export_ticket_transcript(http: &Http, channel_id: serenity::all::ChannelId, cfg: &GuildConfig) -> Result<(), String> {
+    let Some(destination) = cfg.tickets_config.get("transcript_channel_id").and_then(Value::as_str).and_then(|v| v.parse::<u64>().ok()) else { return Ok(()) };
+    let messages = channel_id.messages(http, GetMessages::new().limit(100)).await.map_err(|_| "could not read ticket history".to_string())?;
+    let mut messages = messages;
+    messages.reverse();
+    let mut transcript = String::new();
+    for message in &messages {
+        transcript.push_str(&format!("[{}] {}: {}\n", message.timestamp, message.author.name, message.content));
+        for attachment in &message.attachments {
+            transcript.push_str(&format!("  attachment: {}\n", attachment.url));
+        }
+    }
+    if transcript.is_empty() { transcript.push_str("This ticket had no messages.\n"); }
+    let bytes = transcript.into_bytes();
+    let attachment = CreateAttachment::bytes(bytes, format!("ticket-{}.txt", channel_id.get()));
+    serenity::all::ChannelId::new(destination).send_message(http, CreateMessage::new()
+        .content(format!("Ticket transcript for <#{}>.", channel_id.get()))
+        .add_file(attachment)).await.map_err(|_| "could not send ticket transcript".to_string())?;
+    Ok(())
+}
+
 pub async fn create_ticket_channel(http: &Http, guild_id: u64, user_id: u64, username: &str, cfg: &GuildConfig, store: &CommunityStore) -> Result<u64, String> {
     if cfg.tickets_config.get("enabled").and_then(Value::as_bool) != Some(true) {
         return Err("Tickets are disabled for this server.".into());
