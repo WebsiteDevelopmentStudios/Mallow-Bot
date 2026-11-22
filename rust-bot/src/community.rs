@@ -231,6 +231,15 @@ pub fn commands() -> Vec<CreateCommand> {
                 .add_option(CreateCommandOption::new(CommandOptionType::String, "message_id", "Rules message ID").required(true))
                 .add_option(CreateCommandOption::new(CommandOptionType::String, "emoji", "Required reaction emoji").required(true))
                 .add_option(CreateCommandOption::new(CommandOptionType::Role, "role", "Role granted by reacting").required(true)),
+            "announcement" => command
+                .add_option(CreateCommandOption::new(CommandOptionType::Integer, "date", "Days from today").required(true).add_int_choice("Today", 0).add_int_choice("Tomorrow", 1).add_int_choice("In 2 days", 2).add_int_choice("In 3 days", 3).add_int_choice("In 1 week", 7).add_int_choice("In 2 weeks", 14).add_int_choice("In 1 month", 30))
+                .add_option(CreateCommandOption::new(CommandOptionType::Integer, "time", "Minutes from now").required(true).add_int_choice("In 5 minutes", 5).add_int_choice("In 15 minutes", 15).add_int_choice("In 30 minutes", 30).add_int_choice("In 1 hour", 60).add_int_choice("In 2 hours", 120).add_int_choice("In 6 hours", 360).add_int_choice("In 12 hours", 720).add_int_choice("In 24 hours", 1440))
+                .add_option(CreateCommandOption::new(CommandOptionType::String, "news", "Announcement text").required(true)),
+            "event" => command
+                .add_option(CreateCommandOption::new(CommandOptionType::String, "name", "Event name").required(true))
+                .add_option(CreateCommandOption::new(CommandOptionType::Integer, "date", "Days from today").required(true).add_int_choice("Today", 0).add_int_choice("Tomorrow", 1).add_int_choice("In 2 days", 2).add_int_choice("In 3 days", 3).add_int_choice("In 1 week", 7).add_int_choice("In 2 weeks", 14).add_int_choice("In 1 month", 30))
+                .add_option(CreateCommandOption::new(CommandOptionType::Integer, "time", "Minutes from now").required(true).add_int_choice("In 5 minutes", 5).add_int_choice("In 15 minutes", 15).add_int_choice("In 30 minutes", 30).add_int_choice("In 1 hour", 60).add_int_choice("In 2 hours", 120).add_int_choice("In 6 hours", 360).add_int_choice("In 12 hours", 720).add_int_choice("In 24 hours", 1440))
+                .add_option(CreateCommandOption::new(CommandOptionType::String, "prize", "Optional event prize").required(false)),
             "reaction-role" => command
                 .add_option(CreateCommandOption::new(CommandOptionType::String, "action", "Create, add, remove, or list").required(true).add_string_choice("Create", "create").add_string_choice("Add", "add").add_string_choice("Remove", "remove").add_string_choice("List", "list"))
                 .add_option(CreateCommandOption::new(CommandOptionType::Channel, "channel", "Panel channel").required(false))
