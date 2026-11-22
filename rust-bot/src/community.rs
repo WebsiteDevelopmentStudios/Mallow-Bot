@@ -150,6 +150,20 @@ impl CommunityStore {
         })
     }
 
+    pub fn try_cooldown(&self, name: &str, guild: u64, user: u64, seconds: u64) -> Option<u64> {
+        self.mutate(|data| {
+            let key = format!("{guild}:{user}");
+            let now = now_seconds();
+            let last = data.get("cooldowns").and_then(|v| v.get(name)).and_then(|v| v.get(&key)).and_then(Value::as_u64).unwrap_or(0);
+            if now < last.saturating_add(seconds) {
+                Some(last + seconds - now)
+            } else {
+                data["cooldowns"][name][key] = json!(now);
+                None
+            }
+        })
+    }
+
     pub fn timeout_minutes(&self, guild: u64) -> u64 {
         self.read(|data| data.get("timeout_minutes").and_then(|v| v.get(guild.to_string())).and_then(Value::as_u64).unwrap_or(10).clamp(1, 10_080))
     }
@@ -649,6 +663,8 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
             else { let reward = cfg.economy_config.get("daily_reward").and_then(Value::as_i64).unwrap_or(100); let next = store.balance(guild_id, user_id, starting) + reward; store.set_balance(guild_id, user_id, next); format!("You claimed {reward} Mallow Coins. Balance: {next}.") }
         }
         "work" => {
+            if let Some(remaining) = store.try_cooldown("work", guild_id, user_id, 3600) { format!("You can work again in {} minute(s).", (remaining + 59) / 60) }
+            else {
             let min = cfg.economy_config.get("work_min").and_then(Value::as_i64).unwrap_or(20);
             let max = cfg.economy_config.get("work_max").and_then(Value::as_i64).unwrap_or(80).max(min);
             let earned = min + pseudo_roll((max - min + 1) as u64) as i64;
@@ -918,6 +934,8 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
             else { let reward = cfg.economy_config.get("daily_reward").and_then(Value::as_i64).unwrap_or(100); let value = store.balance(guild_id, user_id, starting) + reward; store.set_balance(guild_id, user_id, value); format!("You claimed {reward} Mallow Coins. Balance: {value}.") }
         }
         "work" => {
+            if let Some(remaining) = store.try_cooldown("work", guild_id, user_id, 3600) { format!("You can work again in {} minute(s).", (remaining + 59) / 60) }
+            else {
             let min = cfg.economy_config.get("work_min").and_then(Value::as_i64).unwrap_or(20);
             let max = cfg.economy_config.get("work_max").and_then(Value::as_i64).unwrap_or(80).max(min);
             let earned = min + pseudo_roll((max - min + 1) as u64) as i64;
