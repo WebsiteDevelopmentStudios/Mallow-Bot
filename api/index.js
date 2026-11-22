@@ -67,7 +67,7 @@ async function handler(req, res) {
     return res.status(400).json({ error: "Invalid JSON" });
   }
 
-  if (Number(payload.type) !== 1) {
+  if ([2, 3].includes(Number(payload.type))) {
     const target = (process.env.BOT_INTERACTION_URL || "").trim();
     const secret = (process.env.WAKE_SECRET || "").trim();
     if (target && secret) {
