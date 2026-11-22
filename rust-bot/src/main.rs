@@ -7,12 +7,15 @@ mod premium;
 mod tasks;
 
 use anyhow::{Context, Result};
+use axum::{extract::State, http::{HeaderMap, StatusCode}, routing::post, Json, Router};
 use serenity::{
+    http::Http,
     all::{Command, CommandInteraction, CommandOptionType, CreateCommand, CreateCommandOption, CreateEmbed, CreateMessage, GuildId, Interaction, Member, Message, Reaction, Ready, RoleId, User, VoiceServerUpdateEvent, VoiceState},
     async_trait,
     prelude::*,
 };
 use std::{env, sync::{Arc, atomic::{AtomicBool, Ordering}}, time::Instant};
+use tokio::sync::RwLock;
 
 static STATUS_ROTATION_STARTED: AtomicBool = AtomicBool::new(false);
 use serenity::client::Context as DiscordContext;
@@ -24,6 +27,7 @@ struct BotState {
     premium: premium::PremiumClient,
     community: community::CommunityStore,
     music: Arc<music::MusicManager>,
+    discord_http: Arc<RwLock<Option<Arc<Http>>>>,
 }
 
 struct Handler {
@@ -35,6 +39,8 @@ impl EventHandler for Handler {
     async fn ready(&self, ctx: DiscordContext, ready: Ready) {
         info!(user = %ready.user.name, "Mallow Bot Rust gateway connected");
         if !STATUS_ROTATION_STARTED.swap(true, Ordering::SeqCst) { tasks::spawn_status_rotation(ctx.shard.clone()); }
+        *self.state.discord_http.write().await = Some(ctx.http.clone());
+        self.state.music.set_shard(ctx.shard.clone()).await;
         self.state.music.set_bot_user_id(ready.user.id.get()).await;
         self.state.music.set_discord_http(ctx.http.clone()).await;
         let mut commands = vec![
@@ -276,37 +282,31 @@ impl EventHandler for Handler {
         } else {
             config::GuildConfig::default()
         };
-        if !community::handle(&ctx, &command, &self.state.community, &self.state.premium, &guild_config).await {
-            handle_command(&ctx, &command, &self.state).await;
+        if !community::handle(ctx.http.as_ref(), &command, &self.state.community, &self.state.premium, &guild_config, false).await {
+            handle_command(ctx.http.as_ref(), &command, &self.state, false).await;
         }
     }
 }
 
-async fn handle_command(ctx: &DiscordContext, command: &CommandInteraction, state: &BotState) {
-    use serenity::builder::{CreateInteractionResponse, CreateInteractionResponseMessage};
+async fn handle_command(http: &Http, command: &CommandInteraction, state: &BotState, deferred: bool) {
+    use serenity::builder::{CreateInteractionResponse, CreateInteractionResponseMessage, EditInteractionResponse};
     let guild = command.guild_id.map(|id| id.get());
-    let voice_channel = command.guild_id.and_then(|guild_id| {
-        ctx.cache.guild(guild_id).and_then(|cached| cached.voice_states.get(&command.user.id).and_then(|state| state.channel_id))
-    });
+    let voice_channel = if let Some(guild) = guild { state.music.voice_channel_for_user(guild, command.user.id.get()).await } else { None };
     let content = match command.data.name.as_str() {
-        "play" => {
-            match (guild, voice_channel) {
-                (Some(guild), Some(channel)) => {
-                    let song = command.data.options.iter().find_map(|o| if let serenity::all::CommandDataOptionValue::String(value) = &o.value { Some(value.as_str()) } else { None }).unwrap_or("");
-                    music::MusicManager::request_voice_channel(ctx, guild, Some(channel.get()));
-                    match state.music.enqueue(guild, song).await { Ok(text) => text, Err(error) => format!("Music error: {error}") }
-                }
-                _ => "Join a voice channel first, then use /play.".into()
+        "play" => match (guild, voice_channel) {
+            (Some(guild), Some(channel)) => {
+                let song = command.data.options.iter().find_map(|o| if let serenity::all::CommandDataOptionValue::String(value) = &o.value { Some(value.as_str()) } else { None }).unwrap_or("");
+                state.music.request_voice_channel(guild, Some(channel)).await;
+                match state.music.enqueue(guild, song).await { Ok(text) => text, Err(error) => format!("Music error: {error}") }
             }
-        }
-        "join" => {
-            match (guild, voice_channel) {
-                (Some(guild), Some(channel)) => { music::MusicManager::request_voice_channel(ctx, guild, Some(channel.get())); "Joining your voice channel.".into() }
-                _ => "Join a voice channel first.".into()
-            }
-        }
+            _ => "Join a voice channel first, then use /play.".into()
+        },
+        "join" => match (guild, voice_channel) {
+            (Some(guild), Some(channel)) => { state.music.request_voice_channel(guild, Some(channel)).await; "Joining your voice channel.".into() }
+            _ => "Join a voice channel first.".into()
+        },
         "leave" => {
-            if let Some(guild) = guild { music::MusicManager::request_voice_channel(ctx, guild, None); let _ = state.music.stop(guild).await; "Leaving the voice channel and clearing the queue.".into() }
+            if let Some(guild) = guild { state.music.request_voice_channel(guild, None).await; let _ = state.music.stop(guild).await; "Leaving the voice channel and clearing the queue.".into() }
             else { "Use this command in a server.".into() }
         }
         "pause" | "resume" => {
@@ -335,7 +335,7 @@ async fn handle_command(ctx: &DiscordContext, command: &CommandInteraction, stat
             if let Some(guild) = guild { state.music.set_lyrics(guild, enabled).await }
             else { "Use this command in a server.".into() }
         }
-        "ping" => format!("Pong! Gateway latency is managed by Discord; process is responsive."),
+        "ping" => "Pong! The Rust process is responsive.".to_string(),
         "uptime" => {
             let elapsed = state.started.elapsed();
             format!("Mallow Bot has been online for {}d {:02}h {:02}m {:02}s.",
@@ -345,16 +345,52 @@ async fn handle_command(ctx: &DiscordContext, command: &CommandInteraction, stat
                 elapsed.as_secs() % 60)
         }
         "sync" => "Slash commands are automatically registered when Mallow Bot connects to Discord. The current command set is active.".to_string(),
-        "commands" => "Community: /xp, /leaderboard, /balance, /daily, /work, /gamble, /coinflip, /slots, /roulette, /dice, /blackjack, /vibecheck, /ship, /fortune, /wyr.\nUtility: /ping, /uptime, /commands, /tos, /say, /youtube, /purge.\nServer: /rules, /autorole, /reaction-role, /announcement, /event, /ticket, /ticket-panel, /ticket-close.\nPremium: /embed, /snipe, /sticky, /backup, /custom-command, /vanity, /premium-status.".to_string(),
+        "commands" => "Music: /play, /join, /leave, /pause, /resume, /skip, /queue, /volume, /lyrics, /stop.\nCommunity: /xp, /leaderboard, /balance, /daily, /work, /pay, /rob, /gamble, /coinflip, /slots, /roulette, /dice, /blackjack, /vibecheck, /ship, /fortune, /wyr.\nUtility: /ping, /uptime, /commands, /sync, /tos, /say, /update, /youtube, /purge.\nServer: /rules, /autorole, /reaction-role, /announcement, /event, /ticket, /ticket-panel, /ticket-close.\nPremium: /embed, /snipe, /sticky, /backup, /custom-command, /vanity, /premium-status.".to_string(),
         "tos" => include_str!("../../TERMS_OF_SERVICE.md").chars().take(4000).collect::<String>(),
         _ => return,
     };
-    let response = CreateInteractionResponse::Message(
-        CreateInteractionResponseMessage::new().content(content).ephemeral(true),
-    );
-    if let Err(err) = command.create_response(&ctx.http, response).await {
-        warn!(%err, command = %command.data.name, "Could not respond to interaction");
+    if deferred {
+        if let Err(err) = command.edit_response(http, EditInteractionResponse::new().content(content)).await {
+            warn!(%err, command = %command.data.name, "Could not edit deferred interaction response");
+        }
+    } else {
+        let response = CreateInteractionResponse::Message(CreateInteractionResponseMessage::new().content(content).ephemeral(true));
+        if let Err(err) = command.create_response(http, response).await {
+            warn!(%err, command = %command.data.name, "Could not respond to interaction");
+        }
     }
+}
+
+async fn http_interaction(
+    State(state): State<Arc<BotState>>,
+    headers: HeaderMap,
+    Json(payload): Json<serde_json::Value>,
+) -> (StatusCode, Json<serde_json::Value>) {
+    let expected = env::var("WAKE_SECRET").unwrap_or_default();
+    let supplied = headers.get("X-Mallow-Bot-Secret").or_else(|| headers.get("X-Mochi-Bot-Secret"))
+        .and_then(|value| value.to_str().ok()).unwrap_or("");
+    if expected.is_empty() || supplied != expected {
+        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error":"unauthorized"})));
+    }
+    let command: CommandInteraction = match serde_json::from_value(payload) {
+        Ok(command) => command,
+        Err(error) => {
+            warn!(%error, "Could not decode forwarded Discord command interaction");
+            return (StatusCode::BAD_REQUEST, Json(serde_json::json!({"error":"invalid interaction"})));
+        }
+    };
+    let Some(http) = state.discord_http.read().await.clone() else {
+        return (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({"error":"Discord client is still starting"})));
+    };
+    if state.premium.is_banned(command.user.id.get()).await {
+        let _ = command.edit_response(http.as_ref(), serenity::builder::EditInteractionResponse::new().content("This account cannot use Mallow Bot.")).await;
+        return (StatusCode::OK, Json(serde_json::json!({"ok":true})));
+    }
+    let cfg = if let Some(guild) = command.guild_id { state.dashboard.guild_config(guild.get()).await } else { config::GuildConfig::default() };
+    if !community::handle(http.as_ref(), &command, &state.community, &state.premium, &cfg, true).await {
+        handle_command(http.as_ref(), &command, &state, true).await;
+    }
+    (StatusCode::OK, Json(serde_json::json!({"ok":true})))
 }
 
 #[tokio::main]
@@ -371,11 +407,12 @@ async fn main() -> Result<()> {
         premium: premium::PremiumClient::from_env()?,
         community: community::CommunityStore::open(),
         music: Arc::new(music::MusicManager::from_env()?),
+        discord_http: Arc::new(RwLock::new(None)),
     });
 
     let port = env::var("PORT").or_else(|_| env::var("SERVER_PORT")).unwrap_or_else(|_| "25572".into());
     let health_state = health::HealthState { started: state.started };
-    let health_app = health::router(health_state);
+    let health_app = health::router(health_state).merge(Router::new().route("/discord/interactions", post(http_interaction)).with_state(state.clone()));
     let health_listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}")).await?;
     tokio::spawn(async move {
         if let Err(err) = axum::serve(health_listener, health_app).await {
