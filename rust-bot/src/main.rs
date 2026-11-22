@@ -183,7 +183,7 @@ impl EventHandler for Handler {
             let _ = command.create_response(&ctx.http, builder).await;
             return;
         }
-        if !community::handle(&ctx, &command, &self.state.community).await {
+        if !community::handle(&ctx, &command, &self.state.community, &self.state.premium).await {
             handle_command(&ctx, &command, &self.state).await;
         }
     }
