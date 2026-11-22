@@ -115,6 +115,26 @@ impl CommunityStore {
         });
     }
 
+    pub fn set_rule(&self, guild: u64, message: u64, channel: u64, emoji: &str, role: u64, enabled: bool) {
+        self.set_record("rules", &message.to_string(), Some(json!({
+            "guild_id": guild.to_string(), "channel_id": channel.to_string(),
+            "emoji": emoji, "role_id": role, "enabled": enabled
+        })));
+    }
+
+    pub fn role_for_reaction(&self, guild: u64, message: u64, emoji: &str, added: bool) -> Option<u64> {
+        self.read(|data| {
+            if let Some(rule) = data.get("rules").and_then(|v| v.get(message.to_string())) {
+                if rule.get("guild_id")?.as_str()? != guild.to_string() || rule.get("emoji")?.as_str()? != emoji { return None; }
+                if added && rule.get("enabled").and_then(Value::as_bool) == Some(false) { return None; }
+                return rule.get("role_id")?.as_u64();
+            }
+            let panel = data.get("reaction_roles")?.get(message.to_string())?;
+            if panel.get("guild_id")?.as_str()? != guild.to_string() { return None; }
+            panel.get("roles")?.get(emoji)?.as_u64()
+        })
+    }
+
     pub fn reaction_role(&self, guild: u64, message: u64, emoji: &str) -> Option<u64> {
         self.read(|data| {
             let panel = data.get("reaction_roles")?.get(message.to_string())?;
