@@ -364,7 +364,7 @@ impl EventHandler for Handler {
                 let _ = message.reply(&ctx.http, format!("You now have {shown} swear(s) in this server.")).await;
             }
         }
-        if message.reference.is_none() && message.mentions.iter().any(|user| user.id == ctx.cache.current_user().id) {
+        if message.message_reference.is_none() && message.mentions.iter().any(|user| user.id == ctx.cache.current_user().id) {
             let descriptions: Vec<&str> = include_str!("../../description.txt").split("\n\n")
                 .map(str::trim).filter(|value| !value.is_empty()).collect();
             if !descriptions.is_empty() {
