@@ -9,6 +9,7 @@ mod tasks;
 use anyhow::{Context, Result};
 use axum::{extract::State, http::{HeaderMap, StatusCode}, routing::post, Json, Router};
 use serenity::{
+    cache::Cache,
     http::Http,
     all::{Command, CommandInteraction, CommandOptionType, CreateCommand, CreateCommandOption, CreateEmbed, CreateMessage, GuildId, Interaction, Member, Message, Reaction, Ready, RoleId, User, VoiceServerUpdateEvent, VoiceState},
     async_trait,
@@ -28,6 +29,8 @@ struct BotState {
     community: community::CommunityStore,
     music: Arc<music::MusicManager>,
     discord_http: Arc<RwLock<Option<Arc<Http>>>>,
+    discord_cache: Arc<RwLock<Option<Arc<Cache>>>>,
+    owner_token: String,
 }
 
 struct Handler {
@@ -40,6 +43,7 @@ impl EventHandler for Handler {
         info!(user = %ready.user.name, "Mallow Bot Rust gateway connected");
         if !STATUS_ROTATION_STARTED.swap(true, Ordering::SeqCst) { tasks::spawn_status_rotation(ctx.shard.clone()); }
         *self.state.discord_http.write().await = Some(ctx.http.clone());
+        *self.state.discord_cache.write().await = Some(ctx.cache.clone());
         self.state.music.set_shard(ctx.shard.clone()).await;
         self.state.music.set_bot_user_id(ready.user.id.get()).await;
         self.state.music.set_discord_http(ctx.http.clone()).await;
@@ -361,6 +365,62 @@ async fn handle_command(http: &Http, command: &CommandInteraction, state: &BotSt
     }
 }
 
+async fn owner_authorized(state: &BotState, headers: &HeaderMap) -> bool {
+    let supplied = headers.get("Authorization").and_then(|value| value.to_str().ok()).unwrap_or("");
+    !state.owner_token.is_empty() && supplied.strip_prefix("Bot ").map(|token| token.trim() == state.owner_token).unwrap_or(false)
+}
+
+async fn owner_guilds(
+    State(state): State<Arc<BotState>>,
+    headers: HeaderMap,
+) -> (StatusCode, Json<serde_json::Value>) {
+    if !owner_authorized(&state, &headers).await {
+        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error":"unauthorized"})));
+    }
+    let Some(cache) = state.discord_cache.read().await.clone() else {
+        return (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({"error":"Mallow Bot is still starting."})));
+    };
+    let mut guilds = Vec::new();
+    for guild_id in cache.guilds() {
+        if let Some(guild) = cache.guild(guild_id) {
+            let icon_url = guild.icon_url();
+            guilds.push(serde_json::json!({
+                "id": guild_id.get().to_string(),
+                "name": guild.name,
+                "icon_url": icon_url,
+                "member_count": guild.member_count
+            }));
+        }
+    }
+    guilds.sort_by(|a,b| a.get("name").and_then(serde_json::Value::as_str).unwrap_or("").to_lowercase()
+        .cmp(&b.get("name").and_then(serde_json::Value::as_str).unwrap_or("").to_lowercase()));
+    (StatusCode::OK, Json(serde_json::json!({"guilds":guilds})))
+}
+
+async fn owner_leave(
+    State(state): State<Arc<BotState>>,
+    headers: HeaderMap,
+    Json(payload): Json<serde_json::Value>,
+) -> (StatusCode, Json<serde_json::Value>) {
+    if !owner_authorized(&state, &headers).await {
+        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error":"unauthorized"})));
+    }
+    let id = payload.get("guild_id").and_then(|v| v.as_str()).unwrap_or("");
+    if !id.chars().all(|ch| ch.is_ascii_digit()) || !(17..=20).contains(&id.len()) {
+        return (StatusCode::BAD_REQUEST, Json(serde_json::json!({"error":"Invalid Discord server ID."})));
+    }
+    let Ok(guild_id) = id.parse::<u64>() else {
+        return (StatusCode::BAD_REQUEST, Json(serde_json::json!({"error":"Invalid Discord server ID."})));
+    };
+    let Some(http) = state.discord_http.read().await.clone() else {
+        return (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({"error":"Mallow Bot is still starting."})));
+    };
+    match http.leave_guild(GuildId::new(guild_id)).await {
+        Ok(()) => (StatusCode::OK, Json(serde_json::json!({"ok":true}))),
+        Err(_) => (StatusCode::BAD_GATEWAY, Json(serde_json::json!({"error":"Discord refused the leave request."})))
+    }
+}
+
 async fn http_interaction(
     State(state): State<Arc<BotState>>,
     headers: HeaderMap,
@@ -408,11 +468,18 @@ async fn main() -> Result<()> {
         community: community::CommunityStore::open(),
         music: Arc::new(music::MusicManager::from_env()?),
         discord_http: Arc::new(RwLock::new(None)),
+        discord_cache: Arc::new(RwLock::new(None)),
+        owner_token: token.clone(),
     });
 
     let port = env::var("PORT").or_else(|_| env::var("SERVER_PORT")).unwrap_or_else(|_| "25572".into());
     let health_state = health::HealthState { started: state.started };
-    let health_app = health::router(health_state).merge(Router::new().route("/discord/interactions", post(http_interaction)).with_state(state.clone()));
+    let bridge_app = Router::new()
+        .route("/discord/interactions", post(http_interaction))
+        .route("/owner/guilds", axum::routing::get(owner_guilds))
+        .route("/owner/leave", post(owner_leave))
+        .with_state(state.clone());
+    let health_app = health::router(health_state).merge(bridge_app);
     let health_listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}")).await?;
     tokio::spawn(async move {
         if let Err(err) = axum::serve(health_listener, health_app).await {
