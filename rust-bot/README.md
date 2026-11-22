@@ -1,24 +1,31 @@
-# Mallow Bot — Rust migration
+# Mallow Bot — Rust runtime migration
 
-This crate is the Rust replacement runtime. It deliberately does not use Cloudflare D1. The existing dashboard remains a separate Pages application and the bot reads its authenticated runtime configuration through the existing `/api/runtime-config` HTTP contract. Premium ban checks use the existing `/api/premium-check` contract.
+This crate is the Rust replacement runtime for Mallow Bot. Movie/media-hosting features are explicitly excluded and will not be ported. The runtime does not connect to Cloudflare D1. The existing dashboard remains a separate Pages application; the bot reads its runtime configuration through `/api/runtime-config` and checks premium bans through `/api/premium-check`.
 
-## Current migration status
+## Current status
 
-This is the first executable migration slice, not feature parity. It currently includes:
-- Rust Discord gateway startup and slash-command registration for initial smoke tests
+This is an initial executable migration slice, not feature parity. It includes:
+- Rust Discord gateway startup and initial smoke-test slash commands
 - HTTP health endpoint on `PORT` / `SERVER_PORT`
-- Cached, bounded-time dashboard runtime-config client
-- Cached, bounded-time premium-ban client
-- Graceful fallback to defaults when dashboard/access services are unavailable
+- Cached dashboard runtime-config client with bounded request timeouts
+- Cached premium-ban client with bounded request timeouts
+- Graceful fallback when dashboard/access services are unavailable
 
-The production Python entry point is intentionally unchanged until the complete parity checklist in `MIGRATION.md` is implemented and validated.
+The production Python entry point remains unchanged until every retained feature has been ported and tested. See the repository-root `MIGRATION.md` for the full parity checklist.
 
-## Build and run
+## Build
 
 ```sh
 cd rust-bot
 cargo build --release
-DISCORD_TOKEN=... MALLOW_DASHBOARD_CONFIG_SECRET=... cargo run --release
 ```
 
-The dashboard secret must match the existing Cloudflare Pages `RUNTIME_CONFIG_SECRET`. No D1 credentials or D1 database ID are required by this Rust bot runtime.
+Required environment:
+- `DISCORD_TOKEN`
+- `MALLOW_DASHBOARD_CONFIG_SECRET` (same value as Cloudflare Pages `RUNTIME_CONFIG_SECRET`)
+
+Optional:
+- `MALLOW_DASHBOARD_CONFIG_URL` (defaults to `https://mallowbot.kz.ci/api/runtime-config`)
+- `PREMIUM_CHECK_URL` (defaults to `https://mallowbot.kz.ci/api/premium-check`)
+- `PORT` or `SERVER_PORT` (defaults to 25572)
+- `RUST_LOG`
