@@ -281,6 +281,36 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
             let fortunes = ["A pleasant surprise is closer than you think.", "Your next idea will be your best one yet.", "Patience will pay off.", "A small win is still a win."];
             fortunes[pseudo_roll(fortunes.len() as u64) as usize].to_string()
         }
+        "pay" => {
+            let target = command.data.options.iter().find_map(|o| if o.name == "member" { if let CommandDataOptionValue::User(id) = o.value { Some(id.get()) } else { None } } else { None });
+            let amount = command.data.options.iter().find_map(|o| if o.name == "amount" { if let CommandDataOptionValue::Integer(value) = o.value { Some(value) } else { None } } else { None }).unwrap_or(0);
+            if let Some(target) = target {
+                let balance = store.balance(guild_id, user_id, starting);
+                if target == user_id || amount < 1 { "Choose another member and an amount greater than zero.".into() }
+                else if amount > balance { format!("You only have {balance} Mallow Coins.") }
+                else {
+                    let target_balance = store.balance(guild_id, target, starting);
+                    store.set_balance(guild_id, user_id, balance - amount);
+                    store.set_balance(guild_id, target, target_balance + amount);
+                    format!("Sent {amount} Mallow Coins to <@{target}>.")
+                }
+            } else { "Choose a member to pay.".into() }
+        }
+        "rob" => {
+            let target = command.data.options.iter().find_map(|o| if o.name == "member" { if let CommandDataOptionValue::User(id) = o.value { Some(id.get()) } else { None } } else { None });
+            if let Some(target) = target {
+                let target_balance = store.balance(guild_id, target, starting);
+                if target == user_id { "You cannot rob yourself.".into() }
+                else if target_balance < 1 { "That member has no Mallow Coins to steal.".into() }
+                else if pseudo_roll(100) < 35 {
+                    let stolen = (target_balance / 4).max(1).min(target_balance);
+                    let own = store.balance(guild_id, user_id, starting);
+                    store.set_balance(guild_id, target, target_balance - stolen);
+                    store.set_balance(guild_id, user_id, own + stolen);
+                    format!("You stole {stolen} Mallow Coins from <@{target}>.")
+                } else { "The robbery failed. You got away empty-handed.".into() }
+            } else { "Choose a member to rob.".into() }
+        }
         "vibecheck" => format!("Vibe scan complete: {}% vibe.", pseudo_roll(101)),
         "ship" => format!("Compatibility scan: {}%. This result is entirely unscientific.", pseudo_roll(101)),
         "help" | "commands" => "Commands: xp, leaderboard, balance, daily, work, gamble, coinflip, fortune, vibecheck, ship.".into(),
@@ -297,11 +327,11 @@ fn pseudo_roll(max: u64) -> u64 {
     if max == 0 { 0 } else { (t ^ (t >> 17) ^ (t >> 31)) % max }
 }
 
-pub async fn handle(ctx: &Context, command: &CommandInteraction, store: &CommunityStore, premium: &PremiumClient) -> bool {
+pub async fn handle(ctx: &Context, command: &CommandInteraction, store: &CommunityStore, premium: &PremiumClient, cfg: &GuildConfig) -> bool {
     let Some(guild_id) = command.guild_id.map(|id| id.get()) else { return false };
     let user_id = command.user.id.get();
     let name = command.data.name.as_str();
-    let starting = 100_i64;
+    let starting = cfg.economy_config.get("starting_money").and_then(Value::as_i64).unwrap_or(100);
     if matches!(name, "embed" | "snipe" | "sticky" | "backup" | "custom-command" | "vanity") && user_id != 1021068313071210498 {
         let (banned, active, _) = premium.status(user_id).await;
         if banned {
@@ -352,16 +382,18 @@ pub async fn handle(ctx: &Context, command: &CommandInteraction, store: &Communi
         "balance" => format!("You have {} Mallow Coins.", store.balance(guild_id, user_id, starting)),
         "daily" => {
             if store.daily_claimed(guild_id, user_id, now_seconds()) { "You have already claimed your daily reward. Come back in 24 hours.".into() }
-            else { let value = store.balance(guild_id, user_id, starting) + 100; store.set_balance(guild_id, user_id, value); format!("You claimed 100 Mallow Coins. Balance: {value}.") }
+            else { let reward = cfg.economy_config.get("daily_reward").and_then(Value::as_i64).unwrap_or(100); let value = store.balance(guild_id, user_id, starting) + reward; store.set_balance(guild_id, user_id, value); format!("You claimed {reward} Mallow Coins. Balance: {value}.") }
         }
         "work" => {
-            let earned = 20 + pseudo_roll(61) as i64;
+            let min = cfg.economy_config.get("work_min").and_then(Value::as_i64).unwrap_or(20);
+            let max = cfg.economy_config.get("work_max").and_then(Value::as_i64).unwrap_or(80).max(min);
+            let earned = min + pseudo_roll((max - min + 1) as u64) as i64;
             let value = store.balance(guild_id, user_id, starting) + earned;
             store.set_balance(guild_id, user_id, value);
             format!("You worked a shift and earned {earned} Mallow Coins. Balance: {value}.")
         }
         "gamble" | "coinflip" | "slots" | "roulette" | "dice" | "blackjack" => {
-            let bet = 10_i64;
+            let bet = command.data.options.iter().find_map(|o| if o.name == "bet" { if let CommandDataOptionValue::Integer(value) = o.value { Some(value) } else { None } } else { None }).unwrap_or(10);
             let balance = store.balance(guild_id, user_id, starting);
             if balance < bet { format!("You need at least {bet} Mallow Coins to play. Your balance is {balance}.") }
             else {
