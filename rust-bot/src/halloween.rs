@@ -96,8 +96,9 @@ pub fn build_embed() -> CreateEmbed {
     let hours = remaining / 3600;
     let minutes = (remaining % 3600) / 60;
     let seconds = remaining % 60;
+    let title = if is_halloween { "Happy Halloween!".to_string() } else { format!("{days} days until Halloween") };
     CreateEmbed::new()
-        .title(if is_halloween { "Happy Halloween!" } else { &format!("{days} days until Halloween") })
+        .title(title)
         .field(if is_halloween { "Halloween ends in" } else { "Countdown" }, format!("{hours:02}:{minutes:02}:{seconds:02}"), false)
         .field("Halloween Fact of the Day", daily_fact(), false)
         .colour(serenity::all::Colour::ORANGE)
