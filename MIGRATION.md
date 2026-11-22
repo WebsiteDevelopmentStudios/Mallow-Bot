@@ -1,6 +1,6 @@
 # Rust migration status
 
-Target: one Rust Mallow Bot runtime. Production `main` remains unchanged until the Rust service is validated and ready for cutover.
+Target: one Rust Mallow Bot runtime hosted on bot-hosting.net. Production `main` remains unchanged until the Rust executable is validated and ready for cutover.
 
 ## Implemented on `migration/full-rust-bot`
 
@@ -23,18 +23,20 @@ Target: one Rust Mallow Bot runtime. Production `main` remains unchanged until t
 - [x] Support ticket creation, persistent ticket panel buttons, duplicate-ticket prevention, and owner/support close permissions.
 - [x] Premium gating, vanity taglines, custom embeds, custom commands, snipe capture, sticky reposts, server layout export, DM forwarding, purge, update log, YouTube enrichment, ToS, uptime, command list, and command synchronization.
 - [x] Persistent Halloween countdown messages with daily general Halloween facts.
-- [x] Rust Render Docker deployment, Vercel interaction verification, and Cloudflare Worker forwarding.
+- [x] Vercel interaction verification and Cloudflare Worker forwarding.
 - [x] Remove the legacy Python bot runtime and its Python-only dependency manifest.
 - [x] Remove the obsolete dashboard feature controls and API settings for retired functionality.
 
 ## Remaining validation before production cutover
 
-- [ ] Pass Rust CI on the latest commit: formatting, `cargo check`, `cargo test`, release build, and production Docker build.
+- [ ] Pass Rust CI on the latest commit: formatting, `cargo check`, `cargo test`, release build, production Docker image build, and bot-hosting.net Linux binary artifact.
+- [ ] Download and upload the Linux x86_64 executable artifact to bot-hosting.net; verify the server's Linux architecture and runtime compatibility.
+- [ ] Configure the bot-hosting.net startup command and environment variables without changing the active Python startup prematurely.
+- [ ] Confirm a persistent writable data directory for `MALLOW_DATA_DIR`.
 - [ ] Run live Discord tests for gateway startup, Vercel/Worker forwarded slash commands, command options and permissions, reactions, member join/leave cards, ticket buttons, and owner endpoints.
 - [ ] Run live Lavalink tests for voice join, search/play, queue advance, pause/resume, skip/stop/volume, Spotify links, and synchronized lyrics.
 - [ ] Validate dashboard runtime-config and Premium API contracts against the deployed dashboard.
 - [ ] Verify Vercel and Cloudflare Worker secrets and endpoint URLs.
-- [ ] Confirm the selected host provides persistent storage for `MALLOW_DATA_DIR`; Render's free filesystem is ephemeral.
 - [ ] Review Discord intents and permissions in the Developer Portal and bot role.
 - [ ] Review deployment variables and perform a rollback rehearsal.
 - [ ] Only after these checks pass, replace the production startup with the Rust executable and merge to `main`.
