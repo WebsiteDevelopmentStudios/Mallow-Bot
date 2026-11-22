@@ -283,6 +283,16 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
     }
     let starting = cfg.economy_config.get("starting_money").and_then(Value::as_i64).unwrap_or(100);
     let response = match command.as_str() {
+        "swears" => {
+            let total = store.swears(guild_id, user_id);
+            let adjustment = cfg.swear_count_adjustments.get(user_id.to_string()).and_then(Value::as_i64).unwrap_or(0);
+            format!("You have {} swear(s) in this server.", (total + adjustment).max(0))
+        }
+        "swear-leaderboard" => {
+            let rows = store.swear_leaderboard(guild_id);
+            if rows.is_empty() { "No swear counts have been recorded yet.".into() }
+            else { rows.iter().enumerate().map(|(i, (id, count))| format!("{}. <@{id}> — {} swear(s)", i + 1, count)).collect::<Vec<_>>().join("\\n") }
+        }
         "xp" | "level" => {
             let xp = store.xp(guild_id, user_id);
             let lvl = level(xp);
