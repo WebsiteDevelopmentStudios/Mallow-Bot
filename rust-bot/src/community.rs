@@ -795,8 +795,9 @@ pub async fn handle(ctx: &Context, command: &CommandInteraction, store: &Communi
             let permitted = command.member.as_ref().and_then(|member| member.permissions).map(|p| p.administrator()).unwrap_or(false);
             if !permitted { "You need Administrator permission to use this command.".into() }
             else {
-                match command.guild_id.unwrap().channels(&ctx.http).await {
-                    Ok(channels) => {
+                let guild = command.guild_id.unwrap();
+                match (guild.channels(&ctx.http).await, guild.roles(&ctx.http).await) {
+                    (Ok(channels), Ok(roles)) => {
                         let payload = json!({
                             "guild_id": guild_id.to_string(),
                             "created_at": now_seconds(),
@@ -807,6 +808,15 @@ pub async fn handle(ctx: &Context, command: &CommandInteraction, store: &Communi
                                 "position": channel.position,
                                 "parent_id": channel.parent_id.map(|id| id.get()),
                                 "topic": channel.topic
+                            })).collect::<Vec<_>>(),
+                            "roles": roles.values().map(|role| json!({
+                                "id": role.id.get(),
+                                "name": role.name,
+                                "permissions": role.permissions.bits(),
+                                "colour": role.colour.0,
+                                "position": role.position,
+                                "hoist": role.hoist,
+                                "mentionable": role.mentionable
                             })).collect::<Vec<_>>()
                         });
                         match serde_json::to_vec_pretty(&payload) {
@@ -819,7 +829,7 @@ pub async fn handle(ctx: &Context, command: &CommandInteraction, store: &Communi
                             Err(_) => "I couldn't serialize the server backup.".into()
                         }
                     }
-                    Err(_) => "I couldn't read this server's channel layout. Check my permissions.".into()
+                    _ => "I couldn't read this server's channel and role layout. Check my permissions.".into()
                 }
             }
         },
