@@ -13,6 +13,7 @@ pub struct DashboardClient {
     url: String,
     secret: String,
     cache: Arc<RwLock<HashMap<String, (Instant, GuildConfig)>>>,
+    failure_until: Arc<RwLock<HashMap<String, Instant>>>,
 }
 
 #[derive(Deserialize)]
@@ -32,13 +33,16 @@ impl DashboardClient {
             .pool_idle_timeout(Duration::from_secs(90))
             .build()
             .context("Could not build dashboard HTTP client")?;
-        Ok(Self { http, url, secret, cache: Arc::new(RwLock::new(HashMap::new())) })
+        Ok(Self { http, url, secret, cache: Arc::new(RwLock::new(HashMap::new())), failure_until: Arc::new(RwLock::new(HashMap::new())) })
     }
 
     pub async fn guild_config(&self, guild_id: u64) -> GuildConfig {
         let key = guild_id.to_string();
         if let Some((at, value)) = self.cache.read().await.get(&key) {
             if at.elapsed() < Duration::from_secs(15) { return value.clone(); }
+        }
+        if self.failure_until.read().await.get(&key).map(|until| *until > Instant::now()).unwrap_or(false) {
+            return self.cached_or_default(&key).await;
         }
         if self.secret.is_empty() { return GuildConfig::default(); }
         let response = self.http.get(&self.url)
@@ -49,10 +53,12 @@ impl DashboardClient {
             Ok(response) if response.status() == StatusCode::OK => response,
             Ok(response) => {
                 warn!(guild_id, status = %response.status(), "Dashboard runtime config request failed");
+                self.failure_until.write().await.insert(key.clone(), Instant::now() + Duration::from_secs(60));
                 return self.cached_or_default(&key).await;
             }
             Err(error) => {
                 warn!(guild_id, %error, "Dashboard runtime config request failed");
+                self.failure_until.write().await.insert(key.clone(), Instant::now() + Duration::from_secs(60));
                 return self.cached_or_default(&key).await;
             }
         };
@@ -60,6 +66,7 @@ impl DashboardClient {
             Ok(payload) => payload,
             Err(error) => {
                 warn!(guild_id, %error, "Dashboard returned invalid runtime config");
+                self.failure_until.write().await.insert(key.clone(), Instant::now() + Duration::from_secs(60));
                 return self.cached_or_default(&key).await;
             }
         };
@@ -88,6 +95,7 @@ impl DashboardClient {
         if let Some(words) = settings.get("swear_words").and_then(|v| v.as_array()) {
             config.swear_words = words.iter().filter_map(|v| v.as_str()).map(str::to_owned).take(200).collect();
         }
+        self.failure_until.write().await.remove(&key);
         self.cache.write().await.insert(key, (Instant::now(), config.clone()));
         config
     }
