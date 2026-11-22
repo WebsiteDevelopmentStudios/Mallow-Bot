@@ -1,216 +1,94 @@
 # Mallow Bot
 
-A Python Discord bot with music commands and link-only movie sharing. Movie search uses TMDB to find titles and provides a link to the provider page. The bot does not scrape movie websites, extract media URLs, or download movie streams.
+Mallow Bot is being migrated to a Rust Discord runtime. Movie and media-hosting functionality is intentionally excluded and is being removed from the project.
 
-## Features
+## Runtime
 
-- /channel link <channel> for administrators
-- Persistent movie-channel configuration
-- /movie list with a private ephemeral movie browser
-- /movie search <title> with a private TMDB movie search and selection menu
-- Pagination for large movie libraries
-- Select This Movie confirmation button
-- /movie play <URL> to share a movie page link without downloading media
-- Search results use TMDB movie IDs to open the matching VidNest page at https://vidnest.fun/movie/{movie_id}
-- Movie page links are shared as links only; the bot does not extract or download the video
-- Graceful Discord upload and permission errors
-- Voice music playback with /play, /skip, /queue, /join, /leave, and /volume
-- Spotify track-link metadata resolution followed by Lavalink source search (YouTube/SoundCloud), with the existing yt-dlp direct-audio fallback retained
-- Synchronized lyrics lookup with one lyric line sent at a time in supported voice-channel chat
+- Rust 2021 crate: `rust-bot/`
+- Serenity Discord gateway
+- Axum HTTP service for health checks, authenticated interaction forwarding, and owner endpoints
+- Dashboard runtime configuration from `https://mallowbot.kz.ci/api/runtime-config`
+- Premium status from `https://mallowbot.kz.ci/api/premium-check`
+- Lavalink v4 for voice playback, per-server queues, Spotify track metadata lookup, and synchronized LRCLIB lyrics
+- Persistent local JSON state for XP, economy, swear counts, tickets, reaction roles, sticky messages, and moderation settings
 
-## Requirements
+## Retained features
 
-- Python 3.10 or newer
-- A Discord bot application/token
-- The bot must be able to view and send messages in the configured movie channel
-- The bot needs Send Messages permission in that channel
-- PyNaCl for Discord voice support
+- Music: play, join, leave, pause, resume, skip, stop, queue, volume, and synchronized lyrics
+- Community: XP, levels, leaderboard, economy games, coin transfers, fun commands, swear counter, and swear leaderboard
+- Server tools: welcome/goodbye messages, auto-role, reaction roles, rules verification, Bliss SMP announcements/events, tickets, purge, custom commands, vanity taglines, sticky messages, snipe, and server layout exports
+- Moderation: Discord invite removal and configurable member timeouts
+- Utility: ToS, uptime, updates, command list, YouTube metadata lookup, say, and sync
+- Integrations: dashboard configuration, Premium checks, MCXboxBroadcast keep-alive, and owner guild management
 
-## Installation
+The migration is still being validated. The production entry point will not be switched until Rust command/event parity and deployment checks are complete.
 
-Clone the repository and enter it:
+## Explicitly excluded
 
-    git clone https://github.com/WebsiteDevelopmentStudios/Movie-Bot.git
-    cd Movie-Bot
+Mallow Bot no longer has a movie library or movie-hosting target. No movie search, movie channel linking, media downloads, FFmpeg/FFprobe, HLS playback, movie proxy routes, or movie commands are part of the Rust runtime.
 
-Install dependencies:
+## Build locally
 
-    pip install -r requirements.txt
+Requirements:
+- Rust stable toolchain
+- Discord bot token
+- A Lavalink v4 server if music playback is enabled
 
+```sh
+cd rust-bot
+cargo build --release
+```
 
-## Configure the bot token
+Run:
 
-Create a file named .env in the project root:
+```sh
+DISCORD_TOKEN=your-token cargo run --release
+```
 
-    DISCORD_TOKEN=your_bot_token_here
+The service listens on `PORT` or `SERVER_PORT` (default `25572`).
 
-Never commit .env or your bot token to GitHub.
+## Environment
 
-## Invite the bot
+| Variable | Purpose |
+|---|---|
+| `DISCORD_TOKEN` | Discord bot token |
+| `WAKE_SECRET` | Shared secret for authenticated interaction and owner bridge requests |
+| `MALLOW_DASHBOARD_CONFIG_SECRET` | Same secret configured as Cloudflare Pages `RUNTIME_CONFIG_SECRET` |
+| `MALLOW_DASHBOARD_CONFIG_URL` | Optional dashboard runtime-config URL |
+| `PREMIUM_CHECK_URL` | Optional Premium-check URL |
+| `ENABLE_LAVALINK` | Set `true` to enable music playback |
+| `LAVALINK_URI` | Lavalink base URL |
+| `LAVALINK_PASSWORD` | Lavalink authorization password |
+| `MCXBROADCAST_URL` | Optional MCXboxBroadcast service URL for keep-alive |
+| `MCXBROADCAST_PING_INTERVAL` | Keep-alive interval in seconds (minimum 60) |
+| `MALLOW_DATA_DIR` | Directory for local JSON state |
+| `PORT` | HTTP service port supplied by the host |
+| `RUST_LOG` | Rust tracing filter |
 
-1. Open the Discord Developer Portal.
-2. Create or select your bot application.
-3. Add a bot user and copy its token into .env.
-4. Open OAuth2 URL Generator.
-5. Select the bot and applications.commands scopes.
-6. Give the bot only the permissions it needs. It needs to view/send messages and attach files in the movie channel.
-7. Invite it to your server.
+## Discord application and Cloudflare Worker
 
-## Run
+Enable the required privileged intents in the Discord Developer Portal:
+- Server Members Intent
+- Message Content Intent
 
-From the repository directory:
+The bot also needs permissions appropriate to the enabled features, including Manage Messages, Manage Roles, Manage Channels, Moderate Members, and voice connect/speak permissions.
 
-    python main.py
+For the Cloudflare interaction Worker, set:
+- `DISCORD_PUBLIC_KEY`
+- `WAKE_SECRET`
+- `BOT_INTERACTION_URL` to the Rust service's `/discord/interactions` endpoint
 
-## Voice music
+The Rust service also exposes:
+- `GET /health`
+- `GET /owner/guilds` (requires `Authorization: Bot <DISCORD_TOKEN>`)
+- `POST /owner/leave` (requires `Authorization: Bot <DISCORD_TOKEN>`)
 
-Lavalink is temporarily disabled by default (`ENABLE_LAVALINK=false`). Set it to `true` to re-enable music playback. When enabled, the bot uses Lavalink as its music transport. The Discord bot does not directly download or stream## Voice music
+## Render deployment
 
-The bot now runs its own Lavalink music backend. You do **not** need to create a second Lavalink server, expose port 2333, or configure any `LAVALINK_*` environment variables.
+The repository's `render.yaml` uses `bot.Dockerfile` to build and run the Rust executable. The root `Dockerfile` and `lavalink/` directory are retained for the separate Lavalink service configuration.
 
-On startup, the bot automatically:
+## Data and dashboard boundary
 
-1. Checks for an existing Java 17+ runtime.
-2. If Java is unavailable, downloads a private Java 21 JRE into `.lavalink/java/`.
-3. Downloads Lavalink 4.2.2 if it is not already cached.
-4. Downloads the YouTube Source 1.18.2 plugin if it is not already cached.
-5. Generates a random local Lavalink password.
-6. Starts Lavalink on `127.0.0.1:2333`.
-7. Waits for Lavalink to become ready.
-8. Connects Wavelink to the local server.
+The bot does not connect directly to Cloudflare D1. The dashboard remains a separate application; Rust reads its runtime settings and Premium status over HTTP. The unrelated D1 storage-usage reporting panel and API route were removed from the migration branch.
 
-The generated password is only used between the bot and its local Lavalink process. It is not stored in Git, and the Lavalink port is bound to localhost.
-
-The runtime files are stored in `.lavalink/` and are ignored by Git. On persistent hosts, they are reused after the first successful download. On ephemeral hosts, they are downloaded again automatically when the service starts.
-
-Commands:
-
-    /join
-    /play <song>
-    /queue
-    /skip
-    /pause
-    /resume
-    /volume <level>
-    /lyrics
-    /leave
-
-Run /join while you are in a voice channel, or use /play while you are already in one. /play accepts normal song searches and Spotify track URLs.
-
-Spotify does not provide Discord bots with unrestricted full-track audio, and Spotify OAuth does not grant a bot a playable audio stream. For a Spotify URL, the bot uses Spotify oEmbed only for title/artist metadata, then asks Lavalink to search supported music sources for a matching playable track. If those searches fail, the existing yt-dlp direct-audio fallback is attempted where the Lavalink host supports HTTP audio URLs. The bot never requests a user's Spotify password or stores Spotify credentials.
-
-### Self-hosted Lavalink
-
-Mallow-Bot currently bundles its Lavalink bootstrap configuration around:
-
-- Lavalink 4.2.2
-- YouTube Source 1.18.2
-- Java 21 when an existing Java 17+ installation is not available
-- A conservative Lavalink profile capped at 256 MB heap, one active JVM processor, and small rolling logs for low-resource hosting
-
-The YouTube Source plugin is configured with YouTube search enabled and the built-in Lavalink YouTube source disabled, as required by the plugin.
-
-If YouTube rejects a particular request, the bot reports that the music source could not be loaded. The self-hosted Lavalink architecture removes the need for public Piped-instance fallbacks, but it cannot guarantee that an external media provider will accept every automated request.
-
-The music queue is maintained independently for each Discord guild. Lavalink owns the actual audio transport while the bot owns queue state, commands, lyrics, and user-facing messages.
-
-Synchronized lyrics are fetched from LRCLIB. The lyrics task reads Lavalink's actual player position instead of using a separate wall-clock timer. Lavalink reports the same position while playback is paused, so pausing the song also pauses lyric progression. Skipping or leaving immediately cancels the old lyric task.
-
-Volume is changed through Lavalink's player volume control; the audio pipeline is not restarted.
-
-The bot acknowledges /play before connecting to voice or performing network resolution, preventing long source lookups from causing Discord interaction timeout errors.
-
-son, so the setting survives restarts.
-
-If the configured channel is deleted or cannot be fetched, an administrator must link another channel.
-
-## Add movies
-
-Put media files directly inside:
-
-    Movies/
-
-Supported formats:
-
-- .mp4
-- .mp3
-
-Example:
-
-    Movies/
-    ├── Avatar.mp4
-    ├── Minecraft Movie.mp4
-    └── Music.mp3
-
-Do not put movie files in subfolders. Do not commit copyrighted or otherwise unauthorized media to a public repository.
-
-The bot does not scrape movie pages, resolve hidden stream URLs, or download movie media. `/movie play` only posts a user-provided HTTP/HTTPS link to the configured movie channel.
-
-## List movies
-
-Use:
-
-    /movie list
-
-The result is private to the member who used the command. It shows the currently available files without their extensions.
-
-Choose a movie from the dropdown and press Select This Movie to send it.
-
-The Movies folder is scanned when the command is used, so newly added or removed files are detected without restarting the bot.
-
-## Share a movie link
-
-Use `/movie search <title>` to find a title. Select a result to get a provider-page link. To share another movie page, use `/movie play <URL>` with its HTTP/HTTPS page URL. This command posts the URL to the configured movie channel; it does not scrape the page, extract a stream, or download any media.
-
-## Discord upload limits
-
-Discord limits the size of files that bots can upload as attachments. The exact limit depends on the Discord account/server features available at the time of upload and can change.
-
-If a file is too large for the current Discord attachment limit, the bot reports the failure instead of crashing.
-
-## Project structure
-
-    Mallow-Bot/
-    ├── Movies/
-    │   └── .gitkeep
-    ├── main.py
-    ├── lavalink_manager.py
-    ├── requirements.txt
-    ├── .env.example
-    ├── .gitignore
-    ├── config.json
-    └── README.md
-
-The `.lavalink/` directory is created automatically at runtime and is intentionally not committed to Git.
-
-config.json contains only the linked channel ID. The Discord token is never stored there.
-
-## Security
-
-- The token is read from .env.
-- .env is ignored by Git.
-- Movie commands cannot select arbitrary filesystem paths.
-- Only files directly inside Movies with supported extensions are considered.
-- Movie links are shared as provided; the bot does not scrape provider pages or download movie streams.
-
-## Bot utility commands
-
-The bot also provides these utility commands:
-
-- `/uptime` shows how long the current bot process has been running.
-- `/update` fetches `updates.txt` and posts the bot's update log in the channel, split into Discord-safe messages.
-- `/commands` lists the main slash commands and their `-mb` text-command equivalents.
-- `/say <message>` privately acknowledges the command to the user, then posts a separate public message as the bot. It requires `Manage Messages` and has no `-mb say` equivalent.
-
-The music utility commands also work with the `-mb` prefix, for example `-mb uptime`, `-mb update`, and `-mb commands`. `/say` intentionally has no text-command equivalent.
-
-For prefix commands, enable **Message Content Intent** in the Discord Developer Portal under **Bot → Privileged Gateway Intents**.
-
-
-## Community features
-
-- XP is awarded for eligible chat messages (with a 60-second per-user cooldown); use `/xp` or `-mb xp`.
-- `/leaderboard` or `-mb leaderboard` shows the top 10 XP earners in the server.
-- Discord invite links are deleted and the sender is timed out for 10 minutes by default. The bot needs **Manage Messages** and **Moderate Members**. Server managers can change the timeout with `-mb timeout-minutes 30` (1–10,080 minutes). Members with Manage Messages are exempt.
-- Virtual-currency games: `/balance`, `/daily`, `/gamble`; prefix alternatives include `-mb balance`, `-mb daily`, `-mb coinflip 10`, and `-mb slots 10`. These use fictional Mallow Coins only.
-- YouTube links are detected automatically and enriched with the video title and channel when YouTube's oEmbed endpoint is available; use `/youtube <URL>` for a manual lookup.
+Local JSON state is written under `MALLOW_DATA_DIR`. Hosts with ephemeral filesystems will lose that state on restart unless a persistent disk or external storage is configured.
