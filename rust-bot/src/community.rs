@@ -1160,28 +1160,45 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
                         let title = command.data.options.iter().find_map(|o| if o.name == "title" { if let CommandDataOptionValue::String(v) = &o.value { Some(v.as_str()) } else { None } } else { None }).unwrap_or("Choose your roles");
                         let description = command.data.options.iter().find_map(|o| if o.name == "description" { if let CommandDataOptionValue::String(v) = &o.value { Some(v.as_str()) } else { None } } else { None }).unwrap_or("React below to get a role. Remove your reaction to remove it.");
                         match channel.send_message(http, CreateMessage::new().embed(CreateEmbed::new().title(title).description(description))).await {
-                            Ok(posted) => { store.set_record("reaction_roles", &posted.id.get().to_string(), Some(json!({"guild_id":guild_id.to_string(),"channel_id":channel.get().to_string(),"roles":{}}))); format!("Reaction-role panel created: https://discord.com/channels/{guild_id}/{}/{}/", channel.get(), posted.id.get()) }
+                            Ok(posted) => {
+                                store.set_record("reaction_roles", &posted.id.get().to_string(), Some(json!({"guild_id":guild_id.to_string(),"channel_id":channel.get().to_string(),"roles":{}})));
+                                format!("Reaction-role panel created: https://discord.com/channels/{guild_id}/{}/{}", channel.get(), posted.id.get())
+                            }
                             Err(_) => "I couldn't post in that channel. Check my channel permissions.".into()
                         }
                     }
-                    "add" | "remove" => {
+                    "add" => {
                         if let (Some(message_id), Some(role)) = (message_id, role) {
                             let panel = store.record("reaction_roles", &message_id.to_string());
                             let channel = panel.as_ref().and_then(|v| v.get("channel_id")).and_then(Value::as_str).and_then(|v| v.parse::<u64>().ok());
-                            if emoji.is_empty() || channel.is_none() { "That panel or emoji was not found.".into() }
-                            else if action == "add" {
-                                let reaction = ReactionType::Unicode(emoji.clone());
-                                if serenity::all::ChannelId::new(channel.unwrap()).create_reaction(http, serenity::all::MessageId::new(message_id), reaction).await.is_err() { "I couldn't add that reaction to the panel.".into() }
-                                else { store.set_reaction_role(guild_id, message_id, &emoji, Some(role)); format!("Added {emoji} → <@&{role}>.") }
-                            } else { store.set_reaction_role(guild_id, message_id, &emoji, None); format!("Removed the {emoji} role mapping.") }
+                            let panel_guild = panel.as_ref().and_then(|v| v.get("guild_id")).and_then(Value::as_str).and_then(|v| v.parse::<u64>().ok());
+                            if emoji.is_empty() || channel.is_none() || panel_guild != Some(guild_id) { "That panel or emoji was not found in this server.".into() }
+                            else if serenity::all::ChannelId::new(channel.unwrap()).create_reaction(http, serenity::all::MessageId::new(message_id), parse_reaction_type(&emoji)).await.is_err() {
+                                "I couldn't add that reaction to the panel.".into()
+                            } else {
+                                store.set_reaction_role(guild_id, message_id, &emoji, Some(role));
+                                format!("Added {emoji} → <@&{role}>.")
+                            }
                         } else { "Provide a panel message ID, emoji, and role.".into() }
+                    }
+                    "remove" => {
+                        if let Some(message_id) = message_id {
+                            let panel = store.record("reaction_roles", &message_id.to_string());
+                            let panel_guild = panel.as_ref().and_then(|v| v.get("guild_id")).and_then(Value::as_str).and_then(|v| v.parse::<u64>().ok());
+                            if emoji.is_empty() || panel_guild != Some(guild_id) { "That panel or emoji was not found in this server.".into() }
+                            else { store.set_reaction_role(guild_id, message_id, &emoji, None); format!("Removed the {emoji} role mapping.") }
+                        } else { "Provide the panel message ID and emoji.".into() }
                     }
                     "list" => {
                         if let Some(message_id) = message_id {
                             let panel = store.record("reaction_roles", &message_id.to_string());
-                            let roles = panel.and_then(|v| v.get("roles").cloned()).and_then(|v| v.as_object().cloned()).unwrap_or_default();
-                            if roles.is_empty() { "This panel has no role mappings yet.".into() }
-                            else { roles.iter().map(|(emoji, role)| format!("{emoji} → <@&{}>", role.as_u64().unwrap_or(0))).collect::<Vec<_>>().join("\\n") }
+                            let panel_guild = panel.as_ref().and_then(|v| v.get("guild_id")).and_then(Value::as_str).and_then(|v| v.parse::<u64>().ok());
+                            if panel_guild != Some(guild_id) { "That panel was not found in this server.".into() }
+                            else {
+                                let roles = panel.and_then(|v| v.get("roles").cloned()).and_then(|v| v.as_object().cloned()).unwrap_or_default();
+                                if roles.is_empty() { "This panel has no role mappings yet.".into() }
+                                else { roles.iter().map(|(emoji, role)| format!("{emoji} → <@&{}>", role.as_u64().unwrap_or(0))).collect::<Vec<_>>().join("\\n") }
+                            }
                         } else { "Provide the panel message ID.".into() }
                     }
                     _ => "Choose Create, Add, Remove, or List.".into()
