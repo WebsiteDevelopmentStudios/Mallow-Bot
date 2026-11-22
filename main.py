@@ -20,7 +20,6 @@ from discord import app_commands
 from discord.ext import commands, tasks
 from discord.http import handle_message_parameters
 from dotenv import load_dotenv
-from mallowcord_bridge import mallowcord_bridge
 
 try:
     import wavelink
@@ -2215,10 +2214,6 @@ class MallowBot(commands.Bot):
                 await asyncio.sleep(retry_delay)
                 retry_delay = min(retry_delay * 2, 60.0)
 
-    async def close(self) -> None:
-        await mallowcord_bridge.close()
-        await super().close()
-
     async def setup_hook(self) -> None:
         # Expose the dashboard owner API and hosted media on the platform's web port.
         self.web_runner = await start_movie_web_server(self)
@@ -2237,11 +2232,6 @@ class MallowBot(commands.Bot):
 
 
 bot = MallowBot(command_prefix=commands.when_mentioned, intents=intents)
-
-@bot.tree.command(name="mallowcord", description="Run a Mallow-Bot command with your Discord permissions")
-@app_commands.describe(command="Command and arguments, for example: help or purge 5")
-async def mallowcord_slash(interaction: discord.Interaction, command: str) -> None:
-    await mallowcord_bridge.dispatch_slash(interaction, command)
 
 # Register optional community features before the global slash-command sync.
 from community_features import process_message as process_community_message, setup as setup_community_features
@@ -2447,7 +2437,6 @@ async def update_halloween_countdowns() -> None:
 
 @bot.event
 async def on_ready() -> None:
-    await mallowcord_bridge.start(bot)
     if not rotate_bot_status.is_running():
         rotate_bot_status.start()
     if not update_halloween_countdowns.is_running():
@@ -2466,33 +2455,6 @@ def _banned_guild_ids() -> set[int]:
             except (TypeError, ValueError):
                 pass
     return banned
-
-@bot.event
-async def on_presence_update(before: discord.Member, after: discord.Member) -> None:
-    # Discord can emit duplicate presence events; do not spend a D1 write when
-    # the status did not actually change.
-    if after.guild.id == mallowcord_bridge.GUILD_ID and before.status != after.status:
-        asyncio.create_task(mallowcord_bridge.handle_presence_update(after), name="mallowcord-presence-update")
-
-
-@bot.event
-async def on_member_join(member: discord.Member) -> None:
-    if member.guild.id == mallowcord_bridge.GUILD_ID:
-        asyncio.create_task(mallowcord_bridge.handle_member_join(member), name="mallowcord-member-join")
-
-
-@bot.event
-async def on_member_update(before: discord.Member, after: discord.Member) -> None:
-    if after.guild.id != mallowcord_bridge.GUILD_ID:
-        return
-    before_roles = tuple(sorted(role.id for role in before.roles))
-    after_roles = tuple(sorted(role.id for role in after.roles))
-    before_state = (before.name, before.display_name, str(before.display_avatar.url), before_roles)
-    after_state = (after.name, after.display_name, str(after.display_avatar.url), after_roles)
-    # Ignore Discord member events that do not change anything MallowCord stores.
-    if before_state != after_state:
-        asyncio.create_task(mallowcord_bridge.handle_member_update(after), name="mallowcord-member-update")
-
 
 @bot.event
 async def on_guild_join(guild: discord.Guild) -> None:
@@ -2866,10 +2828,6 @@ async def post_updates(channel) -> int:
 async def on_message(message: discord.Message) -> None:
     if message.author.bot:
         return
-    if await mallowcord_bridge.handle_link_command(message):
-        return
-    if message.guild is not None and message.guild.id == mallowcord_bridge.GUILD_ID:
-        asyncio.create_task(mallowcord_bridge.handle_discord_message(message), name="mallowcord-message-mirror")
     if await is_bot_access_banned(message.author.id):
         cfg_prefix = "-mb"
         if message.guild is not None:
@@ -2886,8 +2844,7 @@ async def on_message(message: discord.Message) -> None:
         return
     # Run dashboard-configured auto replies, XP, moderation and social handlers
     # before the legacy prefix-command dispatcher returns for ordinary messages.
-    if not getattr(message, "_mallowcord_proxy", False):
-        await process_community_message(bot, message)
+    await process_community_message(bot, message)
     guild_id = message.guild.id
     dashboard_config = await get_guild_config(guild_id)
     prefix = dashboard_config.get("prefix", "-mb")
