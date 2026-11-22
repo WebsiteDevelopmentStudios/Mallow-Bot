@@ -7,7 +7,7 @@ COPY TERMS_OF_SERVICE.md TERMS_OF_SERVICE.md
 RUN cargo build --manifest-path rust-bot/Cargo.toml --release
 
 FROM debian:bookworm-slim
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates fonts-dejavu-core && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /tmp/mallow-target/release/mallow-bot /usr/local/bin/mallow-bot
 ENV RUST_LOG=info
 EXPOSE 25572
