@@ -916,8 +916,8 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
             }
         }
         "pay" => {
-            let target = command.data.options.iter().find_map(|o| if o.name == "member" { if let CommandDataOptionValue::User(id) = o.value { Some(id.get()) } else { None } } else { None });
-            let amount = command.data.options.iter().find_map(|o| if o.name == "amount" { if let CommandDataOptionValue::Integer(value) = o.value { Some(value) } else { None } } else { None }).unwrap_or(0);
+            let target = command.data.options.iter().find_map(|o| if o.name == "member" { if let CommandDataOptionValue::User(id) = &o.value { Some(id.get()) } else { None } } else { None });
+            let amount = command.data.options.iter().find_map(|o| if o.name == "amount" { if let CommandDataOptionValue::Integer(value) = &o.value { Some(*value) } else { None } } else { None }).unwrap_or(0);
             if let Some(target) = target {
                 let balance = store.balance(guild_id, user_id, starting);
                 if target == user_id || amount < 1 { "Choose another member and an amount greater than zero.".into() }
@@ -1102,7 +1102,7 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
                 let enabled = command.data.options.iter().find_map(|o| if o.name == "enabled" { if let CommandDataOptionValue::Boolean(v) = &o.value { Some(*v) } else { None } } else { None }).unwrap_or(false);
                 let message_id = command.data.options.iter().find_map(|o| if o.name == "message_id" { if let CommandDataOptionValue::String(v) = &o.value { v.parse::<u64>().ok() } else { None } } else { None });
                 let emoji = command.data.options.iter().find_map(|o| if o.name == "emoji" { if let CommandDataOptionValue::String(v) = &o.value { Some(v.clone()) } else { None } } else { None }).unwrap_or_default();
-                let role = command.data.options.iter().find_map(|o| if o.name == "role" { if let CommandDataOptionValue::Role(id) = o.value { Some(id.get()) } else { None } } else { None });
+                let role = command.data.options.iter().find_map(|o| if o.name == "role" { if let CommandDataOptionValue::Role(id) = &o.value { Some(id.get()) } else { None } } else { None });
                 if let (Some(message_id), Some(role)) = (message_id, role) {
                     if emoji.is_empty() || emoji.len() > 100 { "Enter a valid emoji.".into() }
                     else {
@@ -1165,7 +1165,7 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
             if guild_id != 1544628300217978932 { "This command is only available in Bliss SMP.".into() }
             else if !permitted { "You need Manage Messages permission to publish Bliss SMP announcements.".into() }
             else {
-                let days = command.data.options.iter().find_map(|o| if o.name == "date" { if let CommandDataOptionValue::Integer(v) = o.value { Some(v) } else { None } } else { None }).unwrap_or(0).max(0) as u64;
+                let days = command.data.options.iter().find_map(|o| if o.name == "date" { if let CommandDataOptionValue::Integer(v) = &o.value { Some(*v) } else { None } } else { None }).unwrap_or(0).max(0) as u64;
                 let minutes = command.data.options.iter().find_map(|o| if o.name == "time" { if let CommandDataOptionValue::Integer(v) = o.value { Some(v) } else { None } } else { None }).unwrap_or(5).max(0) as u64;
                 let timestamp = now_seconds() + days * 86_400 + minutes * 60;
                 let channel = serenity::all::ChannelId::new(1574140545570181141);
