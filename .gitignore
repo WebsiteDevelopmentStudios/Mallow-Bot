@@ -7,11 +7,8 @@ venv/
 env/
 .env
 config.json
-Movies/*
-!Movies/.gitkeep
 .vscode/
 .idea/
-.movie_hls/
 .music_cache/
 .lavalink/
 .DS_Store

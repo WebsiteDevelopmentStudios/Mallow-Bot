@@ -156,8 +156,8 @@ async function route(request, env) {
   const row=await env.MALLOW_DB.prepare("SELECT prefix,greeting,greetings,mention_only,disabled_commands,features,economy_config,xp_config,messages_config,tickets_config FROM guild_settings WHERE guild_id=?").bind(guildId).first();
   let disabled=[];try{disabled=JSON.parse(row?.disabled_commands||"[]");if(!Array.isArray(disabled))disabled=[]}catch{}
   const parse=(v,fallback)=>{try{return {...fallback,...JSON.parse(v||"{}")}}catch{return fallback}};
-  const features=parse(row?.features,{economy:true,xp:true,moderation:true,music:true,fun:true,movies:true,utility:true,social:true,swear_counter:true});
-  for(const key of Object.keys(features))if(!["economy","xp","moderation","music","fun","movies","utility","social","swear_counter"].includes(key))delete features[key];
+  const features=parse(row?.features,{economy:true,xp:true,moderation:true,music:true,fun:true,utility:true,social:true,swear_counter:true});
+  for(const key of Object.keys(features))if(!["economy","xp","moderation","music","fun","utility","social","swear_counter"].includes(key))delete features[key];
   const economy=parse(row?.economy_config,{starting_money:100,daily_reward:100,work_min:20,work_max:80});
   const xp=parse(row?.xp_config,{min_xp:10,max_xp:20,cooldown_seconds:60,announce_level_up:true});
   const messages=parse(row?.messages_config,{welcome_enabled:false,welcome_channel_id:"",welcome_message:"Welcome {user} to {server}!",welcome_title:"",welcome_image_url:"https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/dashboard/Welcome.png",goodbye_enabled:false,goodbye_channel_id:"",goodbye_message:"{user} left {server}.",auto_reply_enabled:false,auto_replies:[]});
@@ -309,8 +309,8 @@ async function route(request, env) {
    if(!row)row={prefix:defaults.prefix,greeting:defaults.greeting,greetings:1,mention_only:1,disabled_commands:"[]",features:"{}",economy_config:"{}",xp_config:"{}",updated_at:null};
    let disabled=[];try{disabled=JSON.parse(row.disabled_commands||"[]");if(!Array.isArray(disabled))disabled=[]}catch{}
    const parse=(v,fallback)=>{try{return {...fallback,...JSON.parse(v||"{}")}}catch{return fallback}};
-   const savedFeatures=parse(row.features,{economy:true,xp:true,moderation:true,music:true,fun:true,movies:true,utility:true,social:true,swear_counter:true});
-   for(const key of Object.keys(savedFeatures))if(!["economy","xp","moderation","music","fun","movies","utility","social","swear_counter"].includes(key))delete savedFeatures[key];
+   const savedFeatures=parse(row.features,{economy:true,xp:true,moderation:true,music:true,fun:true,utility:true,social:true,swear_counter:true});
+   for(const key of Object.keys(savedFeatures))if(!["economy","xp","moderation","music","fun","utility","social","swear_counter"].includes(key))delete savedFeatures[key];
    return json({guild:{id:guildId,name:access.guild.name,icon:access.guild.icon||null},settings:{prefix:row.prefix,greeting:row.greeting,greetings:!!row.greetings,mention_only:!!row.mention_only,disabled_commands:disabled,features:savedFeatures,economy_config:parse(row.economy_config,{starting_money:100,daily_reward:100,work_min:20,work_max:80,currency_symbol:"M$",multiplier:1}),xp_config:parse(row.xp_config,{min_xp:10,max_xp:20,cooldown_seconds:60,announce_level_up:true}),updated_at:row.updated_at}});
   }
   let body;try{body=await request.json()}catch{return json({error:"Invalid JSON."},400)}
@@ -318,7 +318,7 @@ async function route(request, env) {
   const disabled=Array.isArray(body.disabled_commands)?[...new Set(body.disabled_commands.map(x=>String(x).trim()).filter(x=>/^[a-z0-9_-]{1,32}$/i.test(x)))].slice(0,200):[];
   if(!prefix||prefix.length>8||/[\\r\n\\s]/.test(prefix))return json({error:"Prefix must be 1–8 characters with no spaces or line breaks."},400);
   if(greeting.length>500)return json({error:"Greeting must be 500 characters or fewer."},400);
-  const featureDefaults={economy:true,xp:true,moderation:true,music:true,fun:true,movies:true,utility:true,social:true,swear_counter:true};
+  const featureDefaults={economy:true,xp:true,moderation:true,music:true,fun:true,utility:true,social:true,swear_counter:true};
   const featureInput=body.features&&typeof body.features==="object"?body.features:{};
   const features=Object.fromEntries(Object.keys(featureDefaults).map(k=>[k,featureInput[k]===undefined?featureDefaults[k]:!!featureInput[k]]));
   const clamp=(v,min,max,fallback)=>Number.isFinite(Number(v))?Math.max(min,Math.min(max,Math.round(Number(v)))):fallback;
@@ -530,22 +530,6 @@ async function route(request, env) {
  let body;try{body=await request.json()}catch{return json({error:"Invalid JSON."},400)}const prefix=String(body.prefix??"").trim(),greeting=String(body.greeting??"");if(!prefix||prefix.length>8||/[\r\n]/.test(prefix))return json({error:"Prefix must be 1–8 characters."},400);if(greeting.length>500)return json({error:"Greeting must be 500 characters or fewer."},400);
  await env.MALLOW_DB.prepare("CREATE TABLE IF NOT EXISTS settings (id INTEGER PRIMARY KEY CHECK (id=1), prefix TEXT NOT NULL, greeting TEXT NOT NULL, greetings INTEGER NOT NULL, mention_only INTEGER NOT NULL, updated_at TEXT NOT NULL)").run();
  await env.MALLOW_DB.prepare("INSERT INTO settings (id,prefix,greeting,greetings,mention_only,updated_at) VALUES (1,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET prefix=excluded.prefix,greeting=excluded.greeting,greetings=excluded.greetings,mention_only=excluded.mention_only,updated_at=excluded.updated_at").bind(prefix,greeting,body.greetings?1:0,body.mention_only?1:0,new Date().toISOString()).run();return json({ok:true,settings:await settings(env)});}
-
- if(path==="storage-usage"&&request.method==="GET"){
-   const s=await session(request,env);if(!s)return json({error:"Sign in required."},401);
-   if(s.user.id!==String(env.BOT_OWNER_ID))return json({error:"Only the bot owner can view storage usage."},403);
-   const token=String(env.CF_API_TOKEN||env.CLOUDFLARE_API_TOKEN||"");
-   const account=String(env.CF_ACCOUNT_ID||env.CLOUDFLARE_ACCOUNT_ID||"");
-   const database=String(env.MALLOW_D1_DATABASE_ID||env.D1_DATABASE_ID||"");
-   const limit=Math.max(1,Number(env.D1_STORAGE_LIMIT_BYTES)||524288000);
-   if(!token||!account||!database)return json({configured:false,used_bytes:null,limit_bytes:limit,percentage:null,setup_required:true});
-   const response=await fetch("https://api.cloudflare.com/client/v4/accounts/"+encodeURIComponent(account)+"/d1/database/"+encodeURIComponent(database),{headers:{authorization:"Bearer "+token}});
-   const data=await response.json().catch(()=>({}));
-   if(!response.ok||data.success===false)return json({error:"Cloudflare could not return D1 storage usage. Check the API token's D1 Read permission and the account/database IDs."},502);
-   const used=Number(data.result?.file_size);
-   if(!Number.isFinite(used)||used<0)return json({error:"Cloudflare did not return a valid D1 database size."},502);
-   return json({configured:true,used_bytes:used,limit_bytes:limit,remaining_bytes:Math.max(0,limit-used),percentage:Math.min(100,used/limit*100),database_name:data.result?.name||"Mallow Bot database",updated_at:new Date().toISOString()});
-  }
  if(path==="developer-guilds"&&request.method==="GET"){
    const s=await session(request,env);if(!s)return json({error:"Sign in required."},401);
    if(s.user.id!==String(env.BOT_OWNER_ID))return json({error:"Only the bot owner can view the bot's server list."},403);

@@ -39,8 +39,8 @@ async function verifyDiscordRequest(request, publicKeyHex) {
 }
 
 function interactionResponse(payload) {
-  if (payload.type === 2) return { type: 5 };
-  if (payload.type === 3) return { type: 6 };
+  if (payload.type === 2) return { type: 5, data: { flags: 64 } };
+  if (payload.type === 3) return { type: 5, data: { flags: 64 } };
   if (payload.type === 4) return { type: 8, data: { choices: [] } };
   if (payload.type === 5) return { type: 5 };
   return { type: 5 };
@@ -49,7 +49,7 @@ function interactionResponse(payload) {
 export default {
   async fetch(request, env, ctx) {
     if (request.method !== "POST") {
-      return new Response("Mochi-Bot Discord endpoint", { status: 200 });
+      return new Response("Mallow Bot Discord endpoint", { status: 200 });
     }
 
     if (!(await verifyDiscordRequest(request, env.DISCORD_PUBLIC_KEY))) {
@@ -78,7 +78,7 @@ export default {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Mochi-Bot-Secret": env.WAKE_SECRET,
+          "X-Mallow-Bot-Secret": env.WAKE_SECRET,
         },
         body: JSON.stringify(payload),
       }).catch(() => {

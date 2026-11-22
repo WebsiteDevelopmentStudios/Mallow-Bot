@@ -12,7 +12,7 @@ Depending on the features enabled and how you interact with Mallow Bot, it may p
 - Usernames or display names and message/command content that you send to the bot, where needed to respond or process a feature.
 - Feature data such as XP, levels, leaderboard values, virtual currency balances, daily-claim timestamps, game results, and settings.
 - Operational information such as errors and logs needed to run, secure, and troubleshoot the bot.
-- Information sent to the bot through optional integrations, such as a movie or media lookup, when you request that feature.
+- Information sent through optional integrations, such as YouTube metadata lookups or music requests, when you request those features.
 
 The exact data depends on which features are active. Do not send passwords, payment card details, government identifiers, or other sensitive information to the bot.
 
