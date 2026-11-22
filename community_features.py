@@ -759,6 +759,96 @@ def setup(bot):
             ephemeral=True,
         )
 
+    BLISS_GUILD_ID = 1544628300217978932
+    BLISS_ANNOUNCEMENTS_CHANNEL_ID = 1574140545570181141
+    BLISS_REALM_CODE_CHANNEL_ID = 1544638277179678730
+
+    async def get_bliss_announcement_channel(interaction: discord.Interaction):
+        if interaction.guild_id != BLISS_GUILD_ID:
+            await interaction.response.send_message("This command is only available in Bliss SMP.", ephemeral=True)
+            return None
+        channel = interaction.guild.get_channel(BLISS_ANNOUNCEMENTS_CHANNEL_ID) if interaction.guild else None
+        if channel is None:
+            try:
+                channel = await bot.fetch_channel(BLISS_ANNOUNCEMENTS_CHANNEL_ID)
+            except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+                channel = None
+        if not isinstance(channel, discord.TextChannel):
+            await interaction.response.send_message("I couldn't access the Bliss SMP announcements channel. Check the channel ID and my channel permissions.", ephemeral=True)
+            return None
+        return channel
+
+    @bot.tree.command(name="announcement", description="Post a Bliss SMP announcement.")
+    @app_commands.guilds(discord.Object(id=BLISS_GUILD_ID))
+    @app_commands.checks.has_permissions(manage_messages=True)
+    @app_commands.describe(
+        date="Date of the announcement",
+        time="Time of the announcement",
+        news="The announcement/news message to publish",
+    )
+    async def bliss_announcement(interaction: discord.Interaction, date: str, time: str, news: str):
+        if not news.strip():
+            await interaction.response.send_message("Please provide the announcement news.", ephemeral=True)
+            return
+        if len(news) > 1500:
+            await interaction.response.send_message("Announcement news must be 1,500 characters or fewer.", ephemeral=True)
+            return
+        channel = await get_bliss_announcement_channel(interaction)
+        if channel is None:
+            return
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        content = (
+            "📢 **BLISS SMP ANNOUNCEMENT** 📢\n\n"
+            f"{news.strip()}\n\n"
+            f"🗓️ **Date:** {date.strip()}\n"
+            f"⏰ **Time:** {time.strip()}\n"
+            f"👑 Code in <#{BLISS_REALM_CODE_CHANNEL_ID}>\n\n"
+            "React with 💎 if you're joining!"
+        )
+        try:
+            posted = await channel.send(content, allowed_mentions=discord.AllowedMentions.none())
+            await posted.add_reaction("💎")
+        except (discord.Forbidden, discord.HTTPException):
+            await interaction.followup.send("I couldn't publish the announcement or add its 💎 reaction. Check my Send Messages and Add Reactions permissions.", ephemeral=True)
+            return
+        await interaction.followup.send(f"Bliss SMP announcement posted in {channel.mention}.", ephemeral=True)
+
+    @bot.tree.command(name="event", description="Post a Bliss SMP event.")
+    @app_commands.guilds(discord.Object(id=BLISS_GUILD_ID))
+    @app_commands.checks.has_permissions(manage_messages=True)
+    @app_commands.describe(
+        name="Name of the event",
+        date="Date of the event",
+        time="Time of the event",
+        prize="Optional event prize (for example, 500 gems)",
+    )
+    async def bliss_event(interaction: discord.Interaction, name: str, date: str, time: str, prize: str | None = None):
+        if not name.strip() or len(name) > 150:
+            await interaction.response.send_message("Please provide an event name (150 characters or fewer).", ephemeral=True)
+            return
+        channel = await get_bliss_announcement_channel(interaction)
+        if channel is None:
+            return
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        prize_text = prize.strip() if prize and prize.strip() else "No prize announced"
+        content = (
+            "🎪 **BLISS SMP EVENT** 🎪\n\n"
+            f"**Event:** {name.strip()}\n"
+            f"**Date:** {date.strip()}\n"
+            f"**Time:** {time.strip()}\n"
+            f"**Prize:** {prize_text}\n\n"
+            "**How to join:**\n"
+            "React with 🎪 to join!\n"
+            f"Winner announced in <#{BLISS_ANNOUNCEMENTS_CHANNEL_ID}>"
+        )
+        try:
+            posted = await channel.send(content, allowed_mentions=discord.AllowedMentions.none())
+            await posted.add_reaction("🎪")
+        except (discord.Forbidden, discord.HTTPException):
+            await interaction.followup.send("I couldn't publish the event or add its 🎪 reaction. Check my Send Messages and Add Reactions permissions.", ephemeral=True)
+            return
+        await interaction.followup.send(f"Bliss SMP event posted in {channel.mention}.", ephemeral=True)
+
     @autorole_group.command(name="set", description="Give a role to every new member.")
     @app_commands.checks.has_permissions(manage_roles=True)
     @app_commands.describe(role="Role automatically given to new members")
