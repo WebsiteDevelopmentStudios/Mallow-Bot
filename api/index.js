@@ -1,8 +1,6 @@
-import { createPublicKey, verify as verifySignature } from "node:crypto";
+const { createPublicKey, verify: verifySignature } = require("node:crypto");
 
-export const config = {
-  api: { bodyParser: false },
-};
+
 
 const ED25519_SPKI_PREFIX = Buffer.from("302a300506032b6570032100", "hex");
 
@@ -41,7 +39,7 @@ function initialResponse(type) {
   }
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method === "GET") {
     return res.status(200).json({
       ok: true,
@@ -91,3 +89,6 @@ export default async function handler(req, res) {
 
   return res.status(200).json(initialResponse(payload.type));
 }
+
+module.exports = handler;
+module.exports.config = { api: { bodyParser: false } };
