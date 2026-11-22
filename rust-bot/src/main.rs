@@ -12,7 +12,7 @@ use axum::{extract::State, http::{HeaderMap, StatusCode}, routing::post, Json, R
 use serenity::{
     cache::Cache,
     http::Http,
-    all::{Command, CommandInteraction, CommandOptionType, CreateCommand, CreateCommandOption, CreateAttachment, CreateEmbed, CreateMessage, GuildId, Interaction, Member, Message, Reaction, Ready, RoleId, User, VoiceServerUpdateEvent, VoiceState},
+    all::{Command, CommandInteraction, ComponentInteraction, CommandOptionType, CreateCommand, CreateCommandOption, CreateAttachment, CreateEmbed, CreateMessage, GuildId, Interaction, Member, Message, Reaction, Ready, RoleId, User, VoiceServerUpdateEvent, VoiceState},
     async_trait,
     prelude::*,
 };
@@ -319,24 +319,78 @@ impl EventHandler for Handler {
     }
 
     async fn interaction_create(&self, ctx: DiscordContext, interaction: Interaction) {
-        let Interaction::Command(command) = interaction else { return };
-        if self.state.premium.is_banned(command.user.id.get()).await {
-            let builder = serenity::builder::CreateInteractionResponse::Message(
-                serenity::builder::CreateInteractionResponseMessage::new()
-                    .content("This account cannot use Mallow Bot.")
-                    .ephemeral(true),
-            );
-            let _ = command.create_response(&ctx.http, builder).await;
-            return;
+        match interaction {
+            Interaction::Command(command) => {
+                if self.state.premium.is_banned(command.user.id.get()).await {
+                    let builder = serenity::builder::CreateInteractionResponse::Message(
+                        serenity::builder::CreateInteractionResponseMessage::new()
+                            .content("This account cannot use Mallow Bot.")
+                            .ephemeral(true),
+                    );
+                    let _ = command.create_response(&ctx.http, builder).await;
+                    return;
+                }
+                let guild_config = if let Some(guild_id) = command.guild_id {
+                    self.state.dashboard.guild_config(guild_id.get()).await
+                } else {
+                    config::GuildConfig::default()
+                };
+                if !community::handle(ctx.http.as_ref(), &command, &self.state.community, &self.state.premium, &guild_config, false).await {
+                    handle_command(ctx.http.as_ref(), &command, &self.state, &guild_config, false).await;
+                }
+            }
+            Interaction::Component(component) => {
+                handle_ticket_component(&ctx.http, &component, &self.state, false).await;
+            }
+            _ => {}
         }
-        let guild_config = if let Some(guild_id) = command.guild_id {
-            self.state.dashboard.guild_config(guild_id.get()).await
+    }
+}
+
+async fn handle_ticket_component(http: &Http, component: &ComponentInteraction, state: &BotState, deferred: bool) {
+    use serenity::builder::{CreateInteractionResponse, CreateInteractionResponseMessage, EditInteractionResponse};
+    let Some(guild_id) = component.guild_id.map(|id| id.get()) else { return };
+    let respond = |content: String| async move {
+        if deferred {
+            let _ = component.edit_response(http, EditInteractionResponse::new().content(content)).await;
         } else {
-            config::GuildConfig::default()
-        };
-        if !community::handle(ctx.http.as_ref(), &command, &self.state.community, &self.state.premium, &guild_config, false).await {
-            handle_command(ctx.http.as_ref(), &command, &self.state, &guild_config, false).await;
+            let _ = component.create_response(http, CreateInteractionResponse::Message(
+                CreateInteractionResponseMessage::new().content(content).ephemeral(true)
+            )).await;
         }
+    };
+    match component.data.custom_id.as_str() {
+        "mallow:ticket:open" => {
+            let cfg = state.dashboard.guild_config(guild_id).await;
+            match community::create_ticket_channel(http, guild_id, component.user.id.get(), &component.user.name, &cfg, &state.community).await {
+                Ok(channel) => respond(format!("Your private support ticket is ready: <#{channel}>.")).await,
+                Err(error) => respond(error).await,
+            }
+        }
+        "mallow:ticket:close" => {
+            let key = component.channel_id.get().to_string();
+            let Some(ticket) = state.community.record("tickets", &key) else {
+                respond("This channel is not a Mallow Bot ticket.".into()).await;
+                return;
+            };
+            let owner = ticket.get("user_id").and_then(serde_json::Value::as_u64);
+            let cfg = state.dashboard.guild_config(guild_id).await;
+            let support: Vec<u64> = cfg.tickets_config.get("support_role_ids").and_then(serde_json::Value::as_array)
+                .into_iter().flatten().filter_map(|v| v.as_u64().or_else(|| v.as_str().and_then(|s| s.parse().ok()))).collect();
+            let member = component.member.as_ref();
+            let has_manage = member.and_then(|m| m.permissions).map(|p| p.manage_channels()).unwrap_or(false);
+            let has_support = member.map(|m| m.roles.iter().any(|role| support.contains(&role.get()))).unwrap_or(false);
+            if owner != Some(component.user.id.get()) && !has_manage && !has_support {
+                respond("Only the ticket creator or configured support staff can close this ticket.".into()).await;
+                return;
+            }
+            respond("Closing this ticket in a moment…".into()).await;
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+            if component.channel_id.delete(http).await.is_ok() {
+                state.community.set_record("tickets", &key, None);
+            }
+        }
+        _ => {}
     }
 }
 
@@ -505,15 +559,26 @@ async fn http_interaction(
     if expected.is_empty() || supplied != expected {
         return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error":"unauthorized"})));
     }
+    let Some(http) = state.discord_http.read().await.clone() else {
+        return (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({"error":"Discord client is still starting"})));
+    };
+    if payload.get("type").and_then(serde_json::Value::as_u64) == Some(3) {
+        let component: ComponentInteraction = match serde_json::from_value(payload) {
+            Ok(component) => component,
+            Err(error) => {
+                warn!(%error, "Could not decode forwarded Discord component interaction");
+                return (StatusCode::BAD_REQUEST, Json(serde_json::json!({"error":"invalid component interaction"})));
+            }
+        };
+        handle_ticket_component(http.as_ref(), &component, &state, true).await;
+        return (StatusCode::OK, Json(serde_json::json!({"ok":true})));
+    }
     let command: CommandInteraction = match serde_json::from_value(payload) {
         Ok(command) => command,
         Err(error) => {
             warn!(%error, "Could not decode forwarded Discord command interaction");
             return (StatusCode::BAD_REQUEST, Json(serde_json::json!({"error":"invalid interaction"})));
         }
-    };
-    let Some(http) = state.discord_http.read().await.clone() else {
-        return (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({"error":"Discord client is still starting"})));
     };
     if state.premium.is_banned(command.user.id.get()).await {
         let _ = command.edit_response(http.as_ref(), serenity::builder::EditInteractionResponse::new().content("This account cannot use Mallow Bot.")).await;
