@@ -33,6 +33,7 @@ impl EventHandler for Handler {
     async fn ready(&self, ctx: DiscordContext, ready: Ready) {
         info!(user = %ready.user.name, "Mallow Bot Rust gateway connected");
         self.state.music.set_bot_user_id(ready.user.id.get()).await;
+        self.state.music.set_discord_http(ctx.http.clone()).await;
         let mut commands = vec![
             CreateCommand::new("ping").description("Check Mallow Bot's response time"),
             CreateCommand::new("uptime").description("Show how long Mallow Bot has been online"),
@@ -47,6 +48,7 @@ impl EventHandler for Handler {
             CreateCommand::new("queue").description("Show the current music queue"),
             CreateCommand::new("stop").description("Stop music and clear the queue"),
             CreateCommand::new("volume").description("Set the music volume").add_option(CreateCommandOption::new(CommandOptionType::Integer, "level", "Volume from 0 to 100").min_int_value(0).max_int_value(100).required(true)),
+            CreateCommand::new("lyrics").description("Toggle synchronized lyrics on or off").add_option(CreateCommandOption::new(CommandOptionType::Boolean, "enabled", "Enable or disable synchronized lyrics").required(false)),
         ];
         commands.extend(community::commands());
         if let Err(err) = Command::set_global_commands(&ctx.http, commands).await {
@@ -273,6 +275,11 @@ async fn handle_command(ctx: &DiscordContext, command: &CommandInteraction, stat
         "volume" => {
             let level = command.data.options.iter().find_map(|o| if let serenity::all::CommandDataOptionValue::Integer(value) = o.value { Some(value) } else { None }).unwrap_or(100).clamp(0,100) as u16;
             if let Some(guild) = guild { match state.music.volume(guild, level).await { Ok(text) => text, Err(error) => format!("Music error: {error}") } }
+            else { "Use this command in a server.".into() }
+        }
+        "lyrics" => {
+            let enabled = command.data.options.iter().find_map(|o| if let serenity::all::CommandDataOptionValue::Boolean(value) = o.value { Some(value) } else { None });
+            if let Some(guild) = guild { state.music.set_lyrics(guild, enabled).await }
             else { "Use this command in a server.".into() }
         }
         "ping" => format!("Pong! Gateway latency is managed by Discord; process is responsive."),
