@@ -547,7 +547,7 @@ async fn handle_command(http: &Http, command: &CommandInteraction, state: &BotSt
         },
         "commands" => "Music: /play, /join, /leave, /pause, /resume, /skip, /queue, /volume, /lyrics, /stop.\nCommunity: /xp, /leaderboard, /balance, /daily, /work, /pay, /rob, /gamble, /coinflip, /slots, /roulette, /dice, /blackjack, /vibecheck, /ship, /fortune, /wyr.\nUtility: /ping, /uptime, /commands, /sync, /tos, /say, /update, /youtube, /purge.\nServer: /rules, /autorole, /reaction-role, /announcement, /event, /ticket, /ticket-panel, /ticket-close.\nPremium: /embed, /snipe, /sticky, /backup, /custom-command, /vanity, /premium-status.".to_string(),
         "tos" => include_str!("../../TERMS_OF_SERVICE.md").chars().take(1900).collect::<String>(),
-        _ => return,
+        _ => format!("The /{} command is not available.", command.data.name),
     };
     if deferred {
         if let Err(err) = command.edit_response(http, EditInteractionResponse::new().content(content)).await {
