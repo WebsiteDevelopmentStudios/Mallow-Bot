@@ -433,14 +433,14 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
         _ => None,
     };
     if feature.and_then(|key| cfg.features.get(key).and_then(Value::as_bool)).unwrap_or(true) == false {
-        let _ = command.create_response(&http, CreateInteractionResponse::Message(CreateInteractionResponseMessage::new().content(format!("The {name} feature is disabled in this server.")).ephemeral(true))).await;
+        let _ = respond(http, command, format!("The {name} feature is disabled in this server."), true, deferred).await;
         return true;
     }
     let starting = cfg.economy_config.get("starting_money").and_then(Value::as_i64).unwrap_or(100);
     if matches!(name, "embed" | "snipe" | "sticky" | "backup" | "custom-command" | "vanity") && user_id != 1021068313071210498 {
         let (banned, active, _) = premium.status(user_id).await;
         if banned {
-            let _ = command.create_response(&ctx.http, CreateInteractionResponse::Message(CreateInteractionResponseMessage::new().content("This account cannot use Mallow Bot.").ephemeral(true))).await;
+            let _ = respond(http, command, "This account cannot use Mallow Bot.".into(), true, deferred).await;
             return true;
         }
         if !active {
