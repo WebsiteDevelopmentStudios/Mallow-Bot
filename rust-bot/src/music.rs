@@ -125,21 +125,42 @@ impl MusicManager {
 
     async fn handle_node_event(&self, text: &str) {
         let Ok(event) = serde_json::from_str::<Value>(text) else { return };
-        match event.get("op").and_then(Value::as_str) {
-            Some("ready") => {
-                if let Some(session) = event.get("sessionId").and_then(Value::as_str) {
-                    *self.node_session.write().await = Some(session.to_string());
-                    info!("Lavalink session initialized.");
-                    let guilds: Vec<u64> = self.players.lock().await.keys().copied().collect();
-                    for guild in guilds { self.try_start(guild).await; }
+        if event.get("op").and_then(Value::as_str) == Some("ready") {
+            if let Some(session) = event.get("sessionId").and_then(Value::as_str) {
+                *self.node_session.write().await = Some(session.to_string());
+                info!("Lavalink session initialized.");
+                let guilds: Vec<u64> = self.players.lock().await.keys().copied().collect();
+                for guild in guilds { self.try_start(guild).await; }
+            }
+            return;
+        }
+        if event.get("op").and_then(Value::as_str) != Some("event") { return; }
+        let event_type = event.get("type").and_then(Value::as_str).unwrap_or("");
+        let guild_id = event.get("guildId").and_then(Value::as_str).and_then(|value| value.parse::<u64>().ok());
+        match event_type {
+            "TrackEndEvent" => {
+                let finished = event.get("reason").and_then(Value::as_str)
+                    .map(|reason| reason.eq_ignore_ascii_case("finished") || reason.eq_ignore_ascii_case("loadfailed"))
+                    .unwrap_or(false);
+                if finished {
+                    if let Some(guild) = guild_id { self.advance(guild).await; }
                 }
             }
-            Some("event") if event.get("type").and_then(Value::as_str) == Some("TrackEndEvent") => {
-                if event.get("reason").and_then(Value::as_str).map(|v| v.eq_ignore_ascii_case("finished") || v.eq_ignore_ascii_case("loadfailed")).unwrap_or(false) {
-                    if let Some(guild) = event.get("guildId").and_then(Value::as_str).and_then(|v| v.parse::<u64>().ok()) {
-                        self.advance(guild).await;
-                    }
+            "TrackExceptionEvent" | "TrackStuckEvent" => {
+                let detail = event.get("exception").and_then(|value| value.get("message")).and_then(Value::as_str)
+                    .or_else(|| event.get("thresholdMs").and_then(Value::as_u64).map(|_| "Track exceeded the configured stuck threshold."));
+                warn!(guild_id, event_type, detail = detail.unwrap_or("Lavalink playback error"), "Lavalink track failed; advancing the queue");
+                if let Some(guild) = guild_id {
+                    let encoded = event.get("track").and_then(Value::as_str);
+                    let should_advance = self.players.lock().await.get(&guild)
+                        .and_then(|player| player.current.as_ref())
+                        .map(|track| encoded.map(|value| value == track.encoded).unwrap_or(true))
+                        .unwrap_or(false);
+                    if should_advance { self.advance(guild).await; }
                 }
+            }
+            "WebSocketClosedEvent" => {
+                warn!(guild_id, code = ?event.get("code"), reason = ?event.get("reason"), "Lavalink player WebSocket closed");
             }
             _ => {}
         }
