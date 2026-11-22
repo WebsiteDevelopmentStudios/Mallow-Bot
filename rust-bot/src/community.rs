@@ -84,6 +84,17 @@ impl CommunityStore {
         })
     }
 
+    pub fn set_record(&self, namespace: &str, key: &str, value: Option<Value>) {
+        self.mutate(|data| {
+            if let Some(value) = value { data[namespace][key] = value; }
+            else if let Some(items) = data.get_mut(namespace).and_then(Value::as_object_mut) { items.remove(key); }
+        });
+    }
+
+    pub fn record(&self, namespace: &str, key: &str) -> Option<Value> {
+        self.read(|data| data.get(namespace).and_then(|v| v.get(key)).cloned())
+    }
+
     pub fn set_autorole(&self, guild: u64, role: Option<u64>) {
         self.mutate(|data| {
             if let Some(role) = role { data["autoroles"][guild.to_string()] = json!(role); }
