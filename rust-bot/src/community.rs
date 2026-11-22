@@ -369,12 +369,12 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
     true
 }
 
-async fn create_ticket_channel(ctx: &Context, guild_id: u64, user_id: u64, username: &str, cfg: &GuildConfig, store: &CommunityStore) -> Result<u64, String> {
+async fn create_ticket_channel(http: &Http, guild_id: u64, user_id: u64, username: &str, cfg: &GuildConfig, store: &CommunityStore) -> Result<u64, String> {
     if cfg.tickets_config.get("enabled").and_then(Value::as_bool) != Some(true) {
         return Err("Tickets are disabled for this server.".into());
     }
     let guild = serenity::all::GuildId::new(guild_id);
-    let bot = ctx.http.get_current_user().await.map_err(|_| "I couldn't identify the bot account.".to_string())?;
+    let bot = http.get_current_user().await.map_err(|_| "I couldn't identify the bot account.".to_string())?;
     let mut overwrites = vec![
         PermissionOverwrite { allow: Permissions::empty(), deny: Permissions::VIEW_CHANNEL, kind: PermissionOverwriteType::Role(RoleId::new(guild_id)) },
         PermissionOverwrite { allow: Permissions::VIEW_CHANNEL | Permissions::SEND_MESSAGES | Permissions::READ_MESSAGE_HISTORY, deny: Permissions::empty(), kind: PermissionOverwriteType::Member(UserId::new(user_id)) },
@@ -395,7 +395,7 @@ async fn create_ticket_channel(ctx: &Context, guild_id: u64, user_id: u64, usern
     }
     let channel = guild.create_channel(http, builder).await.map_err(|_| "I couldn't create the private ticket channel. Check Manage Channels and permission settings.".to_string())?;
     let welcome = cfg.tickets_config.get("welcome_message").and_then(Value::as_str).unwrap_or("Thanks for opening a ticket. A staff member will be with you soon.");
-    let _ = channel.id.say(&ctx.http, format!("<@{user_id}>\n{welcome}")).await;
+    let _ = channel.id.say(http, format!("<@{user_id}>\n{welcome}")).await;
     store.set_record("tickets", &channel.id.get().to_string(), Some(json!({"guild_id":guild_id,"user_id":user_id,"opened_at":now_seconds()})));
     Ok(channel.id.get())
 }
