@@ -346,6 +346,72 @@ pub async fn handle(ctx: &Context, command: &CommandInteraction, store: &Communi
             if user_id == 1021068313071210498 { "Mallow Premium: developer access is enabled.".into() }
             else { let (_, active, expires) = premium.status(user_id).await; if active { format!("Mallow Premium is active. Expires: {}.", expires.unwrap_or_else(|| "unknown".into())) } else { "Mallow Premium is not active for your Discord account. Get Premium at https://mallowbot.kz.ci/subscriptions.html".into() } }
         },
+        "vanity" => {
+            let permitted = command.member.as_ref().and_then(|member| member.permissions).map(|p| p.manage_guild()).unwrap_or(false);
+            if !permitted { "You need Manage Server permission to use this command.".into() }
+            else {
+                let tagline = command.data.options.iter().find_map(|option| match &option.value { CommandDataOptionValue::String(value) => Some(value.as_str()), _ => None }).unwrap_or("").trim();
+                if !tagline.is_empty() { store.set_record("vanity", &guild_id.to_string(), Some(json!(tagline.chars().take(160).collect::<String>()))); }
+                let current = store.record("vanity", &guild_id.to_string()).and_then(|v| v.as_str().map(str::to_owned)).unwrap_or_else(|| "No tagline set.".into());
+                format!("Server tagline: {current}")
+            }
+        }
+        "sticky" => {
+            let permitted = command.member.as_ref().and_then(|member| member.permissions).map(|p| p.manage_messages()).unwrap_or(false);
+            if !permitted { "You need Manage Messages permission to use this command.".into() }
+            else {
+                let text = command.data.options.iter().find_map(|option| match &option.value { CommandDataOptionValue::String(value) => Some(value.as_str()), _ => None }).unwrap_or("").trim();
+                let key = command.channel_id.get().to_string();
+                if text.is_empty() { store.set_record("sticky_messages", &key, None); "Sticky message cleared for this channel.".into() }
+                else {
+                    let content = text.chars().take(1800).collect::<String>();
+                    match command.channel_id.send_message(&ctx.http, CreateMessage::new().content(&content)).await {
+                        Ok(posted) => { store.set_record("sticky_messages", &key, Some(json!({"guild_id":guild_id,"content":content,"message_id":posted.id.get()}))); "Sticky message set.".into() }
+                        Err(_) => "I couldn't post the sticky message. Check my channel permissions.".into()
+                    }
+                }
+            }
+        }
+        "custom-command" => {
+            let permitted = command.member.as_ref().and_then(|member| member.permissions).map(|p| p.manage_guild()).unwrap_or(false);
+            if !permitted { "You need Manage Server permission to use this command.".into() }
+            else {
+                let values: Vec<&str> = command.data.options.iter().filter_map(|option| match &option.value { CommandDataOptionValue::String(value) => Some(value.as_str()), _ => None }).collect();
+                let action = values.first().copied().unwrap_or("");
+                let name = values.get(1).copied().unwrap_or("").to_lowercase();
+                let key = format!("{guild_id}:{name}");
+                match action {
+                    "list" => "Custom commands are stored for this server.".into(),
+                    "delete" => { store.set_record("custom_commands", &key, None); format!("Deleted custom command {name}.") }
+                    "create" if !name.is_empty() && values.get(2).is_some() => {
+                        store.set_record("custom_commands", &key, Some(json!(values[2].chars().take(1500).collect::<String>())));
+                        format!("Created custom command {name}.")
+                    }
+                    _ => "Choose Create, List, or Delete. Create and Delete also require a command name.".into()
+                }
+            }
+        }
+        "embed" => {
+            let permitted = command.member.as_ref().and_then(|member| member.permissions).map(|p| p.manage_messages()).unwrap_or(false);
+            if !permitted { "You need Manage Messages permission to use this command.".into() }
+            else {
+                let values: Vec<&str> = command.data.options.iter().filter_map(|option| match &option.value { CommandDataOptionValue::String(value) => Some(value.as_str()), _ => None }).collect();
+                let title = values.first().copied().unwrap_or("Mallow Bot");
+                let description = values.get(1).copied().unwrap_or("");
+                let embed = CreateEmbed::new().title(title.chars().take(256).collect::<String>()).description(description.chars().take(4000).collect::<String>());
+                match command.channel_id.send_message(&ctx.http, CreateMessage::new().embed(embed)).await {
+                    Ok(_) => "Embed sent.".into(),
+                    Err(_) => "I couldn't send the embed. Check my channel permissions.".into()
+                }
+            }
+        }
+        "snipe" => {
+            match store.record("snipes", &command.channel_id.get().to_string()) {
+                Some(value) => format!("Recently deleted message: {}", value.get("content").and_then(Value::as_str).unwrap_or("[No text content]")),
+                None => "There is no recently deleted message saved for this channel.".into()
+            }
+        }
+        "backup" => "Server layout export is being migrated; this command is not yet available in the Rust runtime.".into(),
         _ => return false,
     };
     let builder = CreateInteractionResponse::Message(CreateInteractionResponseMessage::new().content(response));
