@@ -26,12 +26,12 @@ def load():
     try:
         value = json.loads(DATA_FILE.read_text(encoding="utf-8"))
         if isinstance(value, dict):
-            for key in ("xp", "currency", "log_channels", "dm_routes", "timeout_minutes", "last_xp", "daily_claims", "snipes", "sticky_messages", "custom_commands", "vanity", "autoroles", "reaction_roles", "swears"):
+            for key in ("xp", "currency", "log_channels", "dm_routes", "timeout_minutes", "last_xp", "daily_claims", "snipes", "sticky_messages", "custom_commands", "vanity", "autoroles", "reaction_roles", "rules", "swears"):
                 value.setdefault(key, {})
             return value
     except (OSError, json.JSONDecodeError):
         pass
-    return {key: {} for key in ("xp", "currency", "log_channels", "dm_routes", "timeout_minutes", "last_xp", "daily_claims", "snipes", "sticky_messages", "custom_commands", "vanity", "autoroles", "reaction_roles", "swears") }
+    return {key: {} for key in ("xp", "currency", "log_channels", "dm_routes", "timeout_minutes", "last_xp", "daily_claims", "snipes", "sticky_messages", "custom_commands", "vanity", "autoroles", "reaction_roles", "rules", "swears") }
 
 data = load()
 _last_description = None
@@ -701,6 +701,64 @@ def setup(bot):
         me = guild.me
         return bool(me and me.guild_permissions.manage_roles and not role.is_default() and not role.managed and role < me.top_role)
 
+    @bot.tree.command(name="rules", description="Enable or disable reaction-based rules verification.")
+    @app_commands.checks.has_permissions(manage_roles=True)
+    @app_commands.describe(
+        enabled="True enables role verification; false disables new role grants",
+        message_id="ID of the rules message",
+        emoji="Unicode or custom emoji users must react with",
+        role="Role granted while the reaction is present",
+    )
+    async def rules_verification(interaction: discord.Interaction, enabled: bool, message_id: str, emoji: str, role: discord.Role):
+        guild = interaction.guild
+        if guild is None:
+            await interaction.response.send_message("Use this command in a server.", ephemeral=True)
+            return
+        if not message_id.isdigit():
+            await interaction.response.send_message("Message ID must contain only numbers.", ephemeral=True)
+            return
+        if not role_is_assignable(guild, role):
+            await interaction.response.send_message("I can't assign that role. Make sure Mallow has Manage Roles and its highest role is above the selected role.", ephemeral=True)
+            return
+        emoji_value = str(discord.PartialEmoji.from_str(emoji.strip()))
+        if not emoji_value or len(emoji_value) > 100:
+            await interaction.response.send_message("Enter a valid Unicode emoji or custom emoji.", ephemeral=True)
+            return
+        channel = interaction.channel
+        message = None
+        for candidate in guild.text_channels:
+            try:
+                message = await candidate.fetch_message(int(message_id))
+                channel = candidate
+                break
+            except discord.NotFound:
+                continue
+            except (discord.Forbidden, discord.HTTPException):
+                continue
+        if message is None:
+            await interaction.response.send_message("I couldn't find that message in a channel I can access. Make sure the message ID is correct and Mallow can view its channel.", ephemeral=True)
+            return
+        if enabled:
+            try:
+                await message.add_reaction(emoji_value)
+            except (discord.Forbidden, discord.HTTPException):
+                await interaction.response.send_message("I couldn't add the verification reaction. Check my View Channel, Read Message History, and Add Reactions permissions, and make sure I can use that custom emoji.", ephemeral=True)
+                return
+        data.setdefault("rules", {})[message_id] = {
+            "guild_id": str(guild.id),
+            "channel_id": str(channel.id),
+            "emoji": emoji_value,
+            "role_id": role.id,
+            "enabled": bool(enabled),
+        }
+        save()
+        state = "enabled" if enabled else "disabled"
+        await interaction.response.send_message(
+            f"Rules verification {state} for {message.jump_url}. "
+            + (f"React with {emoji_value} to receive {role.mention}; remove your reaction to lose it." if enabled else "New reactions will no longer grant the role; removing an existing reaction will still remove it."),
+            ephemeral=True,
+        )
+
     @autorole_group.command(name="set", description="Give a role to every new member.")
     @app_commands.checks.has_permissions(manage_roles=True)
     @app_commands.describe(role="Role automatically given to new members")
@@ -850,10 +908,18 @@ def setup(bot):
     async def reaction_role_listener(payload: discord.RawReactionActionEvent, *, added: bool):
         if payload.guild_id is None or bot.user is None or payload.user_id == bot.user.id:
             return
-        panel = data["reaction_roles"].get(str(payload.message_id))
-        if not panel or panel.get("guild_id") != str(payload.guild_id):
-            return
-        role_id = panel.get("roles", {}).get(str(payload.emoji))
+        rules = data.get("rules", {}).get(str(payload.message_id))
+        if rules and rules.get("guild_id") == str(payload.guild_id):
+            if str(rules.get("emoji")) != str(payload.emoji):
+                return
+            if added and not rules.get("enabled", True):
+                return
+            role_id = rules.get("role_id")
+        else:
+            panel = data["reaction_roles"].get(str(payload.message_id))
+            if not panel or panel.get("guild_id") != str(payload.guild_id):
+                return
+            role_id = panel.get("roles", {}).get(str(payload.emoji))
         if not str(role_id or "").isdigit():
             return
         guild = bot.get_guild(payload.guild_id)
