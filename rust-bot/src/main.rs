@@ -275,9 +275,9 @@ impl EventHandler for Handler {
         let is_prefix = content.to_lowercase().starts_with(&cfg.prefix.to_lowercase());
         if !content.is_empty() && cfg.features.get("xp").and_then(|v| v.as_bool()).unwrap_or(true) {
             let cooldown = cfg.xp_config.get("cooldown_seconds").and_then(|v| v.as_u64()).unwrap_or(60);
-            let min_xp = cfg.xp_config.get("min_xp").and_then(serde_json::Value::as_i64).unwrap_or(10).max(0);
-            let max_xp = cfg.xp_config.get("max_xp").and_then(serde_json::Value::as_i64).unwrap_or(20).max(min_xp);
-            let add = min_xp + (message.id.get() % (max_xp - min_xp + 1).max(1) as u64) as i64;
+            let min_xp = cfg.xp_config.get("min_xp").and_then(serde_json::Value::as_i64).unwrap_or(10).clamp(0, 10_000);
+            let max_xp = cfg.xp_config.get("max_xp").and_then(serde_json::Value::as_i64).unwrap_or(20).clamp(min_xp, 10_000);
+            let add = if max_xp <= min_xp { min_xp } else { rand::Rng::gen_range(&mut rand::thread_rng(), min_xp..=max_xp) };
             if let Some((old, new)) = self.state.community.add_xp(guild_id, message.author.id.get(), add, cooldown) {
                 let old_level = ((old.max(0) as f64 / 100.0).sqrt()) as i64;
                 let new_level = ((new.max(0) as f64 / 100.0).sqrt()) as i64;
