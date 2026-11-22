@@ -411,7 +411,38 @@ pub async fn handle(ctx: &Context, command: &CommandInteraction, store: &Communi
                 None => "There is no recently deleted message saved for this channel.".into()
             }
         }
-        "backup" => "Server layout export is being migrated; this command is not yet available in the Rust runtime.".into(),
+        "backup" => {
+            let permitted = command.member.as_ref().and_then(|member| member.permissions).map(|p| p.administrator()).unwrap_or(false);
+            if !permitted { "You need Administrator permission to use this command.".into() }
+            else {
+                match command.guild_id.unwrap().channels(&ctx.http).await {
+                    Ok(channels) => {
+                        let payload = json!({
+                            "guild_id": guild_id.to_string(),
+                            "created_at": now_seconds(),
+                            "channels": channels.values().map(|channel| json!({
+                                "id": channel.id.get(),
+                                "name": channel.name,
+                                "type": format!("{:?}", channel.kind),
+                                "position": channel.position,
+                                "parent_id": channel.parent_id.map(|id| id.get()),
+                                "topic": channel.topic
+                            })).collect::<Vec<_>>()
+                        });
+                        match serde_json::to_vec_pretty(&payload) {
+                            Ok(bytes) => {
+                                let attachment = CreateAttachment::bytes(bytes, format!("mallow-backup-{guild_id}.json"));
+                                if command.channel_id.send_message(&ctx.http, CreateMessage::new().content("Server channel-layout export attached. This is not a full permission or message restore backup.").add_file(attachment)).await.is_ok() {
+                                    "Server layout export attached.".into()
+                                } else { "I couldn't attach the server backup. Check my channel permissions.".into() }
+                            }
+                            Err(_) => "I couldn't serialize the server backup.".into()
+                        }
+                    }
+                    Err(_) => "I couldn't read this server's channel layout. Check my permissions.".into()
+                }
+            }
+        },
         _ => return false,
     };
     let builder = CreateInteractionResponse::Message(CreateInteractionResponseMessage::new().content(response));
