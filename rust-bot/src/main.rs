@@ -229,7 +229,52 @@ impl EventHandler for Handler {
 
 async fn handle_command(ctx: &DiscordContext, command: &CommandInteraction, state: &BotState) {
     use serenity::builder::{CreateInteractionResponse, CreateInteractionResponseMessage};
+    let guild = command.guild_id.map(|id| id.get());
+    let voice_channel = command.guild_id.and_then(|guild_id| {
+        ctx.cache.guild(guild_id).and_then(|cached| cached.voice_states.get(&command.user.id).and_then(|state| state.channel_id))
+    });
     let content = match command.data.name.as_str() {
+        "play" => {
+            match (guild, voice_channel) {
+                (Some(guild), Some(channel)) => {
+                    let song = command.data.options.iter().find_map(|o| if let serenity::all::CommandDataOptionValue::String(value) = &o.value { Some(value.as_str()) } else { None }).unwrap_or("");
+                    music::MusicManager::request_voice_channel(ctx, guild, Some(channel.get()));
+                    match state.music.enqueue(guild, song).await { Ok(text) => text, Err(error) => format!("Music error: {error}") }
+                }
+                _ => "Join a voice channel first, then use /play.".into()
+            }
+        }
+        "join" => {
+            match (guild, voice_channel) {
+                (Some(guild), Some(channel)) => { music::MusicManager::request_voice_channel(ctx, guild, Some(channel.get())); "Joining your voice channel.".into() }
+                _ => "Join a voice channel first.".into()
+            }
+        }
+        "leave" => {
+            if let Some(guild) = guild { music::MusicManager::request_voice_channel(ctx, guild, None); let _ = state.music.stop(guild).await; "Leaving the voice channel and clearing the queue.".into() }
+            else { "Use this command in a server.".into() }
+        }
+        "pause" | "resume" => {
+            if let Some(guild) = guild { match state.music.pause(guild, command.data.name == "pause").await { Ok(text) => text, Err(error) => format!("Music error: {error}") } }
+            else { "Use this command in a server.".into() }
+        }
+        "skip" => {
+            if let Some(guild) = guild { match state.music.skip(guild).await { Ok(text) => text, Err(error) => format!("Music error: {error}") } }
+            else { "Use this command in a server.".into() }
+        }
+        "stop" => {
+            if let Some(guild) = guild { match state.music.stop(guild).await { Ok(text) => text, Err(error) => format!("Music error: {error}") } }
+            else { "Use this command in a server.".into() }
+        }
+        "queue" => {
+            if let Some(guild) = guild { state.music.queue_text(guild).await }
+            else { "Use this command in a server.".into() }
+        }
+        "volume" => {
+            let level = command.data.options.iter().find_map(|o| if let serenity::all::CommandDataOptionValue::Integer(value) = o.value { Some(value) } else { None }).unwrap_or(100).clamp(0,100) as u16;
+            if let Some(guild) = guild { match state.music.volume(guild, level).await { Ok(text) => text, Err(error) => format!("Music error: {error}") } }
+            else { "Use this command in a server.".into() }
+        }
         "ping" => format!("Pong! Gateway latency is managed by Discord; process is responsive."),
         "uptime" => {
             let elapsed = state.started.elapsed();
