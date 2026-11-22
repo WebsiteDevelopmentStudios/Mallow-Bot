@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: mallow-bot-rust
+    name: mochi-bot
     runtime: docker
     plan: free
     region: oregon
