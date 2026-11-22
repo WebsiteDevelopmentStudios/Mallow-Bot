@@ -624,15 +624,35 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
             store.set_balance(guild_id, user_id, next);
             format!("You worked a shift and earned {earned} Mallow Coins. Balance: {next}.")
         }
-        "gamble" | "coinflip" => {
-            let bet = argument.parse::<i64>().unwrap_or(10);
+        "gamble" | "coinflip" | "slots" | "roulette" | "dice" | "blackjack" => {
+            let bet = argument.split_whitespace().next().and_then(|v| v.parse::<i64>().ok()).unwrap_or(10);
             let balance = store.balance(guild_id, user_id, starting);
             if bet < 1 || bet > balance { format!("Bet must be between 1 and your balance ({balance}).") }
-            else { let won = pseudo_roll(2) == 0; let next = if won { balance + bet } else { balance - bet }; store.set_balance(guild_id, user_id, next); format!("{} Balance: {next} Mallow Coins.", if won { format!("You won {bet} Mallow Coins.") } else { format!("You lost {bet} Mallow Coins.") }) }
+            else {
+                let (payout, detail) = match command.as_str() {
+                    "slots" => {
+                        let a = pseudo_roll(5); let b = pseudo_roll(5); let c = pseudo_roll(5);
+                        let symbols = ["cherry", "lemon", "grape", "bell", "seven"];
+                        let payout = if a == b && b == c { bet * 5 } else if a == b || b == c || a == c { bet * 2 } else { 0 };
+                        (payout, format!("{} · {} · {}", symbols[a as usize], symbols[b as usize], symbols[c as usize]))
+                    }
+                    "roulette" => { let roll = pseudo_roll(37); (if roll % 2 == 0 { bet * 2 } else { 0 }, format!("Roulette landed on {roll} ({}).", if roll % 2 == 0 { "even" } else { "odd" })) }
+                    "dice" => { let roll = pseudo_roll(6) + 1; (if roll >= 4 { bet * 2 } else { 0 }, format!("You rolled {roll}.")) }
+                    "blackjack" => { let player = 12 + pseudo_roll(10); let dealer = 15 + pseudo_roll(7); (if player > dealer { bet * 2 } else { 0 }, format!("You: {player} · Dealer: {dealer}.")) }
+                    _ => { let won = pseudo_roll(2) == 0; (if won { bet * 2 } else { 0 }, if won { "Heads!".into() } else { "Tails!".into() }) }
+                };
+                let next = balance - bet + payout;
+                store.set_balance(guild_id, user_id, next);
+                format!("{detail} {} Balance: {next} Mallow Coins.", if payout > 0 { format!("Won {payout} Mallow Coins.") } else { format!("Lost {bet} Mallow Coins.") })
+            }
         }
         "fortune" => {
-            let fortunes = ["A pleasant surprise is closer than you think.", "Your next idea will be your best one yet.", "Patience will pay off.", "A small win is still a win."];
-            fortunes[pseudo_roll(fortunes.len() as u64) as usize].to_string()
+            let fortunes = ["A plot twist is closer than you think.", "Today, your side quest becomes the main story.", "The next message you send will be oddly important.", "A small win is loading.", "Your future contains snacks and questionable decisions.", "The universe says yes, but asks you to read the patch notes first.", "Someone in this server owes you a high five.", "Avoid suspiciously confident people bearing spoilers."];
+            format!("Your Mallow Bot fortune: {}", fortunes[pseudo_roll(fortunes.len() as u64) as usize])
+        }
+        "wyr" => {
+            let questions = ["Would you rather pause time or rewind it by one minute?", "Would you rather explore the deepest ocean or travel to the edge of space?", "Would you rather speak every language or play every instrument?", "Would you rather have unlimited free travel or a fully paid dream home?", "Would you rather know every answer or solve any puzzle?", "Would you rather live one year in the past or one year in the future?"];
+            questions[pseudo_roll(questions.len() as u64) as usize].to_string()
         }
         "pay" => {
             let target = message.mentions.first().map(|user| user.id.get());
@@ -650,7 +670,7 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
             } else { "Mention a member to pay. Usage: -mb pay @member amount".into() }
         }
         "rob" => {
-            if let Some(target) = message.mentions.first().map(|user| user.id.get()) {
+            if let Some(target) = message.mentions.first().filter(|user| !user.bot).map(|user| user.id.get()) {
                 let target_balance = store.balance(guild_id, target, starting);
                 if target == user_id { "You cannot rob yourself.".into() }
                 else if target_balance < 1 { "That member has no Mallow Coins to steal.".into() }
@@ -660,29 +680,33 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
                     store.set_balance(guild_id, target, target_balance - stolen);
                     store.set_balance(guild_id, user_id, own + stolen);
                     format!("You stole {stolen} Mallow Coins from <@{target}>.")
-                } else { "The robbery failed. You got away empty-handed.".into() }
+                } else {
+                    let own = store.balance(guild_id, user_id, starting);
+                    let fine = own.min(25);
+                    store.set_balance(guild_id, user_id, own - fine);
+                    format!("The robbery failed. You paid a {fine}-coin fine.")
+                }
             } else { "Mention a member to rob. Usage: -mb rob @member".into() }
         }
         "vibecheck" => {
-            let target = command.data.options.iter().find_map(|o| if o.name == "member" { if let CommandDataOptionValue::User(id) = &o.value { Some(id.get()) } else { None } } else { None }).unwrap_or(user_id);
+            let target = message.mentions.first().map(|user| user.name.as_str()).unwrap_or(message.author.name.as_str());
             let score = pseudo_roll(101);
             let verdict = if score >= 90 { "legendary energy" } else if score >= 70 { "main-character energy" } else if score >= 40 { "mysterious side-character energy" } else { "needs a snack and a nap" };
-            format!("Vibe scan for <@{target}>: **{score}/100** — {verdict}.")
+            format!("Vibe scan for **{target}**: **{score}/100** — {verdict}.")
         },
         "ship" => {
-            let target = command.data.options.iter().find_map(|o| if o.name == "member" { if let CommandDataOptionValue::User(id) = o.value { Some(id.get()) } else { None } } else { None });
-            if let Some(target) = target {
-                if target == user_id { "Choose another member. This is just for fun!".into() }
-                else {
-                    let pair = format!("{}:{}:{}", user_id.min(target), user_id.max(target), guild_id);
-                    let hash = pair.bytes().fold(2166136261u64, |acc, byte| (acc ^ byte as u64).wrapping_mul(16777619));
-                    let score = hash % 101;
-                    let verdict = if score >= 90 { "cinematic soulmates" } else if score >= 70 { "power couple material" } else if score >= 40 { "chaotic duo" } else { "unlikely pairing" };
-                    format!("<@{user_id}> + <@{target}> = **{score}%** — {verdict}. (For fun only!)")
-                }
-            } else { "Choose another member to ship with.".into() }
+            let targets = &message.mentions;
+            let (first, second) = if targets.len() >= 2 { (&targets[0], &targets[1]) }
+                else if let Some(target) = targets.first() { (&message.author, target) }
+                else { return false };
+            if first.bot || second.bot || first.id == second.id { "Choose two different human members. This is just for fun!".into() }
+            else {
+                let score = pseudo_roll(101);
+                let verdict = if score >= 90 { "cinematic soulmates" } else if score >= 70 { "power couple material" } else if score >= 40 { "chaotic duo" } else { "unlikely pairing" };
+                format!("**{} + {}** = **{score}%** — {verdict}. (For fun only!)", first.name, second.name)
+            }
         },
-        "help" | "commands" => "Commands: xp, leaderboard, balance, daily, work, gamble, coinflip, fortune, vibecheck, ship, update.".into(),
+        "help" | "commands" => "Music: play, join, leave, pause, resume, skip, queue, volume, lyrics, stop.\nCommunity: xp, level, leaderboard, swears, swear-leaderboard, balance, daily, work, gamble, coinflip, slots, roulette, dice, blackjack, pay, rob.\nFun: vibecheck, ship, fortune, wyr.\nUtilities: youtube, premium-status, embed, snipe, sticky, backup, custom-command, vanity, dm, set-log, timeout-minutes, update.".into(),
         "update" => std::fs::read_to_string("update.txt").unwrap_or_else(|_| "No update log is available right now.".into()).chars().take(1900).collect::<String>(),
         _ => return false,
     };
