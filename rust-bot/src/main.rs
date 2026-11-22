@@ -3,6 +3,7 @@ mod community;
 mod dashboard;
 mod health;
 mod music;
+mod member_cards;
 mod premium;
 mod tasks;
 
@@ -11,7 +12,7 @@ use axum::{extract::State, http::{HeaderMap, StatusCode}, routing::post, Json, R
 use serenity::{
     cache::Cache,
     http::Http,
-    all::{Command, CommandInteraction, CommandOptionType, CreateCommand, CreateCommandOption, CreateEmbed, CreateMessage, GuildId, Interaction, Member, Message, Reaction, Ready, RoleId, User, VoiceServerUpdateEvent, VoiceState},
+    all::{Command, CommandInteraction, CommandOptionType, CreateCommand, CreateCommandOption, CreateAttachment, CreateEmbed, CreateMessage, GuildId, Interaction, Member, Message, Reaction, Ready, RoleId, User, VoiceServerUpdateEvent, VoiceState},
     async_trait,
     prelude::*,
 };
@@ -89,7 +90,7 @@ impl EventHandler for Handler {
         let server = guild.as_ref().map(|g| g.name.as_str()).unwrap_or("the server");
         let count = guild.as_ref().and_then(|g| g.approximate_member_count).unwrap_or(0);
         let user = format!("<@{}>", member.user.id.get());
-        let template = messages.get("welcome_message").and_then(|v| v.as_str()).unwrap_or("Welcome {user} to {server}!");
+        let template = messages.get("welcome_message").and_then(|v| v.as_str()).unwrap_or("╭─〔 👤 **Welcomer** 〕─╮\n│ WELCOME {user} TO {server}!!\n│ we now have {member_count} members!!!\n╰──────────────────────────╯");
         let body = template.replace("{user}", &user).replace("{server}", server).replace("{member_count}", &count.to_string());
         let title = messages.get("welcome_title").and_then(|v| v.as_str()).unwrap_or("");
         let mut embed = if is_bliss {
@@ -103,9 +104,20 @@ impl EventHandler for Handler {
             CreateEmbed::new().description(body.chars().take(4000).collect::<String>())
         };
         if !is_bliss && !title.is_empty() { embed = embed.title(title.chars().take(256).collect::<String>()); }
-        let builder = CreateMessage::new().embed(embed);
-        if let Err(error) = serenity::all::ChannelId::new(channel).send_message(&ctx.http, builder).await {
-            warn!(%error, guild_id, "Could not send configured welcome message");
+        let image_url = messages.get("welcome_image_url").and_then(|v| v.as_str()).unwrap_or("https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/dashboard/Welcome.png");
+        let avatar_url = member.user.avatar_url().unwrap_or_else(|| "https://cdn.discordapp.com/embed/avatars/0.png".into());
+        let member_number = count.max(1);
+        if let Some(card) = member_cards::render(image_url, &avatar_url, &member.user.name, member_number, false).await {
+            embed = embed.image("attachment://mallow-member-card.png");
+            let builder = CreateMessage::new().embed(embed).add_file(CreateAttachment::bytes(card, "mallow-member-card.png"));
+            if let Err(error) = serenity::all::ChannelId::new(channel).send_message(&ctx.http, builder).await {
+                warn!(%error, guild_id, "Could not send rendered welcome card");
+            }
+        } else {
+            embed = embed.thumbnail(&avatar_url).image(image_url).footer(serenity::builder::CreateEmbedFooter::new(format!("{} · This user is #{} on the server", member.user.name, member_number)));
+            if let Err(error) = serenity::all::ChannelId::new(channel).send_message(&ctx.http, CreateMessage::new().embed(embed)).await {
+                warn!(%error, guild_id, "Could not send fallback welcome message");
+            }
         }
     }
 
