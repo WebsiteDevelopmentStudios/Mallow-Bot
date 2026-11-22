@@ -121,20 +121,33 @@ impl EventHandler for Handler {
         }
     }
 
-    async fn guild_member_removal(&self, ctx: DiscordContext, guild_id: GuildId, user: User, _member: Option<Member>) {
+    async fn guild_member_removal(&self, ctx: DiscordContext, guild_id: GuildId, user: User, member: Option<Member>) {
         let cfg = self.state.dashboard.guild_config(guild_id.get()).await;
         let messages = &cfg.messages_config;
         if messages.get("goodbye_enabled").and_then(|v| v.as_bool()) != Some(true) { return; }
         let Some(channel) = messages.get("goodbye_channel_id").and_then(|v| v.as_str()).and_then(|v| v.parse::<u64>().ok()) else { return };
         let guild = guild_id.to_partial_guild(&ctx.http).await.ok();
         let server = guild.as_ref().map(|g| g.name.as_str()).unwrap_or("the server");
+        let display_name = member.as_ref().and_then(|m| m.nick.as_deref()).unwrap_or(&user.name);
         let template = messages.get("goodbye_message").and_then(|v| v.as_str()).unwrap_or("{user} left {server}.");
-        let body = template.replace("{user}", &format!("<@{}>", user.id.get())).replace("{server}", server);
+        let body = template.replace("{user}", display_name).replace("{server}", server).replace("{member_count}", &guild.as_ref().and_then(|g| g.approximate_member_count).unwrap_or(0).to_string());
         let title = messages.get("goodbye_title").and_then(|v| v.as_str()).unwrap_or("");
         let mut embed = CreateEmbed::new().description(body.chars().take(4000).collect::<String>());
         if !title.is_empty() { embed = embed.title(title.chars().take(256).collect::<String>()); }
-        if let Err(error) = serenity::all::ChannelId::new(channel).send_message(&ctx.http, CreateMessage::new().embed(embed)).await {
-            warn!(%error, guild_id = guild_id.get(), "Could not send configured goodbye message");
+        let image_url = messages.get("goodbye_image_url").or_else(|| messages.get("welcome_image_url")).and_then(|v| v.as_str()).unwrap_or("https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/dashboard/Welcome.png");
+        let avatar_url = user.avatar_url().unwrap_or_else(|| "https://cdn.discordapp.com/embed/avatars/0.png".into());
+        let member_number = guild.as_ref().and_then(|g| g.approximate_member_count).unwrap_or(0).saturating_add(1).max(1);
+        if let Some(card) = member_cards::render(image_url, &avatar_url, display_name, member_number, true).await {
+            embed = embed.image("attachment://mallow-member-card.png");
+            let builder = CreateMessage::new().embed(embed).add_file(CreateAttachment::bytes(card, "mallow-member-card.png"));
+            if let Err(error) = serenity::all::ChannelId::new(channel).send_message(&ctx.http, builder).await {
+                warn!(%error, guild_id = guild_id.get(), "Could not send rendered goodbye card");
+            }
+        } else {
+            embed = embed.thumbnail(&avatar_url).image(image_url).footer(serenity::builder::CreateEmbedFooter::new(format!("{display_name} · This user was #{member_number} on the server")));
+            if let Err(error) = serenity::all::ChannelId::new(channel).send_message(&ctx.http, CreateMessage::new().embed(embed)).await {
+                warn!(%error, guild_id = guild_id.get(), "Could not send fallback goodbye message");
+            }
         }
     }
 
