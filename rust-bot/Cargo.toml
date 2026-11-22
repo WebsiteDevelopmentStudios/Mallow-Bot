@@ -27,4 +27,5 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "tim
 tokio-tungstenite = { version = "0.21", features = ["rustls-tls-webpki-roots"] }
 tracing = "0.1"
 unicode-normalization = "0.1"
+url = "2"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
