@@ -418,19 +418,6 @@ async fn handle_ticket_component(http: &Http, component: &ComponentInteraction, 
     }
 }
 
-fn global_commands() -> Vec<CreateCommand> {
-    let mut commands = vec![
-        CreateCommand::new("ping").description("Check Mallow Bot's response time"),
-        CreateCommand::new("uptime").description("Show how long Mallow Bot has been online"),
-        CreateCommand::new("commands").description("Show the main Mallow Bot command groups"),
-        CreateCommand::new("sync").description("Refresh Mallow Bot slash command registrations"),
-        CreateCommand::new("tos").description("Show Mallow Bot acceptable-use rules"),
-    ];
-    commands.extend(music::commands());
-    commands.extend(community::commands());
-    commands
-}
-
 async fn apply_reaction_role(state: &BotState, ctx: &DiscordContext, reaction: &Reaction, added: bool) {
     let (Some(guild_id), Some(user_id)) = (reaction.guild_id, reaction.user_id) else { return };
     let Some(role_id) = state.community.role_for_reaction(guild_id.get(), reaction.message_id.get(), &reaction.emoji.to_string(), added) else { return };
