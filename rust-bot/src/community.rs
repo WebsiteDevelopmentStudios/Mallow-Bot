@@ -393,7 +393,7 @@ async fn create_ticket_channel(ctx: &Context, guild_id: u64, user_id: u64, usern
     if let Some(category) = cfg.tickets_config.get("category_id").and_then(Value::as_str).and_then(|v| v.parse::<u64>().ok()) {
         builder = builder.category(serenity::all::ChannelId::new(category));
     }
-    let channel = guild.create_channel(&ctx.http, builder).await.map_err(|_| "I couldn't create the private ticket channel. Check Manage Channels and permission settings.".to_string())?;
+    let channel = guild.create_channel(http, builder).await.map_err(|_| "I couldn't create the private ticket channel. Check Manage Channels and permission settings.".to_string())?;
     let welcome = cfg.tickets_config.get("welcome_message").and_then(Value::as_str).unwrap_or("Thanks for opening a ticket. A staff member will be with you soon.");
     let _ = channel.id.say(&ctx.http, format!("<@{user_id}>\n{welcome}")).await;
     store.set_record("tickets", &channel.id.get().to_string(), Some(json!({"guild_id":guild_id,"user_id":user_id,"opened_at":now_seconds()})));
@@ -416,12 +416,12 @@ async fn respond(http: &Http, command: &CommandInteraction, content: String, eph
     }
 }
 
-pub async fn handle(http: &Http, command: &CommandInteraction, store: &CommunityStore, premium: &PremiumClient, cfg: &GuildConfig) -> bool {
+pub async fn handle(http: &Http, command: &CommandInteraction, store: &CommunityStore, premium: &PremiumClient, cfg: &GuildConfig, deferred: bool) -> bool {
     let Some(guild_id) = command.guild_id.map(|id| id.get()) else { return false };
     let user_id = command.user.id.get();
     let name = command.data.name.as_str();
     if cfg.disabled_commands.iter().any(|disabled| disabled == name) {
-        let _ = respond(http, command, format!("The {name} command is disabled in this server."), true, false).await;
+        let _ = respond(http, command, format!("The {name} command is disabled in this server."), true, deferred).await;
         return true;
     }
     let feature = match name {
