@@ -7,7 +7,7 @@ mod tasks;
 
 use anyhow::{Context, Result};
 use serenity::{
-    all::{Command, CommandInteraction, CreateCommand, CreateEmbed, CreateMessage, GuildId, Interaction, Member, Message, Ready, RoleId, User},
+    all::{Command, CommandInteraction, CreateCommand, CreateEmbed, CreateMessage, GuildId, Interaction, Member, Message, Reaction, Ready, RoleId, User},
     async_trait,
     prelude::*,
 };
@@ -96,6 +96,24 @@ impl EventHandler for Handler {
         if let Err(error) = serenity::all::ChannelId::new(channel).send_message(&ctx.http, CreateMessage::new().embed(embed)).await {
             warn!(%error, guild_id = guild_id.get(), "Could not send configured goodbye message");
         }
+    }
+
+    async fn reaction_add(&self, ctx: DiscordContext, reaction: Reaction) {
+        self.apply_reaction_role(&ctx, &reaction, true).await;
+    }
+
+    async fn reaction_remove(&self, ctx: DiscordContext, reaction: Reaction) {
+        self.apply_reaction_role(&ctx, &reaction, false).await;
+    }
+
+    async fn apply_reaction_role(&self, ctx: &DiscordContext, reaction: &Reaction, added: bool) {
+        let (Some(guild_id), Some(user_id)) = (reaction.guild_id, reaction.user_id) else { return };
+        let Some(role_id) = self.state.community.role_for_reaction(guild_id.get(), reaction.message_id.get(), &reaction.emoji.to_string(), added) else { return };
+        let Ok(member) = guild_id.member(&ctx.http, user_id).await else { return };
+        if member.user.bot { return; }
+        let role = RoleId::new(role_id);
+        let result = if added { member.add_role(&ctx.http, role).await } else { member.remove_role(&ctx.http, role).await };
+        if let Err(error) = result { warn!(%error, guild_id = guild_id.get(), user_id = user_id.get(), role_id, "Could not apply reaction-role change"); }
     }
 
     async fn message(&self, ctx: DiscordContext, message: Message) {
