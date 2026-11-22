@@ -143,7 +143,24 @@ impl EventHandler for Handler {
 
     async fn message(&self, ctx: DiscordContext, message: Message) {
         if message.author.bot { return; }
-        let Some(guild_id) = message.guild_id.map(|id| id.get()) else { return };
+        let Some(guild_id) = message.guild_id.map(|id| id.get()) else {
+            let route = self.state.community.record("dm_routes", &message.author.id.get().to_string());
+            let channel = route.as_ref().and_then(|v| v.get("channel_id")).and_then(serde_json::Value::as_u64)
+                .or_else(|| self.state.community.first_log_channel());
+            if let Some(channel) = channel {
+                let server = route.as_ref().and_then(|v| v.get("guild_id")).and_then(serde_json::Value::as_u64).map(|id| id.to_string()).unwrap_or_else(|| "Unsolicited DM".into());
+                let content = if message.content.trim().is_empty() { "[No text content]" } else { &message.content };
+                let forwarded = format!("**Mallow Bot DM received**\nFrom: {} (ID {})\nServer: {}\nMessage:\n{}", message.author.name, message.author.id.get(), server, content);
+                if serenity::all::ChannelId::new(channel).say(&ctx.http, forwarded.chars().take(1900).collect::<String>()).await.is_ok() {
+                    let _ = message.channel_id.say(&ctx.http, "Your message was forwarded to the server's mod channel.").await;
+                } else {
+                    let _ = message.channel_id.say(&ctx.http, "I couldn't forward your message because the log channel is unavailable.").await;
+                }
+            } else {
+                let _ = message.channel_id.say(&ctx.http, "I couldn't forward your message because no DM log channel is configured.").await;
+            }
+            return;
+        };
         let cfg = self.state.dashboard.guild_config(guild_id).await;
         let content = message.content.trim();
         let is_prefix = content.to_lowercase().starts_with(&cfg.prefix.to_lowercase());
