@@ -2,7 +2,7 @@ use serde_json::{json, Value};
 use crate::config::GuildConfig;
 use crate::premium::PremiumClient;
 use serenity::{
-    all::{CommandDataOptionValue, CommandInteraction, CommandOptionType, CreateCommand, CreateAttachment, CreateCommandOption, CreateEmbed, CreateInteractionResponse, CreateInteractionResponseMessage, EditInteractionResponse, CreateMessage, Message, ReactionType},
+    all::{CommandDataOptionValue, CommandInteraction, CommandOptionType, CreateCommand, CreateAttachment, CreateCommandOption, CreateEmbed, CreateInteractionResponse, CreateInteractionResponseMessage, EditInteractionResponse, CreateMessage, GetMessages, Message, ReactionType},
     http::Http,
     prelude::Context,
 };
@@ -456,7 +456,7 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
                 let text = command.data.options.iter().find_map(|option| match &option.value { CommandDataOptionValue::String(value) => Some(value.as_str()), _ => None }).unwrap_or("");
                 if text.trim().is_empty() { "Provide a message to send.".into() }
                 else {
-                    if let Err(error) = command.channel_id.say(&ctx.http, text.chars().take(1900).collect::<String>()).await { warn!(%error, "Could not send /say message"); }
+                    if let Err(error) = command.channel_id.say(http, text.chars().take(1900).collect::<String>()).await { warn!(%error, "Could not send /say message"); }
                     "Message sent.".into()
                 }
             }
@@ -467,7 +467,7 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
                     let mut sent = true;
                     for chunk in update.as_bytes().chunks(1800) {
                         let text = String::from_utf8_lossy(chunk);
-                        if command.channel_id.say(&ctx.http, text.to_string()).await.is_err() { sent = false; break; }
+                        if command.channel_id.say(http, text.to_string()).await.is_err() { sent = false; break; }
                     }
                     if sent { "Posted the update log.".into() } else { "I couldn't post the full update log.".into() }
                 }
@@ -558,7 +558,7 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
                 if text.is_empty() { store.set_record("sticky_messages", &key, None); "Sticky message cleared for this channel.".into() }
                 else {
                     let content = text.chars().take(1800).collect::<String>();
-                    match command.channel_id.send_message(&ctx.http, CreateMessage::new().content(&content)).await {
+                    match command.channel_id.send_message(http, CreateMessage::new().content(&content)).await {
                         Ok(posted) => { store.set_record("sticky_messages", &key, Some(json!({"guild_id":guild_id,"content":content,"message_id":posted.id.get()}))); "Sticky message set.".into() }
                         Err(_) => "I couldn't post the sticky message. Check my channel permissions.".into()
                     }
@@ -592,7 +592,7 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
                 let title = values.first().copied().unwrap_or("Mallow Bot");
                 let description = values.get(1).copied().unwrap_or("");
                 let embed = CreateEmbed::new().title(title.chars().take(256).collect::<String>()).description(description.chars().take(4000).collect::<String>());
-                match command.channel_id.send_message(&ctx.http, CreateMessage::new().embed(embed)).await {
+                match command.channel_id.send_message(http, CreateMessage::new().embed(embed)).await {
                     Ok(_) => "Embed sent.".into(),
                     Err(_) => "I couldn't send the embed. Check my channel permissions.".into()
                 }
@@ -618,8 +618,8 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
                 if let (Some(target), Some(log_channel)) = (target, log_channel) {
                     if target.get() == user_id || text.trim().is_empty() || text.len() > 1900 { "Choose another member and provide a message of 1,900 characters or fewer.".into() }
                     else {
-                        match target.create_dm_channel(&ctx.http).await {
-                            Ok(channel) if channel.say(&ctx.http, text).await.is_ok() => {
+                        match target.create_dm_channel(http).await {
+                            Ok(channel) if channel.say(http, text).await.is_ok() => {
                                 store.set_record("dm_routes", &target.get().to_string(), Some(json!({"guild_id":guild_id,"channel_id":log_channel,"set_by":user_id,"updated_at":now_seconds()})));
                                 format!("Sent a DM to <@{}>. Their replies will be forwarded only to <#{log_channel}>.", target.get())
                             }
@@ -634,10 +634,10 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
             if !permitted { "You need Manage Messages permission to use this command.".into() }
             else {
                 let amount = command.data.options.iter().find_map(|o| if let CommandDataOptionValue::Integer(value) = o.value { Some(value) } else { None }).unwrap_or(0).clamp(1,100) as u8;
-                match command.channel_id.messages(&ctx.http, GetMessages::new().limit(amount)).await {
+                match command.channel_id.messages(http, GetMessages::new().limit(amount)).await {
                     Ok(messages) if !messages.is_empty() => {
                         let ids: Vec<_> = messages.iter().map(|message| message.id).collect();
-                        match command.channel_id.delete_messages(&ctx.http, ids).await {
+                        match command.channel_id.delete_messages(http, ids).await {
                             Ok(()) => format!("Deleted {} message(s).", messages.len()),
                             Err(_) => "I couldn't delete those messages. Check my Manage Messages permission and message age.".into()
                         }
@@ -679,7 +679,7 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
                     else {
                         if enabled {
                             let reaction = ReactionType::Unicode(emoji.clone());
-                            if let Err(_) = command.channel_id.create_reaction(&ctx.http, serenity::all::MessageId::new(message_id), reaction).await { "I couldn't add the verification reaction in this channel.".into() }
+                            if let Err(_) = command.channel_id.create_reaction(http, serenity::all::MessageId::new(message_id), reaction).await { "I couldn't add the verification reaction in this channel.".into() }
                             else { store.set_rule(guild_id, message_id, command.channel_id.get(), &emoji, role, enabled); format!("Rules verification enabled for message {message_id}. React with {emoji} to receive <@&{role}>.") }
                         } else {
                             store.set_rule(guild_id, message_id, command.channel_id.get(), &emoji, role, false);
@@ -702,7 +702,7 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
                         let channel = command.data.options.iter().find_map(|o| if o.name == "channel" { if let CommandDataOptionValue::Channel(id) = o.value { Some(id) } else { None } } else { None }).unwrap_or(command.channel_id);
                         let title = command.data.options.iter().find_map(|o| if o.name == "title" { if let CommandDataOptionValue::String(v) = &o.value { Some(v.as_str()) } else { None } } else { None }).unwrap_or("Choose your roles");
                         let description = command.data.options.iter().find_map(|o| if o.name == "description" { if let CommandDataOptionValue::String(v) = &o.value { Some(v.as_str()) } else { None } } else { None }).unwrap_or("React below to get a role. Remove your reaction to remove it.");
-                        match channel.send_message(&ctx.http, CreateMessage::new().embed(CreateEmbed::new().title(title).description(description))).await {
+                        match channel.send_message(http, CreateMessage::new().embed(CreateEmbed::new().title(title).description(description))).await {
                             Ok(posted) => { store.set_record("reaction_roles", &posted.id.get().to_string(), Some(json!({"guild_id":guild_id.to_string(),"channel_id":channel.get().to_string(),"roles":{}}))); format!("Reaction-role panel created: https://discord.com/channels/{guild_id}/{}/{}/", channel.get(), posted.id.get()) }
                             Err(_) => "I couldn't post in that channel. Check my channel permissions.".into()
                         }
@@ -714,7 +714,7 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
                             if emoji.is_empty() || channel.is_none() { "That panel or emoji was not found.".into() }
                             else if action == "add" {
                                 let reaction = ReactionType::Unicode(emoji.clone());
-                                if serenity::all::ChannelId::new(channel.unwrap()).create_reaction(&ctx.http, serenity::all::MessageId::new(message_id), reaction).await.is_err() { "I couldn't add that reaction to the panel.".into() }
+                                if serenity::all::ChannelId::new(channel.unwrap()).create_reaction(http, serenity::all::MessageId::new(message_id), reaction).await.is_err() { "I couldn't add that reaction to the panel.".into() }
                                 else { store.set_reaction_role(guild_id, message_id, &emoji, Some(role)); format!("Added {emoji} → <@&{role}>.") }
                             } else { store.set_reaction_role(guild_id, message_id, &emoji, None); format!("Removed the {emoji} role mapping.") }
                         } else { "Provide a panel message ID, emoji, and role.".into() }
@@ -751,8 +751,8 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
                             .field("Realm Code", "Find the code in <#1544638277179678730>", false)
                             .field("Want to join?", "React to this announcement with 💎 if you're joining!", false)
                             .footer(serenity::builder::CreateEmbedFooter::new("BLISS SMP • Community Announcement"));
-                        match channel.send_message(&ctx.http, CreateMessage::new().embed(embed)).await {
-                            Ok(posted) => { let _ = channel.create_reaction(&ctx.http, posted.id, ReactionType::Unicode("💎".into())).await; "Bliss SMP announcement posted.".into() }
+                        match channel.send_message(http, CreateMessage::new().embed(embed)).await {
+                            Ok(posted) => { let _ = channel.create_reaction(http, posted.id, ReactionType::Unicode("💎".into())).await; "Bliss SMP announcement posted.".into() }
                             Err(_) => "I couldn't publish the announcement. Check my channel permissions.".into()
                         }
                     }
@@ -768,8 +768,8 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
                             .field("Prize", prize, false)
                             .field("How to join", "React to this event with 🎪 to enter!", false)
                             .footer(serenity::builder::CreateEmbedFooter::new("BLISS SMP • Community Event"));
-                        match channel.send_message(&ctx.http, CreateMessage::new().embed(embed)).await {
-                            Ok(posted) => { let _ = channel.create_reaction(&ctx.http, posted.id, ReactionType::Unicode("🎪".into())).await; "Bliss SMP event posted.".into() }
+                        match channel.send_message(http, CreateMessage::new().embed(embed)).await {
+                            Ok(posted) => { let _ = channel.create_reaction(http, posted.id, ReactionType::Unicode("🎪".into())).await; "Bliss SMP event posted.".into() }
                             Err(_) => "I couldn't publish the event. Check my channel permissions.".into()
                         }
                     }
@@ -786,7 +786,7 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
             let permitted = command.member.as_ref().and_then(|member| member.permissions).map(|p| p.manage_guild()).unwrap_or(false);
             if !permitted { "You need Manage Server permission to post a ticket panel.".into() }
             else {
-                match command.channel_id.send_message(&ctx.http, CreateMessage::new().embed(CreateEmbed::new().title("Mallow Bot Support").description("Need help? Use /ticket to open a private support channel with the server's support team."))).await {
+                match command.channel_id.send_message(http, CreateMessage::new().embed(CreateEmbed::new().title("Mallow Bot Support").description("Need help? Use /ticket to open a private support channel with the server's support team."))).await {
                     Ok(_) => "Support ticket panel posted.".into(),
                     Err(_) => "I couldn't post the ticket panel in this channel.".into()
                 }
@@ -795,7 +795,7 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
         "ticket-close" => {
             if store.record("tickets", &command.channel_id.get().to_string()).is_none() { "This channel is not a ticket created by Mallow Bot.".into() }
             else {
-                match command.channel_id.delete(&ctx.http).await {
+                match command.channel_id.delete(http).await {
                     Ok(_) => { store.set_record("tickets", &command.channel_id.get().to_string(), None); "Ticket closed.".into() }
                     Err(_) => "I couldn't close this ticket. Check my Manage Channels permission.".into()
                 }
@@ -806,7 +806,7 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
             if !permitted { "You need Administrator permission to use this command.".into() }
             else {
                 let guild = command.guild_id.unwrap();
-                match (guild.channels(&ctx.http).await, guild.roles(&ctx.http).await) {
+                match (guild.channels(http).await, guild.roles(http).await) {
                     (Ok(channels), Ok(roles)) => {
                         let payload = json!({
                             "guild_id": guild_id.to_string(),
@@ -832,7 +832,7 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
                         match serde_json::to_vec_pretty(&payload) {
                             Ok(bytes) => {
                                 let attachment = CreateAttachment::bytes(bytes, format!("mallow-backup-{guild_id}.json"));
-                                if command.channel_id.send_message(&ctx.http, CreateMessage::new().content("Server channel-layout export attached. This is not a full permission or message restore backup.").add_file(attachment)).await.is_ok() {
+                                if command.channel_id.send_message(http, CreateMessage::new().content("Server channel-layout export attached. This is not a full permission or message restore backup.").add_file(attachment)).await.is_ok() {
                                     "Server layout export attached.".into()
                                 } else { "I couldn't attach the server backup. Check my channel permissions.".into() }
                             }
@@ -845,9 +845,6 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
         },
         _ => return false,
     };
-    let builder = CreateInteractionResponse::Message(CreateInteractionResponseMessage::new().content(response));
-    if let Err(error) = command.create_response(&ctx.http, builder).await {
-        warn!(%error, command = name, "Could not respond to community command");
-    }
+    respond(http, command, response, false, deferred).await;
     true
 }
