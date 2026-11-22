@@ -223,7 +223,12 @@ impl EventHandler for Handler {
             let _ = command.create_response(&ctx.http, builder).await;
             return;
         }
-        if !community::handle(&ctx, &command, &self.state.community, &self.state.premium).await {
+        let guild_config = if let Some(guild_id) = command.guild_id {
+            self.state.dashboard.guild_config(guild_id.get()).await
+        } else {
+            config::GuildConfig::default()
+        };
+        if !community::handle(&ctx, &command, &self.state.community, &self.state.premium, &guild_config).await {
             handle_command(&ctx, &command, &self.state).await;
         }
     }
