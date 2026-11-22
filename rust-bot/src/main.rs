@@ -88,7 +88,7 @@ impl EventHandler for Handler {
         let Some(channel) = channel else { return };
         let guild = member.guild_id.to_partial_guild(&ctx.http).await.ok();
         let server = guild.as_ref().map(|g| g.name.as_str()).unwrap_or("the server");
-        let count = guild.as_ref().and_then(|g| g.approximate_member_count).unwrap_or(0);
+        let count = ctx.cache.guild(member.guild_id).map(|g| g.member_count).unwrap_or(1);
         let user = format!("<@{}>", member.user.id.get());
         let template = messages.get("welcome_message").and_then(|v| v.as_str()).unwrap_or("╭─〔 👤 **Welcomer** 〕─╮\n│ WELCOME {user} TO {server}!!\n│ we now have {member_count} members!!!\n╰──────────────────────────╯");
         let body = template.replace("{user}", &user).replace("{server}", server).replace("{member_count}", &count.to_string());
@@ -130,13 +130,14 @@ impl EventHandler for Handler {
         let server = guild.as_ref().map(|g| g.name.as_str()).unwrap_or("the server");
         let display_name = member.as_ref().and_then(|m| m.nick.as_deref()).unwrap_or(&user.name);
         let template = messages.get("goodbye_message").and_then(|v| v.as_str()).unwrap_or("{user} left {server}.");
-        let body = template.replace("{user}", display_name).replace("{server}", server).replace("{member_count}", &guild.as_ref().and_then(|g| g.approximate_member_count).unwrap_or(0).to_string());
+        let body = template.replace("{user}", display_name).replace("{server}", server).replace("{member_count}", &member_count.to_string());
         let title = messages.get("goodbye_title").and_then(|v| v.as_str()).unwrap_or("");
         let mut embed = CreateEmbed::new().description(body.chars().take(4000).collect::<String>());
         if !title.is_empty() { embed = embed.title(title.chars().take(256).collect::<String>()); }
         let image_url = messages.get("goodbye_image_url").or_else(|| messages.get("welcome_image_url")).and_then(|v| v.as_str()).unwrap_or("https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/dashboard/Welcome.png");
         let avatar_url = user.avatar_url().unwrap_or_else(|| "https://cdn.discordapp.com/embed/avatars/0.png".into());
-        let member_number = guild.as_ref().and_then(|g| g.approximate_member_count).unwrap_or(0).saturating_add(1).max(1);
+        let member_count = ctx.cache.guild(guild_id).map(|g| g.member_count).unwrap_or(1);
+        let member_number = member_count.saturating_add(1).max(1);
         if let Some(card) = member_cards::render(image_url, &avatar_url, display_name, member_number, true).await {
             embed = embed.image("attachment://mallow-member-card.png");
             let builder = CreateMessage::new().embed(embed).add_file(CreateAttachment::bytes(card, "mallow-member-card.png"));
