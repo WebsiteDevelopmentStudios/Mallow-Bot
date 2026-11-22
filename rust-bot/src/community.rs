@@ -191,6 +191,22 @@ pub fn commands() -> Vec<CreateCommand> {
                 .add_option(CreateCommandOption::new(CommandOptionType::String, "action", "Create, list, or delete").required(true).add_string_choice("Create", "create").add_string_choice("List", "list").add_string_choice("Delete", "delete"))
                 .add_option(CreateCommandOption::new(CommandOptionType::String, "name", "Command name").required(false))
                 .add_option(CreateCommandOption::new(CommandOptionType::String, "response", "Command response").required(false)),
+            "autorole" => command
+                .add_option(CreateCommandOption::new(CommandOptionType::String, "action", "Set, disable, or status").required(true).add_string_choice("Set", "set").add_string_choice("Disable", "disable").add_string_choice("Status", "status"))
+                .add_option(CreateCommandOption::new(CommandOptionType::Role, "role", "Role to give new members").required(false)),
+            "rules" => command
+                .add_option(CreateCommandOption::new(CommandOptionType::Boolean, "enabled", "Enable or disable role verification").required(true))
+                .add_option(CreateCommandOption::new(CommandOptionType::String, "message_id", "Rules message ID").required(true))
+                .add_option(CreateCommandOption::new(CommandOptionType::String, "emoji", "Required reaction emoji").required(true))
+                .add_option(CreateCommandOption::new(CommandOptionType::Role, "role", "Role granted by reacting").required(true)),
+            "reaction-role" => command
+                .add_option(CreateCommandOption::new(CommandOptionType::String, "action", "Create, add, remove, or list").required(true).add_string_choice("Create", "create").add_string_choice("Add", "add").add_string_choice("Remove", "remove").add_string_choice("List", "list"))
+                .add_option(CreateCommandOption::new(CommandOptionType::Channel, "channel", "Panel channel").required(false))
+                .add_option(CreateCommandOption::new(CommandOptionType::String, "message_id", "Panel message ID").required(false))
+                .add_option(CreateCommandOption::new(CommandOptionType::String, "emoji", "Reaction emoji").required(false))
+                .add_option(CreateCommandOption::new(CommandOptionType::Role, "role", "Role to assign").required(false))
+                .add_option(CreateCommandOption::new(CommandOptionType::String, "title", "Panel title").required(false))
+                .add_option(CreateCommandOption::new(CommandOptionType::String, "description", "Panel description").required(false)),
             _ => command,
         }
     }).collect()
