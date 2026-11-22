@@ -1065,13 +1065,25 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
             let permitted = command.member.as_ref().and_then(|member| member.permissions).map(|p| p.manage_messages()).unwrap_or(false);
             if !permitted { "You need Manage Messages permission to use this command.".into() }
             else {
-                let values: Vec<&str> = command.data.options.iter().filter_map(|option| match &option.value { CommandDataOptionValue::String(value) => Some(value.as_str()), _ => None }).collect();
-                let title = values.first().copied().unwrap_or("Mallow Bot");
-                let description = values.get(1).copied().unwrap_or("");
-                let embed = CreateEmbed::new().title(title.chars().take(256).collect::<String>()).description(description.chars().take(4000).collect::<String>());
-                match command.channel_id.send_message(http, CreateMessage::new().embed(embed)).await {
-                    Ok(_) => "Embed sent.".into(),
-                    Err(_) => "I couldn't send the embed. Check my channel permissions.".into()
+                let option_text = |name: &str| command.data.options.iter().find_map(|option| {
+                    if option.name == name { if let CommandDataOptionValue::String(value) = &option.value { Some(value.as_str()) } else { None } } else { None }
+                });
+                let title = option_text("title").unwrap_or("Mallow Bot");
+                let description = option_text("description").unwrap_or("");
+                let color_text = option_text("color").unwrap_or("#8B5CF6").trim_start_matches('#');
+                let color = u32::from_str_radix(color_text, 16).ok().filter(|value| *value <= 0xFFFFFF);
+                if color.is_none() { "Use a valid hex color such as #8B5CF6.".into() }
+                else {
+                    let target = command.data.options.iter().find_map(|option| {
+                        if option.name == "channel" { if let CommandDataOptionValue::Channel(id) = &option.value { Some(*id) } else { None } } else { None }
+                    }).unwrap_or(command.channel_id);
+                    let embed = CreateEmbed::new().title(title.chars().take(256).collect::<String>())
+                        .description(description.chars().take(4000).collect::<String>())
+                        .colour(serenity::all::Colour::new(color.unwrap()));
+                    match target.send_message(http, CreateMessage::new().embed(embed)).await {
+                        Ok(_) => format!("Embed sent to <#{target}>."),
+                        Err(_) => "I couldn't send the embed. Check my channel permissions.".into()
+                    }
                 }
             }
         }
