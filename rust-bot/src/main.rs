@@ -12,7 +12,9 @@ use serenity::{
     async_trait,
     prelude::*,
 };
-use std::{env, sync::Arc, time::Instant};
+use std::{env, sync::{Arc, atomic::{AtomicBool, Ordering}}, time::Instant};
+
+static STATUS_ROTATION_STARTED: AtomicBool = AtomicBool::new(false);
 use serenity::client::Context as DiscordContext;
 use tracing::{error, info, warn};
 
@@ -32,6 +34,7 @@ struct Handler {
 impl EventHandler for Handler {
     async fn ready(&self, ctx: DiscordContext, ready: Ready) {
         info!(user = %ready.user.name, "Mallow Bot Rust gateway connected");
+        if !STATUS_ROTATION_STARTED.swap(true, Ordering::SeqCst) { tasks::spawn_status_rotation(ctx.shard.clone()); }
         self.state.music.set_bot_user_id(ready.user.id.get()).await;
         self.state.music.set_discord_http(ctx.http.clone()).await;
         let mut commands = vec![
