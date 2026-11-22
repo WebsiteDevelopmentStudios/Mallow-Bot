@@ -3,7 +3,7 @@ use crate::config::GuildConfig;
 use crate::premium::PremiumClient;
 use crate::music::MusicManager;
 use serenity::{
-    all::{ChannelType, CommandDataOptionValue, CommandInteraction, CommandOptionType, CreateActionRow, CreateAttachment, CreateButton, CreateChannel, CreateCommand, CreateCommandOption, CreateEmbed, CreateInteractionResponse, CreateInteractionResponseMessage, EditInteractionResponse, CreateMessage, GetMessages, Message, PermissionOverwrite, PermissionOverwriteType, Permissions, ReactionType, RoleId, UserId, ButtonStyle},
+    all::{ChannelType, EmojiId, CommandDataOptionValue, CommandInteraction, CommandOptionType, CreateActionRow, CreateAttachment, CreateButton, CreateChannel, CreateCommand, CreateCommandOption, CreateEmbed, CreateInteractionResponse, CreateInteractionResponseMessage, EditInteractionResponse, CreateMessage, GetMessages, Message, PermissionOverwrite, PermissionOverwriteType, Permissions, ReactionType, RoleId, UserId, ButtonStyle},
     http::Http,
     prelude::Context,
 };
@@ -789,6 +789,22 @@ pub async fn create_ticket_channel(http: &Http, guild_id: u64, user_id: u64, use
     Ok(channel.id.get())
 }
 
+fn parse_reaction_type(value: &str) -> ReactionType {
+    let trimmed = value.trim();
+    if trimmed.starts_with("<:") || trimmed.starts_with("<a:") {
+        let animated = trimmed.starts_with("<a:");
+        let inner = trimmed.trim_start_matches('<').trim_end_matches('>');
+        let mut parts = inner.split(':');
+        let _kind = parts.next();
+        let name = parts.next().unwrap_or("emoji");
+        let id = parts.next().and_then(|v| v.parse::<u64>().ok());
+        if let Some(id) = id {
+            return ReactionType::Custom { animated, id: EmojiId::new(id), name: Some(name.to_string()) };
+        }
+    }
+    ReactionType::Unicode(trimmed.to_string())
+}
+
 fn level(xp: i64) -> i64 { ((xp.max(0) as f64 / 100.0).sqrt()) as i64 }
 fn now_seconds() -> u64 { SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs() }
 fn pseudo_roll(max: u64) -> u64 {
@@ -1119,7 +1135,7 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
                     if emoji.is_empty() || emoji.len() > 100 { "Enter a valid emoji.".into() }
                     else {
                         if enabled {
-                            let reaction = ReactionType::Unicode(emoji.clone());
+                            let reaction = parse_reaction_type(&emoji);
                             if let Err(_) = command.channel_id.create_reaction(http, serenity::all::MessageId::new(message_id), reaction).await { "I couldn't add the verification reaction in this channel.".into() }
                             else { store.set_rule(guild_id, message_id, command.channel_id.get(), &emoji, role, enabled); format!("Rules verification enabled for message {message_id}. React with {emoji} to receive <@&{role}>.") }
                         } else {
@@ -1137,7 +1153,7 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
                 let action = command.data.options.iter().find_map(|o| if o.name == "action" { if let CommandDataOptionValue::String(v) = &o.value { Some(v.as_str()) } else { None } } else { None }).unwrap_or("");
                 let message_id = command.data.options.iter().find_map(|o| if o.name == "message_id" { if let CommandDataOptionValue::String(v) = &o.value { v.parse::<u64>().ok() } else { None } } else { None });
                 let emoji = command.data.options.iter().find_map(|o| if o.name == "emoji" { if let CommandDataOptionValue::String(v) = &o.value { Some(v.clone()) } else { None } } else { None }).unwrap_or_default();
-                let role = command.data.options.iter().find_map(|o| if o.name == "role" { if let CommandDataOptionValue::Role(id) = o.value { Some(id.get()) } else { None } } else { None });
+                let role = command.data.options.iter().find_map(|o| if o.name == "role" { if let CommandDataOptionValue::Role(id) = &o.value { Some(id.get()) } else { None } } else { None });
                 match action {
                     "create" => {
                         let channel = command.data.options.iter().find_map(|o| if o.name == "channel" { if let CommandDataOptionValue::Channel(id) = &o.value { Some(*id) } else { None } } else { None }).unwrap_or(command.channel_id);
