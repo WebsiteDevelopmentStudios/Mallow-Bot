@@ -203,7 +203,7 @@ impl EventHandler for Handler {
     }
 
     async fn message(&self, ctx: DiscordContext, message: Message) {
-        if message.author.bot { return; }
+        if message.author.bot || self.state.premium.is_banned(message.author.id.get()).await { return; }
         let Some(guild_id) = message.guild_id.map(|id| id.get()) else {
             let route = self.state.community.record("dm_routes", &message.author.id.get().to_string());
             let channel = route.as_ref().and_then(|v| v.get("channel_id")).and_then(serde_json::Value::as_u64)
