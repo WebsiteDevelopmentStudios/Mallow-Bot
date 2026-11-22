@@ -191,6 +191,33 @@ impl EventHandler for Handler {
             }
         }
         let content = message.content.trim();
+        let has_invite = content.split_whitespace().any(|part| {
+            let folded = part.to_lowercase();
+            folded.contains("discord.gg/") || folded.contains("discord.com/invite/") || folded.contains("discordapp.com/invite/")
+        });
+        let exempt = message.member.as_ref()
+            .map(|member| member.permissions(&ctx.cache).map(|permissions| permissions.manage_messages()).unwrap_or(false))
+            .unwrap_or(false);
+        if cfg.features.get("moderation").and_then(|v| v.as_bool()).unwrap_or(true) && has_invite && !exempt {
+            let minutes = self.state.community.timeout_minutes(guild_id);
+            if message.delete(&ctx.http).await.is_ok() {
+                match serenity::all::GuildId::new(guild_id).member(&ctx.http, message.author.id).await {
+                    Ok(mut member) => {
+                        let until = serenity::model::Timestamp::from_unix_timestamp(
+                            (std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs() + minutes * 60) as i64
+                        );
+                        match until {
+                            Ok(until) if member.disable_communication_until_datetime(&ctx.http, until).await.is_ok() => {
+                                let _ = message.channel_id.say(&ctx.http, format!("<@{}> you cannot post Discord invite links here. You have been timed out for {minutes} minutes.", message.author.id.get())).await;
+                            }
+                            _ => { let _ = message.channel_id.say(&ctx.http, "I detected a Discord invite, but I need Manage Messages and Moderate Members permissions.").await; }
+                        }
+                    }
+                    Err(_) => { let _ = message.channel_id.say(&ctx.http, "I detected a Discord invite, but I couldn't apply the configured timeout.").await; }
+                }
+            }
+            return;
+        }
         let is_prefix = content.to_lowercase().starts_with(&cfg.prefix.to_lowercase());
         if is_prefix && community::handle_prefix(&ctx, &message, &cfg, &self.state.community, &self.state.music).await { return; }
         if !is_prefix && !content.is_empty() && cfg.features.get("xp").and_then(|v| v.as_bool()).unwrap_or(true) {
