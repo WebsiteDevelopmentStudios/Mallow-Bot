@@ -959,7 +959,7 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
             } else { "Choose a member to pay.".into() }
         }
         "rob" => {
-            let target = command.data.options.iter().find_map(|o| if o.name == "member" { if let CommandDataOptionValue::User(id) = o.value { Some(id.get()) } else { None } } else { None });
+            let target = command.data.options.iter().find_map(|o| if o.name == "member" { if let CommandDataOptionValue::User(id) = &o.value { Some(id.get()) } else { None } } else { None });
             if let Some(target) = target {
                 let target_balance = store.balance(guild_id, target, starting);
                 if target == user_id { "You cannot rob yourself.".into() }
@@ -1090,7 +1090,7 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
             let permitted = command.member.as_ref().and_then(|member| member.permissions).map(|p| p.manage_messages()).unwrap_or(false);
             if !permitted { "You need Manage Messages permission to use this command.".into() }
             else {
-                let amount = command.data.options.iter().find_map(|o| if let CommandDataOptionValue::Integer(value) = o.value { Some(value) } else { None }).unwrap_or(0).clamp(1,100) as u8;
+                let amount = command.data.options.iter().find_map(|o| if let CommandDataOptionValue::Integer(value) = &o.value { Some(*value) } else { None }).unwrap_or(0).clamp(1,100) as u8;
                 match command.channel_id.messages(http, GetMessages::new().limit(amount)).await {
                     Ok(messages) if !messages.is_empty() => {
                         let ids: Vec<_> = messages.iter().map(|message| message.id).collect();
@@ -1194,7 +1194,7 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
             else if !permitted { "You need Manage Messages permission to publish Bliss SMP announcements.".into() }
             else {
                 let days = command.data.options.iter().find_map(|o| if o.name == "date" { if let CommandDataOptionValue::Integer(v) = &o.value { Some(*v) } else { None } } else { None }).unwrap_or(0).max(0) as u64;
-                let minutes = command.data.options.iter().find_map(|o| if o.name == "time" { if let CommandDataOptionValue::Integer(v) = o.value { Some(v) } else { None } } else { None }).unwrap_or(5).max(0) as u64;
+                let minutes = command.data.options.iter().find_map(|o| if o.name == "time" { if let CommandDataOptionValue::Integer(v) = &o.value { Some(*v) } else { None } } else { None }).unwrap_or(5).max(0) as u64;
                 let timestamp = now_seconds() + days * 86_400 + minutes * 60;
                 let channel = serenity::all::ChannelId::new(1574140545570181141);
                 if name == "announcement" {
