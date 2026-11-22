@@ -162,6 +162,18 @@ impl EventHandler for Handler {
             return;
         };
         let cfg = self.state.dashboard.guild_config(guild_id).await;
+        if let Some(sticky) = self.state.community.record("sticky_messages", &message.channel_id.get().to_string()) {
+            let text = sticky.get("content").and_then(serde_json::Value::as_str).unwrap_or("");
+            let old_id = sticky.get("message_id").and_then(serde_json::Value::as_u64);
+            if !text.is_empty() {
+                if let Some(old_id) = old_id { let _ = message.channel_id.delete_message(&ctx.http, serenity::all::MessageId::new(old_id)).await; }
+                if let Ok(posted) = message.channel_id.say(&ctx.http, text).await {
+                    let mut updated = sticky.clone();
+                    updated["message_id"] = serde_json::json!(posted.id.get());
+                    self.state.community.set_record("sticky_messages", &message.channel_id.get().to_string(), Some(updated));
+                }
+            }
+        }
         let content = message.content.trim();
         let is_prefix = content.to_lowercase().starts_with(&cfg.prefix.to_lowercase());
         if is_prefix && community::handle_prefix(&ctx, &message, &cfg, &self.state.community).await { return; }
