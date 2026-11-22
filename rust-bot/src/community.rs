@@ -739,7 +739,10 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
             }
         },
         "help" | "commands" => "Music: play, join, leave, pause, resume, skip, queue, volume, lyrics, stop.\nCommunity: xp, level, leaderboard, swears, swear-leaderboard, balance, daily, work, gamble, coinflip, slots, roulette, dice, blackjack, pay, rob.\nFun: vibecheck, ship, fortune, wyr.\nUtilities: youtube, premium-status, embed, snipe, sticky, backup, custom-command, vanity, dm, set-log, timeout-minutes, update.".into(),
-        "update" => std::fs::read_to_string("update.txt").unwrap_or_else(|_| "No update log is available right now.".into()).chars().take(1900).collect::<String>(),
+        "update" => match reqwest::get("https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/updates.txt").await {
+            Ok(response) if response.status().is_success() => response.text().await.unwrap_or_else(|_| "No update log is available right now.".into()).chars().take(1900).collect::<String>(),
+            _ => "No update log is available right now.".into()
+        },
         _ => return false,
     };
     if let Err(error) = message.reply(&ctx.http, response).await { warn!(%error, command, "Could not respond to prefix command"); }
@@ -849,14 +852,23 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
             }
         }
         "update" => {
-            match fs::read_to_string("update.txt") {
-                Ok(update) if !update.trim().is_empty() => {
-                    let mut sent = true;
-                    for chunk in update.as_bytes().chunks(1800) {
-                        let text = String::from_utf8_lossy(chunk);
-                        if command.channel_id.say(http, text.to_string()).await.is_err() { sent = false; break; }
+            match reqwest::get("https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/updates.txt").await {
+                Ok(response) if response.status().is_success() => {
+                    match response.text().await {
+                        Ok(update) if !update.trim().is_empty() => {
+                            let mut sent = true;
+                            let mut remaining = update.as_str();
+                            while !remaining.is_empty() {
+                                let mut cut = remaining.len().min(1800);
+                                while !remaining.is_char_boundary(cut) { cut -= 1; }
+                                if let Some(boundary) = remaining[..cut].rfind('\n') { if boundary > 400 { cut = boundary; } }
+                                if command.channel_id.say(http, remaining[..cut].to_string()).await.is_err() { sent = false; break; }
+                                remaining = remaining[cut..].trim_start();
+                            }
+                            if sent { "Posted the update log.".into() } else { "I couldn't post the full update log.".into() }
+                        }
+                        _ => "No update log is available right now.".into()
                     }
-                    if sent { "Posted the update log.".into() } else { "I couldn't post the full update log.".into() }
                 }
                 _ => "No update log is available right now.".into()
             }
