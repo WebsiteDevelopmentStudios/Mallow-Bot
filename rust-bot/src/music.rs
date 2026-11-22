@@ -5,7 +5,7 @@ use serde_json::{json, Value};
 use serenity::{
     all::{GuildId, VoiceServerUpdateEvent, VoiceState},
     http::Http,
-    prelude::Context as DiscordContext,
+    gateway::ShardMessenger,
 };
 use std::{collections::{HashMap, VecDeque}, env, sync::Arc, time::Duration};
 use tokio::sync::{Mutex, RwLock};
@@ -49,6 +49,8 @@ pub struct MusicManager {
     discord_http: Arc<RwLock<Option<Arc<Http>>>>,
     node_session: Arc<RwLock<Option<String>>>,
     voices: Arc<RwLock<HashMap<u64, VoiceInfo>>>,
+    member_voice_channels: Arc<RwLock<HashMap<(u64, u64), u64>>>,
+    shard: Arc<RwLock<Option<ShardMessenger>>>,
     players: Arc<Mutex<HashMap<u64, GuildPlayer>>>,
     lyrics_tasks: Arc<Mutex<HashMap<u64, tokio::task::JoinHandle<()>>>>,
 }
@@ -66,12 +68,18 @@ impl MusicManager {
             discord_http: Arc::new(RwLock::new(None)),
             node_session: Arc::new(RwLock::new(None)),
             voices: Arc::new(RwLock::new(HashMap::new())),
+            member_voice_channels: Arc::new(RwLock::new(HashMap::new())),
+            shard: Arc::new(RwLock::new(None)),
             players: Arc::new(Mutex::new(HashMap::new())),
             lyrics_tasks: Arc::new(Mutex::new(HashMap::new())),
         })
     }
 
     pub fn enabled(&self) -> bool { self.enabled && !self.base_url.is_empty() && !self.password.is_empty() }
+
+    pub async fn set_shard(&self, shard: ShardMessenger) { *self.shard.write().await = Some(shard); }
+
+    pub async fn voice_channel_for_user(&self, guild: u64, user: u64) -> Option<u64> { self.member_voice_channels.read().await.get(&(guild, user)).copied() }
 
     pub async fn set_discord_http(&self, http: Arc<Http>) { *self.discord_http.write().await = Some(http); }
 
@@ -160,9 +168,10 @@ impl MusicManager {
         self.try_start(guild_id).await;
     }
 
-    pub fn request_voice_channel(ctx: &DiscordContext, guild: u64, channel: Option<u64>) {
+    pub async fn request_voice_channel(&self, guild: u64, channel: Option<u64>) {
+        let Some(shard) = self.shard.read().await.clone() else { return };
         let payload = json!({"op":4,"d":{"guild_id":guild.to_string(),"channel_id":channel.map(|id| id.to_string()),"self_mute":false,"self_deaf":false}});
-        ctx.shard.websocket_message(Message::Text(payload.to_string()));
+        shard.websocket_message(Message::Text(payload.to_string()));
     }
 
     async fn search(&self, query: &str) -> Result<Track> {
