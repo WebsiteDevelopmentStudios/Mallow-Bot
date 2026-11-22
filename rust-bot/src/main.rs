@@ -41,6 +41,7 @@ impl EventHandler for Handler {
             CreateCommand::new("ping").description("Check Mallow Bot's response time"),
             CreateCommand::new("uptime").description("Show how long Mallow Bot has been online"),
             CreateCommand::new("commands").description("Show the main Mallow Bot command groups"),
+            CreateCommand::new("sync").description("Refresh Mallow Bot slash command registrations"),
             CreateCommand::new("tos").description("Show Mallow Bot acceptable-use rules"),
             CreateCommand::new("play").description("Play a song or Spotify track in your voice channel").add_option(CreateCommandOption::new(CommandOptionType::String, "song", "Song name or URL").required(true)),
             CreateCommand::new("join").description("Join your current voice channel"),
@@ -343,6 +344,7 @@ async fn handle_command(ctx: &DiscordContext, command: &CommandInteraction, stat
                 (elapsed.as_secs() / 60) % 60,
                 elapsed.as_secs() % 60)
         }
+        "sync" => "Slash commands are automatically registered when Mallow Bot connects to Discord. The current command set is active.".to_string(),
         "commands" => "Community: /xp, /leaderboard, /balance, /daily, /work, /gamble, /coinflip, /slots, /roulette, /dice, /blackjack, /vibecheck, /ship, /fortune, /wyr.\nUtility: /ping, /uptime, /commands, /tos, /say, /youtube, /purge.\nServer: /rules, /autorole, /reaction-role, /announcement, /event, /ticket, /ticket-panel, /ticket-close.\nPremium: /embed, /snipe, /sticky, /backup, /custom-command, /vanity, /premium-status.".to_string(),
         "tos" => include_str!("../../TERMS_OF_SERVICE.md").chars().take(4000).collect::<String>(),
         _ => return,
