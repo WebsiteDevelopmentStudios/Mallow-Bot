@@ -1,6 +1,7 @@
 use serde_json::{json, Value};
 use crate::config::GuildConfig;
 use crate::premium::PremiumClient;
+use crate::music::MusicManager;
 use serenity::{
     all::{ChannelType, CommandDataOptionValue, CommandInteraction, CommandOptionType, CreateAttachment, CreateChannel, CreateCommand, CreateCommandOption, CreateEmbed, CreateInteractionResponse, CreateInteractionResponseMessage, EditInteractionResponse, CreateMessage, GetMessages, Message, PermissionOverwrite, PermissionOverwriteType, Permissions, ReactionType, RoleId, UserId},
     http::Http,
@@ -272,7 +273,7 @@ pub fn commands() -> Vec<CreateCommand> {
     }).collect()
 }
 
-pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, store: &CommunityStore) -> bool {
+pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, store: &CommunityStore, music: &MusicManager) -> bool {
     let Some(guild_id) = message.guild_id.map(|id| id.get()) else { return false };
     let Some(rest) = message.content.strip_prefix(&cfg.prefix) else { return false };
     let mut parts = rest.trim().splitn(2, char::is_whitespace);
@@ -286,6 +287,29 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
     }
     let starting = cfg.economy_config.get("starting_money").and_then(Value::as_i64).unwrap_or(100);
     let response = match command.as_str() {
+        "play" => {
+            if let Some(channel) = music.voice_channel_for_user(guild_id, user_id).await {
+                music.request_voice_channel(guild_id, Some(channel)).await;
+                match music.enqueue(guild_id, argument).await { Ok(text) => text, Err(error) => format!("Music error: {error}") }
+            } else { "Join a voice channel first, then use -mb play <song>.".into() }
+        }
+        "join" => {
+            if let Some(channel) = music.voice_channel_for_user(guild_id, user_id).await { music.request_voice_channel(guild_id, Some(channel)).await; "Joining your voice channel.".into() }
+            else { "Join a voice channel first.".into() }
+        }
+        "leave" => { music.request_voice_channel(guild_id, None).await; let _ = music.stop(guild_id).await; "Leaving the voice channel and clearing the queue.".into() }
+        "pause" | "resume" => match music.pause(guild_id, command == "pause").await { Ok(text) => text, Err(error) => format!("Music error: {error}") },
+        "skip" => match music.skip(guild_id).await { Ok(text) => text, Err(error) => format!("Music error: {error}") },
+        "stop" => match music.stop(guild_id).await { Ok(text) => text, Err(error) => format!("Music error: {error}") },
+        "queue" => music.queue_text(guild_id).await,
+        "volume" => {
+            let level = argument.parse::<u16>().unwrap_or(100).min(100);
+            match music.volume(guild_id, level).await { Ok(text) => text, Err(error) => format!("Music error: {error}") }
+        }
+        "lyrics" => {
+            let enabled = match argument.to_lowercase().as_str() { "on" | "true" | "enable" => Some(true), "off" | "false" | "disable" => Some(false), _ => None };
+            music.set_lyrics(guild_id, enabled).await
+        }
         "swears" => {
             let total = store.swears(guild_id, user_id);
             let adjustment = cfg.swear_count_adjustments.get(user_id.to_string()).and_then(Value::as_i64).unwrap_or(0);
