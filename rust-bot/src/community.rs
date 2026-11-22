@@ -4,7 +4,7 @@ use serenity::{
     all::{CommandInteraction, CommandOptionType, CreateCommand, CreateCommandOption, CreateInteractionResponse, CreateInteractionResponseMessage, Message},
     prelude::Context,
 };
-use std::{collections::HashMap, fs, path::PathBuf, sync::{Arc, Mutex}, time::{SystemTime, UNIX_EPOCH}};
+use std::{fs, path::PathBuf, sync::{Arc, Mutex}, time::{SystemTime, UNIX_EPOCH}};
 use tracing::warn;
 
 #[derive(Clone)]
