@@ -1,6 +1,6 @@
 use serde_json::{json, Value};
 use serenity::{
-    all::{CommandInteraction, CreateCommand, CreateInteractionResponse, CreateInteractionResponseMessage},
+    all::{CommandInteraction, CommandOptionType, CreateCommand, CreateCommandOption, CreateInteractionResponse, CreateInteractionResponseMessage},
     prelude::Context,
 };
 use std::{collections::HashMap, fs, path::PathBuf, sync::{Arc, Mutex}, time::{SystemTime, UNIX_EPOCH}};
@@ -118,7 +118,19 @@ pub fn commands() -> Vec<CreateCommand> {
         ("ticket-close", "Close the ticket channel"),
         ("purge", "Delete recent messages from this channel"),
         ("set-log", "Set the bot DM log channel (developer only)"),
-    ].into_iter().map(|(name, description)| CreateCommand::new(name).description(description)).collect()
+    ].into_iter().map(|(name, description)| {
+        let command = CreateCommand::new(name).description(description);
+        match name {
+            "youtube" => command.add_option(CreateCommandOption::new(CommandOptionType::String, "url", "YouTube video URL").required(true)),
+            "purge" => command.add_option(CreateCommandOption::new(CommandOptionType::Integer, "amount", "Number of messages to delete (1-100)").min_int_value(1).max_int_value(100).required(true)),
+            "say" => command.add_option(CreateCommandOption::new(CommandOptionType::String, "message", "Text to post").required(true)),
+            "dm" => command
+                .add_option(CreateCommandOption::new(CommandOptionType::User, "member", "Member to message").required(true))
+                .add_option(CreateCommandOption::new(CommandOptionType::String, "message", "Message to send").required(true)),
+            "volume" => command.add_option(CreateCommandOption::new(CommandOptionType::Integer, "level", "Volume from 0 to 100").min_int_value(0).max_int_value(100).required(true)),
+            _ => command,
+        }
+    }).collect()
 }
 
 fn level(xp: i64) -> i64 { ((xp.max(0) as f64 / 100.0).sqrt()) as i64 }
