@@ -119,6 +119,26 @@ impl CommunityStore {
     pub fn record(&self, namespace: &str, key: &str) -> Option<Value> {
         self.read(|data| data.get(namespace).and_then(|v| v.get(key)).cloned())
     }
+    pub fn custom_command(&self, guild: u64, name: &str) -> Option<String> {
+        self.read(|data| data.get("custom_commands").and_then(|v| v.get(guild.to_string()))
+            .and_then(|v| v.get(name)).and_then(Value::as_str).map(str::to_owned))
+    }
+
+    pub fn custom_commands(&self, guild: u64) -> Vec<String> {
+        self.read(|data| data.get("custom_commands").and_then(|v| v.get(guild.to_string()))
+            .and_then(Value::as_object).map(|values| values.keys().cloned().collect()).unwrap_or_default())
+    }
+
+    pub fn set_custom_command(&self, guild: u64, name: &str, response: Option<&str>) {
+        self.mutate(|data| {
+            let key = guild.to_string();
+            if let Some(response) = response {
+                data["custom_commands"][&key][name] = json!(response);
+            } else if let Some(commands) = data.get_mut("custom_commands").and_then(|v| v.get_mut(&key)).and_then(Value::as_object_mut) {
+                commands.remove(name);
+            }
+        });
+    }
 
     pub fn open_ticket(&self, guild: u64, user: u64) -> Option<u64> {
         self.read(|data| {
@@ -360,8 +380,7 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
         let _ = message.reply(&ctx.http, format!("The {command} command is disabled in this server.")).await;
         return true;
     }
-    let custom_key = format!("{guild_id}:{command}");
-    if let Some(response) = store.record("custom_commands", &custom_key).and_then(|v| v.as_str().map(str::to_owned)) {
+    if let Some(response) = store.custom_command(guild_id, &command) {
         let _ = message.reply(&ctx.http, response.chars().take(1900).collect::<String>()).await;
         return true;
     }
