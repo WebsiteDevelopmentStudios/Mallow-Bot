@@ -21,7 +21,9 @@ pub struct CommunityStore {
 impl CommunityStore {
     pub fn open() -> Self {
         let path = PathBuf::from(std::env::var("MALLOW_DATA_DIR").unwrap_or_else(|_| ".".into())).join("community_data.json");
-        let data = fs::read_to_string(&path).ok().and_then(|raw| serde_json::from_str::<Value>(&raw).ok())
+        let data = fs::read_to_string(&path).ok()
+            .or_else(|| fs::read_to_string("community_data.json").ok())
+            .and_then(|raw| serde_json::from_str::<Value>(&raw).ok())
             .filter(Value::is_object).unwrap_or_else(|| json!({}));
         Self { path: Arc::new(path), data: Arc::new(Mutex::new(data)) }
     }
