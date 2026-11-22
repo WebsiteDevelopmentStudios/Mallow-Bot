@@ -1,0 +1,4 @@
+[build]
+# bot-hosting.net containers have a tight memory limit. Serial compilation
+# prevents Cargo from compiling several large Rust dependencies at once.
+jobs = 1
