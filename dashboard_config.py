@@ -57,7 +57,7 @@ async def get_guild_config(guild_id: int | str) -> dict[str, Any]:
         if cached and now - cached[0] < _CACHE_TTL:
             return cached[1]
         try:
-            timeout = aiohttp.ClientTimeout(total=4)
+            timeout = aiohttp.ClientTimeout(total=1.4, connect=0.8)
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.get(
                     DASHBOARD_CONFIG_URL,
