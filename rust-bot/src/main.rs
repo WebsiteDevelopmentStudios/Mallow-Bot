@@ -353,13 +353,23 @@ impl EventHandler for Handler {
     async fn interaction_create(&self, ctx: DiscordContext, interaction: Interaction) {
         match interaction {
             Interaction::Command(command) => {
+                // Acknowledge immediately: dashboard and premium lookups plus command
+                // registration can exceed Discord's 3-second interaction deadline.
+                if let Err(error) = command.create_response(
+                    &ctx.http,
+                    serenity::builder::CreateInteractionResponse::Defer(
+                        serenity::builder::CreateInteractionResponseMessage::new().ephemeral(true),
+                    ),
+                ).await {
+                    warn!(%error, command = %command.data.name, "Could not defer slash command interaction");
+                    return;
+                }
                 if self.state.premium.is_banned(command.user.id.get()).await {
-                    let builder = serenity::builder::CreateInteractionResponse::Message(
-                        serenity::builder::CreateInteractionResponseMessage::new()
-                            .content("This account cannot use Mallow Bot.")
-                            .ephemeral(true),
-                    );
-                    let _ = command.create_response(&ctx.http, builder).await;
+                    let _ = command.edit_response(
+                        &ctx.http,
+                        serenity::builder::EditInteractionResponse::new()
+                            .content("This account cannot use Mallow Bot."),
+                    ).await;
                     return;
                 }
                 let guild_config = if let Some(guild_id) = command.guild_id {
@@ -367,8 +377,8 @@ impl EventHandler for Handler {
                 } else {
                     config::GuildConfig::default()
                 };
-                if !community::handle(ctx.http.as_ref(), &command, &self.state.community, &self.state.premium, &guild_config, false).await {
-                    handle_command(ctx.http.as_ref(), &command, &self.state, &guild_config, false).await;
+                if !community::handle(ctx.http.as_ref(), &command, &self.state.community, &self.state.premium, &guild_config, true).await {
+                    handle_command(ctx.http.as_ref(), &command, &self.state, &guild_config, true).await;
                 }
             }
             Interaction::Component(component) => {
