@@ -258,6 +258,7 @@ pub fn commands() -> Vec<CreateCommand> {
         ("update", "Post the bot update log in this channel"),
         ("youtube", "Look up a YouTube video link"),
         ("rules", "Configure reaction-based rules verification"),
+        ("rule", "Set up verified role and channel access rules"),
         ("autorole", "Configure automatic member roles"),
         ("reaction-role", "Configure reaction role panels"),
                 ("embed", "Create and send a custom embed (Premium)"),
@@ -309,6 +310,13 @@ pub fn commands() -> Vec<CreateCommand> {
                 .add_option(CreateCommandOption::new(CommandOptionType::String, "message_id", "Rules message ID").required(true))
                 .add_option(CreateCommandOption::new(CommandOptionType::String, "emoji", "Required reaction emoji").required(true))
                 .add_option(CreateCommandOption::new(CommandOptionType::Role, "role", "Role granted by reacting").required(true)),
+            "rule" => command
+                .add_option(CreateCommandOption::new(CommandOptionType::Boolean, "make_verified_role", "Create the verified role if it does not exist").required(true))
+                .add_option(CreateCommandOption::new(CommandOptionType::String, "message_id", "Rules message ID in this channel").required(true))
+                .add_option(CreateCommandOption::new(CommandOptionType::Boolean, "setup_channels", "Hide all channels and voice channels from @everyone").required(true))
+                .add_option(CreateCommandOption::new(CommandOptionType::String, "reaction_emoji", "Emoji members react with to verify").required(true))
+                .add_option(CreateCommandOption::new(CommandOptionType::String, "role_color", "Role color name or hex code, e.g. blue or #5865F2").required(true))
+                .add_option(CreateCommandOption::new(CommandOptionType::String, "role_name", "Verified role name (defaults to Verified)").required(false)),
             "announcement" => command
                 .add_option(CreateCommandOption::new(CommandOptionType::Integer, "date", "Days from today").required(true).add_int_choice("Today", 0).add_int_choice("Tomorrow", 1).add_int_choice("In 2 days", 2).add_int_choice("In 3 days", 3).add_int_choice("In 1 week", 7).add_int_choice("In 2 weeks", 14).add_int_choice("In 1 month", 30))
                 .add_option(CreateCommandOption::new(CommandOptionType::Integer, "time", "Minutes from now").required(true).add_int_choice("In 5 minutes", 5).add_int_choice("In 15 minutes", 15).add_int_choice("In 30 minutes", 30).add_int_choice("In 1 hour", 60).add_int_choice("In 2 hours", 120).add_int_choice("In 6 hours", 360).add_int_choice("In 12 hours", 720).add_int_choice("In 24 hours", 1440))
@@ -960,7 +968,7 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
         "xp" | "leaderboard" => Some("xp"),
         "vibecheck" | "ship" | "fortune" | "wyr" => Some("fun"),
         "youtube" => Some("social"),
-        "dm" | "set-log" | "purge" | "snipe" | "sticky" | "rules" | "autorole" | "reaction-role" => Some("moderation"),
+        "dm" | "set-log" | "purge" | "snipe" | "sticky" | "rules" | "rule" | "autorole" | "reaction-role" => Some("moderation"),
         "play" | "join" | "leave" | "pause" | "resume" | "skip" | "stop" | "queue" | "volume" | "lyrics" => Some("music"),
         "uptime" | "update" | "commands" | "sync" | "tos" | "say" | "ticket" | "ticket-panel" | "ticket-close" | "backup" | "embed" | "custom-command" | "vanity" | "premium-status" | "announcement" | "event" => Some("utility"),
         _ => None,
@@ -1265,6 +1273,98 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
                 }
             }
         }
+
+        "rule" => {
+            let permissions = command.member.as_ref().and_then(|member| member.permissions).unwrap_or_default();
+            if !permissions.manage_roles() || !permissions.manage_channels() {
+                "You need Manage Roles and Manage Channels permissions to configure verification.".into()
+            } else {
+                let option_bool = |key: &str| command.data.options.iter().find_map(|option| {
+                    if option.name == key { if let CommandDataOptionValue::Boolean(value) = &option.value { Some(*value) } else { None } } else { None }
+                });
+                let option_string = |key: &str| command.data.options.iter().find_map(|option| {
+                    if option.name == key { if let CommandDataOptionValue::String(value) = &option.value { Some(value.as_str()) } else { None } } else { None }
+                });
+                let make_role = option_bool("make_verified_role").unwrap_or(true);
+                let lock_channels = option_bool("setup_channels").unwrap_or(false);
+                let message_id = option_string("message_id").and_then(|value| value.parse::<u64>().ok());
+                let emoji = option_string("reaction_emoji").unwrap_or("").trim();
+                let role_name = option_string("role_name").unwrap_or("Verified").trim();
+                let color_text = option_string("role_color").unwrap_or("").trim();
+                let color_value = match color_text.to_ascii_lowercase().as_str() {
+                    "red" => Some(0xED4245), "green" => Some(0x57F287), "blue" => Some(0x5865F2),
+                    "yellow" => Some(0xFEE75C), "purple" => Some(0x9B59B6), "orange" => Some(0xE67E22),
+                    "pink" => Some(0xEB459E), "black" => Some(0x23272A), "white" => Some(0xFFFFFF),
+                    _ => u32::from_str_radix(color_text.trim_start_matches('#'), 16).ok().filter(|value| *value <= 0xFFFFFF),
+                };
+                if message_id.is_none() || emoji.is_empty() || emoji.len() > 100 || role_name.is_empty() || role_name.len() > 100 || color_value.is_none() {
+                    "Provide a valid message ID, emoji, role name, and color (named color or hex such as #5865F2).".into()
+                } else {
+                    let guild = GuildId::new(guild_id);
+                    let anchor_id = RoleId::new(1545275679845785640_u64);
+                    match guild.roles(http).await {
+                        Err(_) => "I couldn't read this server's roles. Check my Manage Roles permission.".into(),
+                        Ok(existing_roles) => {
+                            if !existing_roles.contains_key(&anchor_id) {
+                                "The role that Verified must sit above (1545275679845785640) was not found in this server.".into()
+                            } else {
+                                let existing_verified = existing_roles.values().find(|role| role.name.eq_ignore_ascii_case(role_name)).map(|role| role.id);
+                                let role_result = if make_role {
+                                    guild.create_role(http, serenity::builder::EditRole::new()
+                                        .name(role_name).colour(serenity::all::Colour::new(color_value.unwrap())))
+                                        .await.map(|role| role.id)
+                                } else {
+                                    existing_verified.ok_or(serenity::Error::Other("verified role not found"))
+                                };
+                                match role_result {
+                                    Err(_) => "I couldn't create or find the verified role. Make sure Mallow's highest role is high enough.".into(),
+                                    Ok(role_id) => {
+                                        let anchor_position = existing_roles.get(&anchor_id).map(|role| role.position).unwrap_or(0);
+                                        if let Err(error) = guild.edit_role_position(http, role_id, anchor_position.saturating_add(1)).await {
+                                            warn!(%error, role_id = role_id.get(), "Could not position the verified role");
+                                        }
+                                        let message_id = message_id.unwrap();
+                                        let message = command.channel_id.message(http, serenity::all::MessageId::new(message_id)).await;
+                                        match message {
+                                            Err(_) => "I couldn't find that message in this channel. Run /rule in the channel containing your rules message.".into(),
+                                            Ok(_) => {
+                                                if command.channel_id.create_reaction(http, serenity::all::MessageId::new(message_id), parse_reaction_type(emoji)).await.is_err() {
+                                                    "I couldn't add the verification reaction. Check Add Reactions and Read Message History permissions.".into()
+                                                } else {
+                                                    store.set_rule(guild_id, message_id, command.channel_id.get(), emoji, role_id.get(), true);
+                                                    let mut locked = 0usize;
+                                                    let mut lock_failures = 0usize;
+                                                    if lock_channels {
+                                                        match guild.channels(http).await {
+                                                            Ok(channels) => {
+                                                                for channel in channels.values() {
+                                                                    let overwrite = PermissionOverwrite {
+                                                                        allow: Permissions::empty(),
+                                                                        deny: Permissions::VIEW_CHANNEL | Permissions::CONNECT,
+                                                                        kind: PermissionOverwriteType::Role(RoleId::new(guild_id)),
+                                                                    };
+                                                                    if channel.create_permission(http, overwrite).await.is_ok() { locked += 1; }
+                                                                    else { lock_failures += 1; }
+                                                                }
+                                                            }
+                                                            Err(_) => { lock_failures += 1; }
+                                                        }
+                                                    }
+                                                    let channel_note = if lock_channels {
+                                                        format!(" Locked {locked} channels for @everyone{}.", if lock_failures > 0 { format!("; {lock_failures} failed") } else { String::new() })
+                                                    } else { " Channel permissions were left unchanged.".into() };
+                                                    format!("Verification configured. React with {emoji} on message {message_id} to receive <@&{}>. Role: **{}**.{} The role is positioned above <@&1545275679845785640>.", role_id.get(), role_name, channel_note)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "rules" => {
             let permitted = command.member.as_ref().and_then(|member| member.permissions).map(|p| p.manage_roles()).unwrap_or(false);
             if !permitted { "You need Manage Roles permission to use this command.".into() }
