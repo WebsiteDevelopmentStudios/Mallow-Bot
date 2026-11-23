@@ -257,7 +257,6 @@ pub fn commands() -> Vec<CreateCommand> {
         ("say", "Make the bot post a message in this channel"),
         ("update", "Post the bot update log in this channel"),
         ("youtube", "Look up a YouTube video link"),
-        ("rules", "Configure reaction-based rules verification"),
         ("rule", "Set up verified role and channel access rules"),
         ("autorole", "Configure automatic member roles"),
         ("reaction-role", "Configure reaction role panels"),
@@ -305,11 +304,6 @@ pub fn commands() -> Vec<CreateCommand> {
             "autorole" => command
                 .add_option(CreateCommandOption::new(CommandOptionType::String, "action", "Set, disable, or status").required(true).add_string_choice("Set", "set").add_string_choice("Disable", "disable").add_string_choice("Status", "status"))
                 .add_option(CreateCommandOption::new(CommandOptionType::Role, "role", "Role to give new members").required(false)),
-            "rules" => command
-                .add_option(CreateCommandOption::new(CommandOptionType::Boolean, "enabled", "Enable or disable role verification").required(true))
-                .add_option(CreateCommandOption::new(CommandOptionType::String, "message_id", "Rules message ID").required(true))
-                .add_option(CreateCommandOption::new(CommandOptionType::String, "emoji", "Required reaction emoji").required(true))
-                .add_option(CreateCommandOption::new(CommandOptionType::Role, "role", "Role granted by reacting").required(true)),
             "rule" => command
                 .add_option(CreateCommandOption::new(CommandOptionType::Boolean, "make_verified_role", "Create the verified role if it does not exist").required(true))
                 .add_option(CreateCommandOption::new(CommandOptionType::String, "message_id", "Rules message ID in this channel").required(true))
@@ -968,7 +962,7 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
         "xp" | "leaderboard" => Some("xp"),
         "vibecheck" | "ship" | "fortune" | "wyr" => Some("fun"),
         "youtube" => Some("social"),
-        "dm" | "set-log" | "purge" | "snipe" | "sticky" | "rules" | "rule" | "autorole" | "reaction-role" => Some("moderation"),
+        "dm" | "set-log" | "purge" | "snipe" | "sticky" | "rule" | "autorole" | "reaction-role" => Some("moderation"),
         "play" | "join" | "leave" | "pause" | "resume" | "skip" | "stop" | "queue" | "volume" | "lyrics" => Some("music"),
         "uptime" | "update" | "commands" | "sync" | "tos" | "say" | "ticket" | "ticket-panel" | "ticket-close" | "backup" | "embed" | "custom-command" | "vanity" | "premium-status" | "announcement" | "event" => Some("utility"),
         _ => None,
@@ -1372,29 +1366,7 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
                 }
             }
         },
-        "rules" => {
-            let permitted = command.member.as_ref().and_then(|member| member.permissions).map(|p| p.manage_roles()).unwrap_or(false);
-            if !permitted { "You need Manage Roles permission to use this command.".into() }
-            else {
-                let enabled = command.data.options.iter().find_map(|o| if o.name == "enabled" { if let CommandDataOptionValue::Boolean(v) = &o.value { Some(*v) } else { None } } else { None }).unwrap_or(false);
-                let message_id = command.data.options.iter().find_map(|o| if o.name == "message_id" { if let CommandDataOptionValue::String(v) = &o.value { v.parse::<u64>().ok() } else { None } } else { None });
-                let emoji = command.data.options.iter().find_map(|o| if o.name == "emoji" { if let CommandDataOptionValue::String(v) = &o.value { Some(v.clone()) } else { None } } else { None }).unwrap_or_default();
-                let role = command.data.options.iter().find_map(|o| if o.name == "role" { if let CommandDataOptionValue::Role(id) = &o.value { Some(id.get()) } else { None } } else { None });
-                if let (Some(message_id), Some(role)) = (message_id, role) {
-                    if emoji.is_empty() || emoji.len() > 100 { "Enter a valid emoji.".into() }
-                    else {
-                        if enabled {
-                            let reaction = parse_reaction_type(&emoji);
-                            if let Err(_) = command.channel_id.create_reaction(http, serenity::all::MessageId::new(message_id), reaction).await { "I couldn't add the verification reaction in this channel.".into() }
-                            else { store.set_rule(guild_id, message_id, command.channel_id.get(), &emoji, role, enabled); format!("Rules verification enabled for message {message_id}. React with {emoji} to receive <@&{role}>.") }
-                        } else {
-                            store.set_rule(guild_id, message_id, command.channel_id.get(), &emoji, role, false);
-                            format!("Rules verification disabled for message {message_id}.")
-                        }
-                    }
-                } else { "Provide a valid message ID and role.".into() }
-            }
-        }
+
         "reaction-role" => {
             let permitted = command.member.as_ref().and_then(|member| member.permissions).map(|p| p.manage_roles()).unwrap_or(false);
             if !permitted { "You need Manage Roles permission to use this command.".into() }
