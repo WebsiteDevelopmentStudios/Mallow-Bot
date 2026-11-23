@@ -49,6 +49,7 @@ pub(crate) fn registered_global_commands() -> Vec<CreateCommand> {
         CreateCommand::new("commands").description("Show the main Mallow Bot command groups"),
         CreateCommand::new("sync").description("Refresh Mallow Bot slash command registrations"),
         CreateCommand::new("tos").description("Show Mallow Bot acceptable-use rules"),
+        CreateCommand::new("testwelcome").description("Preview the welcome message in this channel"),
         CreateCommand::new("play").description("Play a song or Spotify track in your voice channel").add_option(CreateCommandOption::new(CommandOptionType::String, "song", "Song name or URL").required(true)),
         CreateCommand::new("join").description("Join your current voice channel"),
         CreateCommand::new("leave").description("Leave the voice channel and clear the queue"),
@@ -494,6 +495,47 @@ async fn handle_command(http: &Http, command: &CommandInteraction, state: &BotSt
             if let Some(guild) = guild { state.music.set_lyrics(guild, enabled).await }
             else { "Use this command in a server.".into() }
         }
+
+        "testwelcome" => {
+            if guild.is_none() { "Use this command in a server.".to_string() }
+            else {
+                let guild_id = guild.unwrap();
+                let messages = &cfg.messages_config;
+                let member_count = state.discord_cache.read().await.clone()
+                    .and_then(|cache| cache.guild(GuildId::new(guild_id)))
+                    .map(|cached| cached.member_count).unwrap_or(1);
+                let display_name = command.member.as_ref().and_then(|member| member.nick.as_deref())
+                    .unwrap_or(&command.user.name);
+                let user_mention = format!("<@{}>", command.user.id.get());
+                let guild_name = command.guild_id.and_then(|id| id.to_partial_guild(http).now_or_never())
+                    .and_then(|result| result.ok()).map(|g| g.name).unwrap_or_else(|| "the server".into());
+                let template = messages.get("welcome_message").and_then(serde_json::Value::as_str)
+                    .unwrap_or("╭─〔 👤 **Welcomer** 〕─╮\n│ WELCOME {user} TO {server}!!\n│ we now have {member_count} members!!!\n╰──────────────────────────╯");
+                let body = template.replace("{user}", &user_mention).replace("{server}", &guild_name)
+                    .replace("{member_count}", &member_count.to_string());
+                let title = messages.get("welcome_title").and_then(serde_json::Value::as_str).unwrap_or("");
+                let image_url = messages.get("welcome_image_url").and_then(serde_json::Value::as_str)
+                    .unwrap_or("https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/dashboard/Welcome.png");
+                let avatar_url = command.user.avatar_url().unwrap_or_else(|| "https://cdn.discordapp.com/embed/avatars/0.png".into());
+                if let Some(card) = member_cards::render(image_url, &avatar_url, display_name, member_count.max(1) as u64, false).await {
+                    let mut embed = CreateEmbed::new().description(body.chars().take(4000).collect::<String>())
+                        .image("attachment://mallow-member-card.png");
+                    if !title.is_empty() { embed = embed.title(title.chars().take(256).collect::<String>()); }
+                    if command.channel_id.send_message(http, CreateMessage::new().embed(embed)
+                        .add_file(CreateAttachment::bytes(card, "mallow-member-card.png"))).await.is_ok() {
+                        "Welcome preview sent in this channel.".to_string()
+                    } else { "I couldn't send the welcome preview. Check my channel permissions.".to_string() }
+                } else {
+                    let mut embed = CreateEmbed::new().description(body.chars().take(4000).collect::<String>())
+                        .thumbnail(&avatar_url).image(image_url)
+                        .footer(serenity::builder::CreateEmbedFooter::new(format!("{display_name} · This user is #{} on the server", member_count.max(1))));
+                    if !title.is_empty() { embed = embed.title(title.chars().take(256).collect::<String>()); }
+                    if command.channel_id.send_message(http, CreateMessage::new().embed(embed)).await.is_ok() {
+                        "Welcome preview sent in this channel (fallback image mode).".to_string()
+                    } else { "I couldn't send the welcome preview. Check my channel permissions.".to_string() }
+                }
+            }
+        },
         "ping" => "Pong! The Rust process is responsive.".to_string(),
         "uptime" => {
             let elapsed = state.started.elapsed();
