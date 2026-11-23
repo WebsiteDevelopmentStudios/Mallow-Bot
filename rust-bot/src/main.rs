@@ -501,14 +501,13 @@ async fn handle_command(http: &Http, command: &CommandInteraction, state: &BotSt
             else {
                 let guild_id = guild.unwrap();
                 let messages = &cfg.messages_config;
-                let member_count = state.discord_cache.read().await.clone()
-                    .and_then(|cache| cache.guild(GuildId::new(guild_id)))
-                    .map(|cached| cached.member_count).unwrap_or(1);
+                let cached_guild = state.discord_cache.read().await.clone()
+                    .and_then(|cache| cache.guild(GuildId::new(guild_id)));
+                let member_count = cached_guild.as_ref().map(|cached| cached.member_count).unwrap_or(1);
+                let guild_name = cached_guild.as_ref().map(|cached| cached.name.clone()).unwrap_or_else(|| "the server".into());
                 let display_name = command.member.as_ref().and_then(|member| member.nick.as_deref())
                     .unwrap_or(&command.user.name);
                 let user_mention = format!("<@{}>", command.user.id.get());
-                let guild_name = command.guild_id.and_then(|id| id.to_partial_guild(http).now_or_never())
-                    .and_then(|result| result.ok()).map(|g| g.name).unwrap_or_else(|| "the server".into());
                 let template = messages.get("welcome_message").and_then(serde_json::Value::as_str)
                     .unwrap_or("╭─〔 👤 **Welcomer** 〕─╮\n│ WELCOME {user} TO {server}!!\n│ we now have {member_count} members!!!\n╰──────────────────────────╯");
                 let body = template.replace("{user}", &user_mention).replace("{server}", &guild_name)
