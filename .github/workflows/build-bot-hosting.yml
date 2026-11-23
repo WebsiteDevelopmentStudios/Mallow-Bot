@@ -33,7 +33,13 @@ jobs:
       - name: Package executable
         run: |
           mkdir -p artifact
-          cp rust-bot/target/release/mallow-bot artifact/mallow-bot-linux-x86_64
+          BINARY="$(find . -type f -path '*/release/mallow-bot' -print -quit)"
+          if [ -z "$BINARY" ]; then
+            echo "Could not find the compiled mallow-bot executable."
+            find . -type f -path '*/release/*' -maxdepth 6 -print | head -100
+            exit 1
+          fi
+          cp "$BINARY" artifact/mallow-bot-linux-x86_64
           chmod +x artifact/mallow-bot-linux-x86_64
       - name: Publish latest bot-hosting build
         uses: softprops/action-gh-release@v2
