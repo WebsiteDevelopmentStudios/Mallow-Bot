@@ -74,19 +74,19 @@ The service listens on `PORT` or `SERVER_PORT` (default `25572`).
 
 ## bot-hosting.net deployment
 
-The bot-hosting.net server pulls this repository from GitHub. Select the **Rust** runtime in the panel. Its provided startup command detects the root `Cargo.toml` and runs `cargo run --release`; the root workspace automatically selects `rust-bot/` as the default member.
+The bot-hosting.net container has a strict memory limit, so it should **not compile the Rust dependency graph itself**. GitHub Actions builds the Linux executable on a build runner and publishes it as the `bot-hosting-latest` release asset whenever Rust source changes on `main`.
 
-The host's Cargo command also generates a root `Cargo.lock` when one is not present. Keeping the workspace manifest at the repository root allows the host's dependency detection to inspect the Rust project's lockfile and install any required system packages from `Aptfile`.
-
-If entering a custom start command, use:
+In the bot-hosting.net panel, set the custom startup command to:
 
 ```sh
-cargo run --release
+bash start.sh
 ```
+
+The script downloads the precompiled executable and launches it. The first start after a source update must wait until the GitHub Actions workflow **Build bot-hosting binary** finishes successfully and publishes the new asset. This avoids compiling large dependencies such as `syn` inside the limited-memory container.
 
 Configure the environment variables listed above in the host panel. Set `MALLOW_DATA_DIR` to a writable persistent directory provided by bot-hosting.net. Keep the existing Lavalink URI/password if music playback should remain enabled.
 
-Do not use the old Python startup command (`pip install ... requirements.txt && python3 ...`) or run the old Python process alongside Rust using the same Discord token. Rust dependencies are managed by Cargo, not pip.
+Do not use the panel's default `cargo run --release` startup command or the old Python startup command. Rust dependencies are compiled by GitHub Actions, not on the game-hosting container.
 
 ## Data persistence
 
