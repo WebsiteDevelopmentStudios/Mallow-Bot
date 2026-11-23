@@ -1355,7 +1355,7 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
                 let days = command.data.options.iter().find_map(|o| if o.name == "date" { if let CommandDataOptionValue::Integer(v) = &o.value { Some(*v) } else { None } } else { None }).unwrap_or(0).max(0) as u64;
                 let minutes = command.data.options.iter().find_map(|o| if o.name == "time" { if let CommandDataOptionValue::Integer(v) = &o.value { Some(*v) } else { None } } else { None }).unwrap_or(5).max(0) as u64;
                 let timestamp = now_seconds() + days * 86_400 + minutes * 60;
-                let channel = serenity::all::ChannelId::new(1574140545570181141);
+                let channel = serenity::all::ChannelId::new(1544630281485549589);
                 if name == "announcement" {
                     let news = command.data.options.iter().find_map(|o| if o.name == "news" { if let CommandDataOptionValue::String(v) = &o.value { Some(v.as_str()) } else { None } } else { None }).unwrap_or("");
                     if news.trim().is_empty() || news.len() > 1500 { "Announcement text must be between 1 and 1,500 characters.".into() }
