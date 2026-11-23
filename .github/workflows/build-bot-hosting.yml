@@ -33,7 +33,7 @@ jobs:
       - name: Package executable
         run: |
           mkdir -p artifact
-          cp target/release/mallow-bot artifact/mallow-bot-linux-x86_64
+          cp rust-bot/target/release/mallow-bot artifact/mallow-bot-linux-x86_64
           chmod +x artifact/mallow-bot-linux-x86_64
       - name: Publish latest bot-hosting build
         uses: softprops/action-gh-release@v2
