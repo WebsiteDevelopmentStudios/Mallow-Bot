@@ -1343,7 +1343,14 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
                                                                         deny: Permissions::VIEW_CHANNEL | Permissions::CONNECT,
                                                                         kind: PermissionOverwriteType::Role(RoleId::new(guild_id)),
                                                                     };
-                                                                    if channel.create_permission(http, overwrite).await.is_ok() { locked += 1; }
+                                                                    let everyone_result = channel.create_permission(http, overwrite).await;
+                                                                    let verified_overwrite = PermissionOverwrite {
+                                                                        allow: Permissions::VIEW_CHANNEL | Permissions::CONNECT | Permissions::SEND_MESSAGES | Permissions::READ_MESSAGE_HISTORY,
+                                                                        deny: Permissions::empty(),
+                                                                        kind: PermissionOverwriteType::Role(role_id),
+                                                                    };
+                                                                    let verified_result = channel.create_permission(http, verified_overwrite).await;
+                                                                    if everyone_result.is_ok() && verified_result.is_ok() { locked += 1; }
                                                                     else { lock_failures += 1; }
                                                                 }
                                                             }
