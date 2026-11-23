@@ -511,6 +511,23 @@ async fn handle_command(http: &Http, command: &CommandInteraction, state: &BotSt
             else {
                 let guild_id = guild.unwrap();
                 let messages = &cfg.messages_config;
+                // Bliss SMP has its own branded welcome. Keep the test command in sync
+                // with the real member-join welcome instead of using the generic card.
+                if guild_id == 1544628300217978932 {
+                    let banner = CreateEmbed::new()
+                        .image("https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/Bliss%20smp%20banner.png");
+                    let welcome = CreateEmbed::new()
+                        .title("BLISS SMP • NEW MEMBER")
+                        .description(format!("Welcome <@{}>! We're glad you've joined the realm. Get verified and jump into the adventure!", command.user.id.get()))
+                        .field("GET SERVER ACCESS", "Head to <#1544630280118206496> and react to the rules message with 💎 to unlock the server.", false)
+                        .field("FIND THE REALM CODE", "Once you're verified, the realm code is waiting in <#1544638277179678730>.", false)
+                        .footer(serenity::builder::CreateEmbedFooter::new("BLISS SMP • Your adventure starts here"));
+                    if command.channel_id.send_message(http, CreateMessage::new().add_embed(banner).add_embed(welcome)).await.is_ok() {
+                        "Bliss SMP welcome preview sent in this channel.".to_string()
+                    } else {
+                        "I couldn't send the Bliss SMP welcome preview. Check my channel permissions.".to_string()
+                    }
+                } else {
                 let cached_guild = state.discord_cache.read().await.clone()
                     .and_then(|cache| cache.guild(GuildId::new(guild_id))
                         .map(|cached| (cached.member_count, cached.name.clone())));
@@ -543,6 +560,7 @@ async fn handle_command(http: &Http, command: &CommandInteraction, state: &BotSt
                     if command.channel_id.send_message(http, CreateMessage::new().embed(embed)).await.is_ok() {
                         "Welcome preview sent in this channel (fallback image mode).".to_string()
                     } else { "I couldn't send the welcome preview. Check my channel permissions.".to_string() }
+                }
                 }
             }
         },
