@@ -119,16 +119,25 @@ impl EventHandler for Handler {
         let template = messages.get("welcome_message").and_then(|v| v.as_str()).unwrap_or("╭─〔 👤 **Welcomer** 〕─╮\n│ WELCOME {user} TO {server}!!\n│ we now have {member_count} members!!!\n╰──────────────────────────╯");
         let body = template.replace("{user}", &user).replace("{server}", server).replace("{member_count}", &count.to_string());
         let title = messages.get("welcome_title").and_then(|v| v.as_str()).unwrap_or("");
-        let mut embed = if is_bliss {
-            CreateEmbed::new()
+        if is_bliss {
+            // Send the Bliss SMP banner as the first embed, with the welcome information directly below it.
+            let banner = CreateEmbed::new()
+                .image("https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/Bliss%20smp%20banner.png");
+            let welcome = CreateEmbed::new()
                 .title("BLISS SMP • NEW MEMBER")
                 .description(format!("Welcome {user}! We're glad you've joined the realm. Get verified and jump into the adventure!"))
                 .field("GET SERVER ACCESS", "Head to <#1544630280118206496> and react to the rules message with 💎 to unlock the server.", false)
                 .field("FIND THE REALM CODE", "Once you're verified, the realm code is waiting in <#1544638277179678730>.", false)
-                .footer(serenity::builder::CreateEmbedFooter::new("BLISS SMP • Your adventure starts here"))
-        } else {
-            CreateEmbed::new().description(body.chars().take(4000).collect::<String>())
-        };
+                .footer(serenity::builder::CreateEmbedFooter::new("BLISS SMP • Your adventure starts here"));
+            if let Err(error) = serenity::all::ChannelId::new(channel)
+                .send_message(&ctx.http, CreateMessage::new().add_embed(banner).add_embed(welcome))
+                .await
+            {
+                warn!(%error, guild_id, "Could not send Bliss SMP welcome banner");
+            }
+            return;
+        }
+        let mut embed = CreateEmbed::new().description(body.chars().take(4000).collect::<String>());
         if !is_bliss && !title.is_empty() { embed = embed.title(title.chars().take(256).collect::<String>()); }
         let display_name = member.nick.as_deref().unwrap_or(&member.user.name);
         let image_url = messages.get("welcome_image_url").and_then(|v| v.as_str()).unwrap_or("https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/dashboard/Welcome.png");
