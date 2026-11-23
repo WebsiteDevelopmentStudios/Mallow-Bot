@@ -28,7 +28,7 @@ jobs:
           workspaces: rust-bot -> target
       - name: Build Linux executable
         working-directory: rust-bot
-        run: cargo build --release --locked
+        run: cargo build --release
       - name: Package executable
         run: |
           mkdir -p artifact
