@@ -3,7 +3,7 @@ use reqwest::{Client, StatusCode};
 use serde::Deserialize;
 use std::{collections::HashMap, env, sync::Arc, time::{Duration, Instant}};
 use tokio::sync::RwLock;
-use tracing::warn;
+use tracing::debug;
 
 use crate::config::GuildConfig;
 
@@ -52,12 +52,12 @@ impl DashboardClient {
         let response = match response {
             Ok(response) if response.status() == StatusCode::OK => response,
             Ok(response) => {
-                warn!(guild_id, status = %response.status(), "Dashboard runtime config request failed");
+                debug!(guild_id, status = %response.status(), "Dashboard runtime config request failed; using cached or default settings");
                 self.failure_until.write().await.insert(key.clone(), Instant::now() + Duration::from_secs(60));
                 return self.cached_or_default(&key).await;
             }
             Err(error) => {
-                warn!(guild_id, %error, "Dashboard runtime config request failed");
+                debug!(guild_id, %error, "Dashboard runtime config request failed; using cached or default settings");
                 self.failure_until.write().await.insert(key.clone(), Instant::now() + Duration::from_secs(60));
                 return self.cached_or_default(&key).await;
             }
@@ -65,7 +65,7 @@ impl DashboardClient {
         let payload = match response.json::<RuntimeResponse>().await {
             Ok(payload) => payload,
             Err(error) => {
-                warn!(guild_id, %error, "Dashboard returned invalid runtime config");
+                debug!(guild_id, %error, "Dashboard returned invalid runtime config; using cached or default settings");
                 self.failure_until.write().await.insert(key.clone(), Instant::now() + Duration::from_secs(60));
                 return self.cached_or_default(&key).await;
             }
