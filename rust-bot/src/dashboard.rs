@@ -7,6 +7,13 @@ use tracing::debug;
 
 use crate::config::GuildConfig;
 
+fn default_config() -> GuildConfig {
+    let mut config = GuildConfig::default();
+    config.swear_words = serde_json::from_str(include_str!("../default_swear_words.json"))
+        .unwrap_or_default();
+    config
+}
+
 #[derive(Clone)]
 pub struct DashboardClient {
     http: Client,
@@ -44,7 +51,7 @@ impl DashboardClient {
         if self.failure_until.read().await.get(&key).map(|until| *until > Instant::now()).unwrap_or(false) {
             return self.cached_or_default(&key).await;
         }
-        if self.secret.is_empty() { return GuildConfig::default(); }
+        if self.secret.is_empty() { return default_config(); }
         let response = self.http.get(&self.url)
             .query(&[("guild_id", key.as_str())])
             .bearer_auth(&self.secret)
@@ -71,7 +78,7 @@ impl DashboardClient {
             }
         };
         let settings = payload.settings;
-        let mut config = GuildConfig::default();
+        let mut config = default_config();
         config.prefix = settings.get("prefix").and_then(|v| v.as_str()).unwrap_or("-mb").chars().take(8).collect();
         config.greeting = settings.get("greeting").and_then(|v| v.as_str()).unwrap_or(&config.greeting).chars().take(500).collect();
         config.greetings = settings.get("greetings").and_then(|v| v.as_bool()).unwrap_or(true);
@@ -93,7 +100,8 @@ impl DashboardClient {
             }
         }
         if let Some(words) = settings.get("swear_words").and_then(|v| v.as_array()) {
-            config.swear_words = words.iter().filter_map(|v| v.as_str()).map(str::to_owned).take(200).collect();
+            let remote_words: Vec<String> = words.iter().filter_map(|v| v.as_str()).map(str::to_owned).take(1000).collect();
+            if !remote_words.is_empty() { config.swear_words = remote_words; }
         }
         self.failure_until.write().await.remove(&key);
         self.cache.write().await.insert(key, (Instant::now(), config.clone()));
@@ -101,6 +109,6 @@ impl DashboardClient {
     }
 
     async fn cached_or_default(&self, key: &str) -> GuildConfig {
-        self.cache.read().await.get(key).map(|(_, value)| value.clone()).unwrap_or_default()
+        self.cache.read().await.get(key).map(|(_, value)| value.clone()).unwrap_or_else(default_config)
     }
 }
