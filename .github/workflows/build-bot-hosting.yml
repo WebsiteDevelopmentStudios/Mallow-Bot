@@ -1,0 +1,44 @@
+name: Build bot-hosting binary
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "rust-bot/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".github/workflows/build-bot-hosting.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: bot-hosting-binary
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust-bot -> target
+      - name: Build Linux executable
+        working-directory: rust-bot
+        run: cargo build --release --locked
+      - name: Package executable
+        run: |
+          mkdir -p artifact
+          cp rust-bot/target/release/mallow-bot artifact/mallow-bot-linux-x86_64
+          chmod +x artifact/mallow-bot-linux-x86_64
+      - name: Publish latest bot-hosting build
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: bot-hosting-latest
+          name: Bot-hosting latest build
+          prerelease: true
+          make_latest: false
+          files: artifact/mallow-bot-linux-x86_64
