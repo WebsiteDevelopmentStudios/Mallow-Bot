@@ -5,7 +5,7 @@ resolver = "2"
 
 # Keep builds and cached artifacts small on constrained hosting disks.
 [profile.release]
-opt-level = 1
+opt-level = 0
 debug = 0
 incremental = false
 strip = true
