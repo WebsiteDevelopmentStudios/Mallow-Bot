@@ -34,7 +34,7 @@ impl Default for GuildConfig {
             xp_config: json!({"min_xp":10,"max_xp":20,"cooldown_seconds":60,"announce_level_up":true}),
             messages_config: json!({}),
             tickets_config: json!({}),
-            swear_words: vec![],
+            swear_words: vec!["fuck".into(), "fucks".into(), "fucked".into(), "fucker".into(), "fuckers".into(), "fucking".into(), "fuckin".into(), "motherfucker".into(), "motherfuckers".into(), "motherfucking".into()],
             swear_count_adjustments: json!({}),
         }
     }
