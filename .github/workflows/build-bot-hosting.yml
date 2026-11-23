@@ -9,7 +9,6 @@ on:
       - ".github/workflows/build-bot-hosting.yml"
       - "Cargo.toml"
       - "Cargo.lock"
-      - ".github/workflows/build-bot-hosting.yml"
   workflow_dispatch:
 
 permissions:
