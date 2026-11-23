@@ -2,7 +2,7 @@ use reqwest::Client;
 use serde::Deserialize;
 use std::{collections::HashMap, env, sync::Arc, time::{Duration, Instant}};
 use tokio::sync::RwLock;
-use tracing::warn;
+use tracing::debug;
 
 #[derive(Clone)]
 pub struct PremiumClient {
@@ -30,10 +30,10 @@ impl PremiumClient {
         match self.http.get(&self.url).query(&[("discord_id", user_id)]).send().await {
             Ok(response) if response.status().is_success() => match response.json::<PremiumStatus>().await {
                 Ok(status) => (status.banned, status.active, status.expires_at),
-                Err(error) => { warn!(%error, "Premium status response was invalid"); (false, false, None) }
+                Err(error) => { debug!(%error, "Premium status response was invalid"); (false, false, None) }
             },
-            Ok(response) => { warn!(status = %response.status(), "Premium status request failed"); (false, false, None) }
-            Err(error) => { warn!(%error, "Premium status request unavailable"); (false, false, None) }
+            Ok(response) => { debug!(status = %response.status(), "Premium status request failed"); (false, false, None) }
+            Err(error) => { debug!(%error, "Premium status request unavailable"); (false, false, None) }
         }
     }
 
@@ -47,10 +47,10 @@ impl PremiumClient {
                     self.cache.write().await.insert(user_id, (Instant::now(), status.banned));
                     status.banned
                 }
-                Err(error) => { warn!(%error, "Premium status response was invalid; allowing request"); false }
+                Err(error) => { debug!(%error, "Premium status response was invalid; allowing request"); false }
             },
-            Ok(response) => { warn!(status = %response.status(), "Premium status check failed; allowing request"); false }
-            Err(error) => { warn!(%error, "Premium status check unavailable; allowing request"); false }
+            Ok(response) => { debug!(status = %response.status(), "Premium status check failed; allowing request"); false }
+            Err(error) => { debug!(%error, "Premium status check unavailable; allowing request"); false }
         }
     }
 }
