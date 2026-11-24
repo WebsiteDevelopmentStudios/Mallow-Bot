@@ -221,7 +221,7 @@ impl MusicManager {
         shard.websocket_message(Message::Text(payload.to_string()));
     }
 
-    async fn search(&self, query: &str) -> Result<Track> {
+    async fn search(&self, query: &str) -> Result<Vec<Track>> {
         if !self.enabled() { return Err(anyhow!("Lavalink is disabled. Set ENABLE_LAVALINK=true to enable music.")); }
         let mut search_term = query.trim().to_string();
         if query.contains("open.spotify.com/track/") || query.contains("spotify.link/") {
@@ -241,28 +241,66 @@ impl MusicManager {
             .send().await.context("Lavalink search request failed")?;
         if !response.status().is_success() { return Err(anyhow!("Lavalink returned HTTP {}", response.status())); }
         let payload: Value = response.json().await.context("Invalid Lavalink search response")?;
-        let track = payload.get("data").and_then(Value::as_array).and_then(|v| v.first()).ok_or_else(|| anyhow!("No playable tracks were found"))?;
-        let encoded = track.get("encoded").and_then(Value::as_str).ok_or_else(|| anyhow!("Lavalink did not return an encoded track"))?;
-        let info = track.get("info").cloned().unwrap_or_default();
-        Ok(Track {
-            encoded: encoded.to_string(),
-            title: info.get("title").and_then(Value::as_str).unwrap_or("Unknown track").to_string(),
-            artist: info.get("author").and_then(Value::as_str).unwrap_or("Unknown Artist").to_string(),
-            is_tts: false,
-            start_position_ms: None,
-        })
+        let data = payload.get("data").ok_or_else(|| anyhow!("Lavalink returned no track data."))?;
+        // Lavalink v4 returns a track object for direct URLs, an array for
+        // search results, and data.tracks for playlist URLs.
+        let tracks_value: Vec<&Value> = if let Some(items) = data.get("tracks").and_then(Value::as_array) {
+            items.iter().collect()
+        } else if let Some(items) = data.as_array() {
+            items.iter().collect()
+        } else if data.get("encoded").is_some() {
+            vec![data]
+        } else {
+            Vec::new()
+        };
+        let tracks: Vec<Track> = tracks_value.into_iter().filter_map(|track| {
+            let encoded = track.get("encoded").and_then(Value::as_str)?;
+            let info = track.get("info")?;
+            Some(Track {
+                encoded: encoded.to_string(),
+                title: info.get("title").and_then(Value::as_str).unwrap_or("Unknown track").to_string(),
+                artist: info.get("author").and_then(Value::as_str).unwrap_or("Unknown Artist").to_string(),
+                is_tts: false,
+                start_position_ms: None,
+            })
+        }).collect();
+        if tracks.is_empty() {
+            let reason = data.get("message").and_then(Value::as_str)
+                .or_else(|| data.get("exception").and_then(|v| v.get("message")).and_then(Value::as_str))
+                .unwrap_or("No playable tracks were found. Make sure the YouTube link is public and supported by the Lavalink node.");
+            return Err(anyhow!(reason.to_string()));
+        }
+        Ok(tracks)
     }
 
     pub async fn enqueue(&self, guild: u64, query: &str) -> Result<String> {
-        let track = self.search(query).await?;
-        let title = track.title.clone();
+        let mut tracks = self.search(query).await?;
+        let first_title = tracks.first().map(|track| track.title.clone()).unwrap_or_else(|| "track".into());
+        let total = tracks.len();
         let start = {
             let mut players = self.players.lock().await;
             let player = players.entry(guild).or_insert_with(|| GuildPlayer { volume: 100, ..Default::default() });
-            if player.current.is_none() { player.current = Some(track); player.last_started = None; true } else { player.queue.push_back(track); false }
+            let mut iter = tracks.drain(..);
+            let mut should_start = false;
+            if player.current.is_none() {
+                if let Some(first) = iter.next() {
+                    player.current = Some(first);
+                    player.last_started = None;
+                    should_start = true;
+                }
+            }
+            player.queue.extend(iter);
+            should_start
         };
-        if start { self.try_start(guild).await; Ok(format!("Queued and starting **{title}**.")) }
-        else { let count = self.players.lock().await.get(&guild).map(|p| p.queue.len()).unwrap_or(0); Ok(format!("Added **{title}** to the queue at position {count}.")) }
+        if start { self.try_start(guild).await; }
+        if total > 1 {
+            Ok(format!("Added **{total} tracks** from the YouTube playlist. First up: **{first_title}**."))
+        } else if start {
+            Ok(format!("Now playing **{first_title}**."))
+        } else {
+            let position = self.players.lock().await.get(&guild).map(|p| p.queue.len()).unwrap_or(0);
+            Ok(format!("Added **{first_title}** to the queue at position {position}."))
+        }
     }
 
     pub async fn bot_voice_channel(&self, guild: u64) -> Option<u64> {
