@@ -44,10 +44,21 @@ jobs:
         working-directory: rust-bot
         run: cargo build --release
       - name: Package executable
+        working-directory: .
+        shell: bash
         run: |
+          set -euo pipefail
           mkdir -p artifact
-          cp rust-bot/target/release/mallow-bot artifact/mallow-bot-linux-x86_64
+          BINARY="rust-bot/target/release/mallow-bot"
+          if [ ! -x "$BINARY" ]; then
+            echo "Expected executable not found: $BINARY"
+            echo "Available mallow-bot binaries:"
+            find . -maxdepth 7 -type f -name 'mallow-bot*' -print
+            exit 1
+          fi
+          cp "$BINARY" artifact/mallow-bot-linux-x86_64
           chmod +x artifact/mallow-bot-linux-x86_64
+          test -s artifact/mallow-bot-linux-x86_64
       - uses: actions/upload-artifact@v4
         with:
           name: mallow-bot-linux-x86_64
