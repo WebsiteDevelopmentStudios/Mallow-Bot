@@ -1611,6 +1611,13 @@ mod tests {
     }
 
     #[test]
+    fn swear_counter_does_not_match_substrings_or_normal_everyday_words() {
+        let configured = vec!["fuck".to_string(), "shit".to_string()];
+        assert_eq!(count_swear_hits("class assignment, a fan, a pic, and a picnic", &configured), 0);
+        assert_eq!(count_swear_hits("this is fucking awesome", &configured), 1);
+    }
+
+    #[test]
     fn random_rolls_stay_inside_the_requested_range() {
         assert_eq!(pseudo_roll(0), 0);
         for _ in 0..100 {
