@@ -314,35 +314,18 @@ impl MusicManager {
             start_position_ms: None,
         };
 
-        // TTS should be heard promptly. Temporarily replace the current music
-        // track, remember its playback position, then resume it after queued speech.
-        let current = self.players.lock().await.get(&guild).and_then(|player| player.current.clone());
-        let resume_position = if current.as_ref().map(|item| !item.is_tts).unwrap_or(false) {
-            if let Ok(url) = self.player_url(guild).await {
-                match self.client.get(url).header("Authorization", &self.password).send().await {
-                    Ok(response) => response.json::<Value>().await.ok()
-                        .and_then(|payload| payload.get("state").and_then(|state| state.get("position")).and_then(Value::as_u64))
-                        .unwrap_or(0),
-                    Err(_) => 0,
-                }
-            } else { 0 }
-        } else { 0 };
-
+        // Never replace or interrupt the song currently playing. Speech is
+        // queued and will play as soon as the current track naturally ends.
         let start = {
             let mut players = self.players.lock().await;
             let player = players.entry(guild).or_insert_with(|| GuildPlayer { volume: 100, ..Default::default() });
-            if player.current.as_ref().map(|item| item.is_tts).unwrap_or(false) || player.resume_after_tts.is_some() {
-                player.tts_queue.push_back(track);
-                false
-            } else if let Some(current) = player.current.clone() {
-                player.resume_after_tts = Some((current, resume_position));
-                player.current = Some(track);
+            player.tts_queue.push_back(track);
+            if player.current.is_none() {
+                player.current = player.tts_queue.pop_front();
                 player.last_started = None;
-                true
+                player.current.is_some()
             } else {
-                player.current = Some(track);
-                player.last_started = None;
-                true
+                false
             }
         };
         if start { self.try_start(guild).await; }
@@ -472,14 +455,16 @@ impl MusicManager {
             let Some(player) = players.get_mut(&guild) else { return };
             let was_tts = player.current.as_ref().map(|track| track.is_tts).unwrap_or(false);
             player.current = if was_tts {
-                player.tts_queue.pop_front().or_else(|| {
-                    player.resume_after_tts.take().map(|(mut track, position)| {
+                player.tts_queue.pop_front()
+                    .or_else(|| player.resume_after_tts.take().map(|(mut track, position)| {
                         track.start_position_ms = Some(position);
                         track
-                    })
-                })
+                    }))
+                    .or_else(|| player.queue.pop_front())
             } else {
-                player.queue.pop_front()
+                // Speech queued during a song gets priority after that song ends,
+                // before the next music track.
+                player.tts_queue.pop_front().or_else(|| player.queue.pop_front())
             };
             player.last_started = None;
             player.current.is_some()
