@@ -3,6 +3,7 @@ WORKDIR /app
 ENV CARGO_TARGET_DIR=/tmp/mallow-target
 COPY rust-bot/Cargo.toml rust-bot/Cargo.toml
 COPY rust-bot/src rust-bot/src
+COPY rust-bot/default_swear_words.json rust-bot/default_swear_words.json
 COPY TERMS_OF_SERVICE.md TERMS_OF_SERVICE.md
 COPY halloween_facts.txt halloween_facts.txt
 COPY description.txt description.txt
