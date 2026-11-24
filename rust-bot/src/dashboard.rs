@@ -100,7 +100,20 @@ impl DashboardClient {
             }
         }
         if let Some(words) = settings.get("swear_words").and_then(|v| v.as_array()) {
-            let remote_words: Vec<String> = words.iter().filter_map(|v| v.as_str()).map(str::to_owned).take(1000).collect();
+            // Older saved dashboard lists may contain everyday words that
+            // create false positives. Filter these even when loaded remotely.
+            const AMBIGUOUS: &[&str] = &[
+                "hell", "ass", "bloody", "crikey", "screw you", "screwed", "screwing",
+                "sucks", "sucker", "moron", "idiot", "pube", "satan", "con", "cons",
+                "fan", "pic", "aq", "ode", "mavi", "babi", "salak", "git", "cul",
+                "cu", "bok", "sik", "krl", "pqp", "amk",
+            ];
+            let remote_words: Vec<String> = words.iter()
+                .filter_map(|v| v.as_str())
+                .map(str::to_owned)
+                .filter(|word| !AMBIGUOUS.iter().any(|bad| word.trim().eq_ignore_ascii_case(bad)))
+                .take(1000)
+                .collect();
             if !remote_words.is_empty() { config.swear_words = remote_words; }
         }
         self.failure_until.write().await.remove(&key);
