@@ -1644,7 +1644,8 @@ mod tests {
     fn swear_counter_does_not_match_substrings_or_normal_everyday_words() {
         let configured = vec!["fuck".to_string(), "shit".to_string()];
         assert_eq!(count_swear_hits("class assignment, a fan, a pic, and a picnic", &configured), 0);
-        assert_eq!(count_swear_hits("this is fucking awesome", &configured), 1);
+        assert_eq!(count_swear_hits("this is fuck and shit", &configured), 2);
+        assert_eq!(count_swear_hits("this is fucking awesome", &configured), 0);
     }
 
     #[test]
