@@ -108,6 +108,7 @@ impl EventHandler for Handler {
     }
 
     async fn guild_create(&self, ctx: DiscordContext, guild: Guild, _is_new: Option<bool>) {
+        self.state.music.sync_guild_voice_states(&guild).await;
         let banned: std::collections::HashSet<u64> = env::var("BANNED_GUILD_IDS").unwrap_or_default()
             .split(',').filter_map(|item| item.trim().parse::<u64>().ok()).collect();
         if banned.contains(&guild.id.get()) {
@@ -370,10 +371,11 @@ impl EventHandler for Handler {
         if cfg.features.get("swear_counter").and_then(|v| v.as_bool()).unwrap_or(true) && !cfg.swear_words.is_empty() {
             let hits = community::count_swear_hits(content, &cfg.swear_words);
             if hits > 0 {
-                let total = self.state.community.add_swears(guild_id, message.author.id.get(), hits);
-                let adjustment = cfg.swear_count_adjustments.get(message.author.id.get().to_string()).and_then(|v| v.as_i64()).unwrap_or(0);
-                let shown = (total + adjustment).max(0);
-                let _ = message.reply(&ctx.http, format!("You now have {shown} swear(s) in this server.")).await;
+                if let Some(total) = self.state.community.add_swears_once(guild_id, message.author.id.get(), message.id.get(), hits) {
+                    let adjustment = cfg.swear_count_adjustments.get(message.author.id.get().to_string()).and_then(|v| v.as_i64()).unwrap_or(0);
+                    let shown = (total + adjustment).max(0);
+                    let _ = message.reply(&ctx.http, format!("You now have {shown} swear(s) in this server.")).await;
+                }
             }
         }
         if is_prefix && community::handle_prefix(&ctx, &message, &cfg, &self.state.community, &self.state.music, &self.state.premium, self.state.started).await { return; }
