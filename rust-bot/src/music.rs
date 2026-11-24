@@ -3,7 +3,7 @@ use futures_util::{SinkExt, StreamExt};
 use reqwest::Client;
 use serde_json::{json, Value};
 use serenity::{
-    all::{VoiceServerUpdateEvent, VoiceState},
+    all::{Guild, VoiceServerUpdateEvent, VoiceState},
     http::Http,
     gateway::ShardMessenger,
 };
@@ -17,6 +17,8 @@ struct Track {
     encoded: String,
     title: String,
     artist: String,
+    is_tts: bool,
+    start_position_ms: Option<u64>,
 }
 
 #[derive(Default, Clone)]
@@ -34,6 +36,8 @@ struct GuildPlayer {
     volume: u16,
     paused: bool,
     lyrics_enabled: bool,
+    tts_queue: VecDeque<Track>,
+    resume_after_tts: Option<(Track, u64)>,
 }
 
 #[derive(Clone)]
@@ -170,6 +174,14 @@ impl MusicManager {
         }
     }
 
+    pub async fn sync_guild_voice_states(&self, guild: &Guild) {
+        // GUILD_CREATE includes the members' current voice states. Rebuild our
+        // in-memory map after a process restart instead of waiting for new joins.
+        for state in guild.voice_states.values() {
+            self.voice_state_update(state).await;
+        }
+    }
+
     pub async fn voice_state_update(&self, state: &VoiceState) {
         let Some(guild_id) = state.guild_id.map(|id| id.get()) else { return };
         {
@@ -232,6 +244,8 @@ impl MusicManager {
             encoded: encoded.to_string(),
             title: info.get("title").and_then(Value::as_str).unwrap_or("Unknown track").to_string(),
             artist: info.get("author").and_then(Value::as_str).unwrap_or("Unknown Artist").to_string(),
+            is_tts: false,
+            start_position_ms: None,
         })
     }
 
@@ -279,12 +293,42 @@ impl MusicManager {
         let encoded = track.get("encoded").and_then(Value::as_str)
             .ok_or_else(|| anyhow!("Lavalink did not return an encoded TTS track"))?;
         let title = format!("TTS: {}", speaker.trim());
-        let track = Track { encoded: encoded.to_string(), title, artist: "Mallow TTS".into() };
+        let track = Track {
+            encoded: encoded.to_string(),
+            title,
+            artist: "Mallow TTS".into(),
+            is_tts: true,
+            start_position_ms: None,
+        };
+
+        // TTS should be heard promptly. Temporarily replace the current music
+        // track, remember its playback position, then resume it after queued speech.
+        let current = self.players.lock().await.get(&guild).and_then(|player| player.current.clone());
+        let resume_position = if current.as_ref().map(|item| !item.is_tts).unwrap_or(false) {
+            if let Ok(url) = self.player_url(guild).await {
+                match self.client.get(url).header("Authorization", &self.password).send().await {
+                    Ok(response) => response.json::<Value>().await.ok()
+                        .and_then(|payload| payload.get("state").and_then(|state| state.get("position")).and_then(Value::as_u64))
+                        .unwrap_or(0),
+                    Err(_) => 0,
+                }
+            } else { 0 }
+        } else { 0 };
+
         let start = {
             let mut players = self.players.lock().await;
             let player = players.entry(guild).or_insert_with(|| GuildPlayer { volume: 100, ..Default::default() });
-            if player.current.is_none() { player.current = Some(track); true }
-            else { player.queue.push_back(track); false }
+            if player.current.as_ref().map(|item| item.is_tts).unwrap_or(false) || player.resume_after_tts.is_some() {
+                player.tts_queue.push_back(track);
+                false
+            } else if let Some(current) = player.current.clone() {
+                player.resume_after_tts = Some((current, resume_position));
+                player.current = Some(track);
+                true
+            } else {
+                player.current = Some(track);
+                true
+            }
         };
         if start { self.try_start(guild).await; }
         Ok(())
@@ -312,7 +356,7 @@ impl MusicManager {
             encoded_track_len = track.encoded.len(),
             "Sending Lavalink player update"
         );
-        let body = json!({
+        let mut body = json!({
             "track": {"encoded": track.encoded},
             "volume": volume,
             "voice": {
@@ -322,6 +366,9 @@ impl MusicManager {
                 "channelId": channel_id.to_string()
             }
         });
+        if let Some(position) = track.start_position_ms {
+            body["position"] = json!(position);
+        }
         match self.client.patch(url).header("Authorization", &self.password).json(&body).send().await {
             Ok(response) if response.status().is_success() => {
                 info!(guild, title = %track.title, status = %response.status(), "Lavalink accepted the track start request");
@@ -393,7 +440,17 @@ impl MusicManager {
         let next = {
             let mut players = self.players.lock().await;
             let Some(player) = players.get_mut(&guild) else { return };
-            player.current = player.queue.pop_front();
+            let was_tts = player.current.as_ref().map(|track| track.is_tts).unwrap_or(false);
+            player.current = if was_tts {
+                player.tts_queue.pop_front().or_else(|| {
+                    player.resume_after_tts.take().map(|(mut track, position)| {
+                        track.start_position_ms = Some(position);
+                        track
+                    })
+                })
+            } else {
+                player.queue.pop_front()
+            };
             player.current.is_some()
         };
         if next { self.try_start(guild).await; }
