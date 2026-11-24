@@ -68,6 +68,27 @@ impl CommunityStore {
         })
     }
 
+    // Gateway reconnects can occasionally deliver the same message event again.
+    // Persist a bounded set of message IDs so one Discord message can only count once.
+    pub fn add_swears_once(&self, guild: u64, user: u64, message_id: u64, amount: i64) -> Option<i64> {
+        self.mutate(|data| {
+            let message_key = json!(message_id);
+            let seen = data["swear_message_ids"].as_array_mut();
+            if let Some(seen) = seen {
+                if seen.contains(&message_key) { return None; }
+                seen.push(message_key);
+                if seen.len() > 5000 { seen.drain(0..seen.len() - 5000); }
+            } else {
+                data["swear_message_ids"] = json!([message_id]);
+            }
+            let key = format!("{guild}:{user}");
+            let old = data.get("swears").and_then(|v| v.get(&key)).and_then(Value::as_i64).unwrap_or(0);
+            let new = old.saturating_add(amount.max(0));
+            data["swears"][key] = json!(new);
+            Some(new)
+        })
+    }
+
     pub fn xp(&self, guild: u64, user: u64) -> i64 {
         self.read(|data| data.get("xp").and_then(|v| v.get(format!("{guild}:{user}"))).and_then(Value::as_i64).unwrap_or(0))
     }
@@ -371,7 +392,7 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
         "timeout-minutes" | "dm" | "set-log" | "purge" | "snipe" | "sticky" => Some("moderation"),
         "vibecheck" | "ship" | "fortune" | "wyr" => Some("fun"),
         "youtube" => Some("social"),
-        "play" | "join" | "leave" | "pause" | "resume" | "skip" | "stop" | "queue" | "volume" | "lyrics" => Some("music"),
+        "play" | "join" | "leave" | "pause" | "resume" | "skip" | "stop" | "queue" | "volume" | "lyrics" | "tts" => Some("music"),
         "commands" | "help" | "update" | "uptime" | "sync" | "tos" | "terms" | "terms-of-service" | "say" | "countdown" | "ticket" | "ticket-panel" | "ticket-close" | "backup" | "embed" | "vanity" | "custom-command" | "premium-status" | "announcement" | "event" | "rules" | "autorole" | "reaction-role" => Some("utility"),
         _ => None,
     };
@@ -620,11 +641,14 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
                 match Command::set_global_commands(&ctx.http, crate::registered_global_commands()).await {
                     Ok(synced) => {
                         let guild = GuildId::new(guild_id);
-                        let guild_result = if guild_id == 1544628300217978932 {
-                            guild.set_commands(&ctx.http, bliss_commands()).await
-                        } else {
-                            guild.set_commands(&ctx.http, Vec::new()).await
-                        };
+                        // Register this server's commands as guild commands too. Guild
+                        // commands become available immediately instead of waiting for
+                        // Discord's global-command propagation window.
+                        let mut guild_commands = crate::registered_global_commands();
+                        if guild_id == 1544628300217978932 {
+                            guild_commands.extend(bliss_commands());
+                        }
+                        let guild_result = guild.set_commands(&ctx.http, guild_commands).await;
                         if guild_result.is_err() {
                             "I could not fully reset this server's duplicate commands. Check my application-command permissions and try again.".into()
                         } else {
