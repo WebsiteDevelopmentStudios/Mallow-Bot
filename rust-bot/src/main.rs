@@ -38,6 +38,27 @@ struct BotState {
     ready: Arc<AtomicBool>,
 }
 
+fn contains_discord_invite(content: &str) -> bool {
+    content.split_whitespace().any(|raw| {
+        let candidate = raw.trim_matches(|ch: char| matches!(ch, '<' | '>' | '(' | ')' | '[' | ']' | '{' | '}' | '"' | '\'' | ',' | ';'));
+        let candidate = candidate.trim_end_matches(['.', '!', '?']);
+        if candidate.is_empty() { return false; }
+        let normalized = if candidate.starts_with("discord.gg/") || candidate.starts_with("discord.com/") || candidate.starts_with("discordapp.com/") {
+            format!("https://{candidate}")
+        } else { candidate.to_string() };
+        let Ok(url) = url::Url::parse(&normalized) else { return false; };
+        let host = url.host_str().unwrap_or("").trim_start_matches("www.").to_ascii_lowercase();
+        let valid_host = host == "discord.gg" || host == "discord.com" || host == "discordapp.com";
+        let path = url.path().trim_matches('/');
+        let valid_path = if host == "discord.gg" {
+            !path.is_empty() && !path.contains('/')
+        } else {
+            url.path().starts_with("/invite/") && !url.path().trim_start_matches("/invite/").trim_matches('/').is_empty()
+        };
+        matches!(url.scheme(), "http" | "https") && valid_host && valid_path
+    })
+}
+
 struct Handler {
     state: Arc<BotState>,
 }
@@ -254,10 +275,7 @@ impl EventHandler for Handler {
             }
         }
         let content = message.content.trim();
-        let has_invite = content.split_whitespace().any(|part| {
-            let folded = part.to_lowercase();
-            folded.contains("discord.gg/") || folded.contains("discord.com/invite/") || folded.contains("discordapp.com/invite/")
-        });
+        let has_invite = contains_discord_invite(content);
         let exempt = message.member.as_ref()
             .and_then(|member| member.permissions)
             .map(|permissions| permissions.manage_messages())
