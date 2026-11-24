@@ -414,10 +414,12 @@ impl EventHandler for Handler {
             Interaction::Command(command) => {
                 // Acknowledge immediately: dashboard and premium lookups plus command
                 // registration can exceed Discord's 3-second interaction deadline.
+                let music_command = ["play","join","leave","pause","resume","skip","queue","stop","volume","lyrics","tts"]
+                    .contains(&command.data.name.as_str());
                 if let Err(error) = command.create_response(
                     &ctx.http,
                     serenity::builder::CreateInteractionResponse::Defer(
-                        serenity::builder::CreateInteractionResponseMessage::new().ephemeral(true),
+                        serenity::builder::CreateInteractionResponseMessage::new().ephemeral(!music_command),
                     ),
                 ).await {
                     warn!(%error, command = %command.data.name, "Could not defer slash command interaction");
@@ -688,7 +690,37 @@ async fn handle_command(http: &Http, command: &CommandInteraction, state: &BotSt
         "tos" => include_str!("../../TERMS_OF_SERVICE.md").chars().take(1900).collect::<String>(),
         _ => format!("The /{} command is not available.", command.data.name),
     };
-    if deferred {
+    let is_music = music_commands.contains(&command.data.name.as_str());
+    if is_music {
+        let title = match command.data.name.as_str() {
+            "play" => "NOW PLAYING / QUEUED",
+            "join" => "VOICE CHANNEL",
+            "leave" => "MUSIC DISCONNECTED",
+            "pause" => "PLAYBACK PAUSED",
+            "resume" => "PLAYBACK RESUMED",
+            "skip" => "TRACK SKIPPED",
+            "queue" => "UP NEXT",
+            "stop" => "PLAYBACK STOPPED",
+            "volume" => "VOLUME UPDATED",
+            "lyrics" => "LYRICS SETTINGS",
+            "tts" => "VOICE TTS",
+            _ => "MALLOW MUSIC",
+        };
+        let embed = CreateEmbed::new()
+            .title(format!("MALLOW MUSIC  //  {title}"))
+            .description(content.chars().take(4000).collect::<String>())
+            .colour(serenity::all::Colour::new(0x8B5CF6))
+            .footer(serenity::builder::CreateEmbedFooter::new(format!("Requested by {}", command.user.name)));
+        if deferred {
+            if let Err(err) = command.edit_response(http, EditInteractionResponse::new().embed(embed)).await {
+                warn!(%err, command = %command.data.name, "Could not edit deferred music response");
+            }
+        } else if let Err(err) = command.create_response(http, CreateInteractionResponse::Message(
+            CreateInteractionResponseMessage::new().embed(embed)
+        )).await {
+            warn!(%err, command = %command.data.name, "Could not respond to music interaction");
+        }
+    } else if deferred {
         if let Err(err) = command.edit_response(http, EditInteractionResponse::new().content(content)).await {
             warn!(%err, command = %command.data.name, "Could not edit deferred interaction response");
         }
