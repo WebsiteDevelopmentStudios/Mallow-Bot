@@ -28,7 +28,7 @@ jobs:
         with:
           workspaces: . -> target
       - name: Build Linux executable
-        run: cargo build --release --locked --bin mallow-bot
+        run: cargo build --release --bin mallow-bot
       - name: Verify and package executable
         shell: bash
         run: |
