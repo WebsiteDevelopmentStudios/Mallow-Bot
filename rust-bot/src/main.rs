@@ -303,16 +303,15 @@ impl EventHandler for Handler {
             return;
         }
 
-        // TTS is scoped to the voice channel's own chat: the author and Mallow
-        // must both be connected to that same channel, and the server toggle
-        // is persisted in community_data.json (missing means disabled).
+        // Any member sharing Mallow's voice channel can use TTS from server chat.
+        // The server toggle is persisted in community_data.json (missing means disabled).
         let tts_enabled = self.state.community.record("tts_enabled", &guild_id.to_string())
             .and_then(|value| value.as_bool()).unwrap_or(false);
         if tts_enabled && cfg.features.get("music").and_then(|value| value.as_bool()) != Some(false) {
             let user_channel = self.state.music.voice_channel_for_user(guild_id, message.author.id.get()).await;
             let bot_channel = self.state.music.bot_voice_channel(guild_id).await;
             if let (Some(user_channel), Some(bot_channel)) = (user_channel, bot_channel) {
-                if user_channel == bot_channel && message.channel_id.get() == bot_channel && !content.is_empty() {
+                if user_channel == bot_channel && !content.is_empty() {
                     let speaker = message.member.as_ref().and_then(|member| member.nick.as_deref())
                         .unwrap_or(&message.author.name);
                     if let Err(error) = self.state.music.speak_tts(guild_id, message.author.id.get(), speaker, content).await {
