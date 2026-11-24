@@ -303,6 +303,13 @@ impl EventHandler for Handler {
             return;
         }
 
+        // Refresh the complete voice-state snapshot from Serenity's guild cache before
+        // checking the author. This avoids relying only on voice-state events received
+        // since startup, which could leave other members missing from our local map.
+        if let Some(guild) = ctx.cache.guild(GuildId::new(guild_id)) {
+            self.state.music.sync_guild_voice_states(&guild).await;
+        }
+
         // Any member sharing Mallow's voice channel can use TTS from server chat.
         // The server toggle is persisted in community_data.json (missing means disabled).
         let tts_enabled = self.state.community.record("tts_enabled", &guild_id.to_string())
