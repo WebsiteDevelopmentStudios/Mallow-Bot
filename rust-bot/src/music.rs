@@ -359,20 +359,20 @@ impl MusicManager {
         let (Some(channel_id), Some(session_id), Some(token), Some(endpoint)) =
             (voice.channel_id, voice.session_id, voice.token, voice.endpoint) else { return };
         let Ok(url) = self.player_url(guild).await else { return };
-        let (track, volume, should_start) = {
+        let session_signature = self.node_session.read().await.clone().unwrap_or_default();
+        let (track, volume) = {
             let mut players = self.players.lock().await;
             let Some(player) = players.get_mut(&guild) else { return };
             let Some(track) = player.current.clone() else { return };
-            let signature = (track.encoded.clone(), self.node_session.read().await.clone().unwrap_or_default());
+            let signature = (track.encoded.clone(), session_signature);
             if player.last_started.as_ref() == Some(&signature) {
                 // Voice gateway events can repeat while the bot stays connected.
                 // Re-sending an encoded track here restarts playback and can trigger Lavalink 429s.
                 return;
             }
             player.last_started = Some(signature);
-            (track, player.volume, true)
+            (track, player.volume)
         };
-        if !should_start { return; }
         // Keep credentials out of logs while exposing voice metadata for Lavalink HTTP 400 diagnosis.
         info!(
             guild,
