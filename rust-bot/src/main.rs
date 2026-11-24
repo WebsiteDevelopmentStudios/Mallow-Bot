@@ -306,7 +306,8 @@ impl EventHandler for Handler {
         // Refresh the complete voice-state snapshot from Serenity's guild cache before
         // checking the author. This avoids relying only on voice-state events received
         // since startup, which could leave other members missing from our local map.
-        if let Some(guild) = ctx.cache.guild(GuildId::new(guild_id)) {
+        let cached_guild = ctx.cache.guild(GuildId::new(guild_id)).map(|guild| guild.clone());
+        if let Some(guild) = cached_guild {
             self.state.music.sync_guild_voice_states(&guild).await;
         }
 
