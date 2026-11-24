@@ -310,19 +310,24 @@ impl EventHandler for Handler {
             self.state.music.sync_guild_voice_states(&guild).await;
         }
 
-        // Any member sharing Mallow's voice channel can use TTS from server chat.
+        // Only read messages sent in the text chat attached to the voice channel
+        // Mallow is currently connected to. Voice-channel chat messages use the
+        // voice channel's own channel ID; ordinary server text channels do not.
         // The server toggle is persisted in community_data.json (missing means disabled).
         let tts_enabled = self.state.community.record("tts_enabled", &guild_id.to_string())
             .and_then(|value| value.as_bool()).unwrap_or(false);
         if tts_enabled && cfg.features.get("music").and_then(|value| value.as_bool()) != Some(false) {
-            let user_channel = self.state.music.voice_channel_for_user(guild_id, message.author.id.get()).await;
             let bot_channel = self.state.music.bot_voice_channel(guild_id).await;
-            if let (Some(user_channel), Some(bot_channel)) = (user_channel, bot_channel) {
-                if user_channel == bot_channel && !content.is_empty() {
-                    let speaker = message.member.as_ref().and_then(|member| member.nick.as_deref())
-                        .unwrap_or(&message.author.name);
-                    if let Err(error) = self.state.music.speak_tts(guild_id, message.author.id.get(), speaker, content).await {
-                        warn!(%error, guild_id, user_id = message.author.id.get(), "Could not enqueue voice-channel TTS message");
+            if let Some(bot_channel) = bot_channel {
+                let is_voice_channel_chat = message.channel_id.get() == bot_channel;
+                if is_voice_channel_chat && !content.is_empty() {
+                    let user_channel = self.state.music.voice_channel_for_user(guild_id, message.author.id.get()).await;
+                    if user_channel == Some(bot_channel) {
+                        let speaker = message.member.as_ref().and_then(|member| member.nick.as_deref())
+                            .unwrap_or(&message.author.name);
+                        if let Err(error) = self.state.music.speak_tts(guild_id, message.author.id.get(), speaker, content).await {
+                            warn!(%error, guild_id, user_id = message.author.id.get(), "Could not enqueue voice-channel TTS message");
+                        }
                     }
                 }
             }
