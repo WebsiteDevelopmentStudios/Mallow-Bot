@@ -665,7 +665,11 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
 
         "play" => {
             if let Some(channel) = music.voice_channel_for_user(guild_id, user_id).await {
-                music.request_voice_channel(guild_id, Some(channel)).await;
+                // Avoid rejoining the same voice channel on every /play or prefix play;
+                // a redundant voice-state update can make Lavalink restart the current song.
+                if music.bot_voice_channel(guild_id).await != Some(channel) {
+                    music.request_voice_channel(guild_id, Some(channel)).await;
+                }
                 match music.enqueue(guild_id, argument).await { Ok(text) => text, Err(error) => format!("Music error: {error}") }
             } else { "Join a voice channel first, then use -mb play <song>.".into() }
         }
