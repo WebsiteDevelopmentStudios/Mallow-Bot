@@ -315,7 +315,7 @@ impl EventHandler for Handler {
                 if user_channel == bot_channel && message.channel_id.get() == bot_channel && !content.is_empty() {
                     let speaker = message.member.as_ref().and_then(|member| member.nick.as_deref())
                         .unwrap_or(&message.author.name);
-                    if let Err(error) = self.state.music.speak_tts(guild_id, speaker, content).await {
+                    if let Err(error) = self.state.music.speak_tts(guild_id, message.author.id.get(), speaker, content).await {
                         warn!(%error, guild_id, user_id = message.author.id.get(), "Could not enqueue voice-channel TTS message");
                     }
                 }
