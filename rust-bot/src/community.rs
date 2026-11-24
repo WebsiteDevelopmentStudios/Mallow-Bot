@@ -891,27 +891,21 @@ fn parse_reaction_type(value: &str) -> ReactionType {
 fn level(xp: i64) -> i64 { ((xp.max(0) as f64 / 100.0).sqrt()) as i64 }
 
 fn normalize_swear_phrase(value: &str) -> Vec<String> {
-    let mut mapped = String::new();
+    let mut tokens = Vec::new();
+    let mut current = String::new();
     for raw in value.nfkd().flat_map(char::to_lowercase).filter(|ch| !is_combining_mark(*ch)) {
-        let ch = match raw {
-            '0' => 'o',
-            '1' | '!' | '|' => 'i',
-            '3' => 'e',
-            '4' | '@' => 'a',
-            '5' | '$' => 's',
-            '7' | '+' => 't',
-            '8' => 'b',
-            '9' => 'g',
-            '€' => 'e',
-            other => other,
+        let mapped = match raw {
+            '0' => Some('o'), '1' => Some('i'), '3' => Some('e'),
+            '4' | '@' => Some('a'), '5' | '$' => Some('s'), '7' => Some('t'),
+            '8' => Some('b'), '9' => Some('g'), '€' => Some('e'),
+            ch if ch.is_alphanumeric() => Some(ch),
+            _ => None,
         };
-        if ch.is_alphanumeric() {
-            mapped.push(ch);
-        } else if ch.is_whitespace() {
-            mapped.push(' ');
-        }
+        if let Some(ch) = mapped { current.push(ch); }
+        else if !current.is_empty() { tokens.push(std::mem::take(&mut current)); }
     }
-    mapped.split_whitespace().map(str::to_owned).collect()
+    if !current.is_empty() { tokens.push(current); }
+    tokens
 }
 
 pub fn count_swear_hits(content: &str, configured_words: &[String]) -> i64 {
@@ -928,9 +922,7 @@ pub fn count_swear_hits(content: &str, configured_words: &[String]) -> i64 {
         if let Some(phrase) = phrases.iter().find(|phrase| words[cursor..].starts_with(phrase.as_slice())) {
             hits += 1;
             cursor += phrase.len();
-        } else {
-            cursor += 1;
-        }
+        } else { cursor += 1; }
     }
     hits
 }
