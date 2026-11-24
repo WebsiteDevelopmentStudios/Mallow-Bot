@@ -52,6 +52,7 @@ pub struct MusicManager {
     node_session: Arc<RwLock<Option<String>>>,
     voices: Arc<RwLock<HashMap<u64, VoiceInfo>>>,
     member_voice_channels: Arc<RwLock<HashMap<(u64, u64), u64>>>,
+    last_tts_speaker: Arc<Mutex<HashMap<u64, u64>>>,
     shard: Arc<RwLock<Option<ShardMessenger>>>,
     players: Arc<Mutex<HashMap<u64, GuildPlayer>>>,
     lyrics_tasks: Arc<Mutex<HashMap<u64, tokio::task::JoinHandle<()>>>>,
@@ -75,6 +76,7 @@ impl MusicManager {
             node_session: Arc::new(RwLock::new(None)),
             voices: Arc::new(RwLock::new(HashMap::new())),
             member_voice_channels: Arc::new(RwLock::new(HashMap::new())),
+            last_tts_speaker: Arc::new(Mutex::new(HashMap::new())),
             shard: Arc::new(RwLock::new(None)),
             players: Arc::new(Mutex::new(HashMap::new())),
             lyrics_tasks: Arc::new(Mutex::new(HashMap::new())),
@@ -265,8 +267,14 @@ impl MusicManager {
         self.voices.read().await.get(&guild).and_then(|voice| voice.channel_id)
     }
 
-    pub async fn speak_tts(&self, guild: u64, speaker: &str, text: &str) -> Result<()> {
-        let spoken = format!("{} says: {}", speaker.trim(), text.trim());
+    pub async fn speak_tts(&self, guild: u64, speaker_id: u64, speaker: &str, text: &str) -> Result<()> {
+        // Announce a speaker once; repeat their name only after someone else speaks.
+        let include_name = {
+            let mut last = self.last_tts_speaker.lock().await;
+            let previous = last.insert(guild, speaker_id);
+            previous != Some(speaker_id)
+        };
+        let spoken = if include_name { format!("{} says: {}", speaker.trim(), text.trim()) } else { text.trim().to_string() };
         let spoken: String = spoken.chars().take(240).collect();
         if spoken.trim().is_empty() { return Ok(()); }
 
@@ -362,6 +370,7 @@ impl MusicManager {
         let mut body = json!({
             "track": {"encoded": track.encoded},
             "volume": volume,
+            "filters": {"timescale": {"speed": if track.is_tts { 1.3 } else { 1.0 }}},
             "voice": {
                 "sessionId": session_id,
                 "token": token,
