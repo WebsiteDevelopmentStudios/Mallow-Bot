@@ -367,10 +367,11 @@ impl MusicManager {
             encoded_track_len = track.encoded.len(),
             "Sending Lavalink player update"
         );
+        let tts_speed = if track.is_tts { 1.3 } else { 1.0 };
         let mut body = json!({
             "track": {"encoded": track.encoded},
             "volume": volume,
-            "filters": {"timescale": {"speed": if track.is_tts { 1.3 } else { 1.0 }}},
+            "filters": {"timescale": {"speed": tts_speed}},
             "voice": {
                 "sessionId": session_id,
                 "token": token,
