@@ -272,8 +272,10 @@ impl MusicManager {
             return Err(anyhow!("Lavalink TTS track lookup returned {status}: {}", body.chars().take(300).collect::<String>()));
         }
         let payload: Value = response.json().await.context("Invalid Lavalink TTS response")?;
-        let track = payload.get("data").and_then(Value::as_array).and_then(|items| items.first())
-            .ok_or_else(|| anyhow!("The TTS service did not return a playable audio track"))?;
+        let track = payload.get("data").and_then(|data| {
+            data.as_array().and_then(|items| items.first())
+                .or_else(|| if data.is_object() { Some(data) } else { None })
+        }).ok_or_else(|| anyhow!("The TTS service did not return a playable audio track"))?;
         let encoded = track.get("encoded").and_then(Value::as_str)
             .ok_or_else(|| anyhow!("Lavalink did not return an encoded TTS track"))?;
         let title = format!("TTS: {}", speaker.trim());
