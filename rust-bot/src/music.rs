@@ -247,6 +247,47 @@ impl MusicManager {
         else { let count = self.players.lock().await.get(&guild).map(|p| p.queue.len()).unwrap_or(0); Ok(format!("Added **{title}** to the queue at position {count}.")) }
     }
 
+    pub async fn bot_voice_channel(&self, guild: u64) -> Option<u64> {
+        self.voices.read().await.get(&guild).and_then(|voice| voice.channel_id)
+    }
+
+    pub async fn speak_tts(&self, guild: u64, speaker: &str, text: &str) -> Result<()> {
+        let spoken = format!("{} says: {}", speaker.trim(), text.trim());
+        let spoken: String = spoken.chars().take(240).collect();
+        if spoken.trim().is_empty() { return Ok(()); }
+
+        // StreamElements provides a direct MP3 speech URL; Lavalink resolves it
+        // like any other playable URL, keeping all voice output on the existing player.
+        let mut speech_url = url::Url::parse("https://api.streamelements.com/kappa/v2/speech")?;
+        speech_url.query_pairs_mut()
+            .append_pair("voice", "Brian")
+            .append_pair("text", &spoken);
+        let response = self.client.get(format!("{}/v4/loadtracks", self.base_url))
+            .header("Authorization", &self.password)
+            .query(&[("identifier", speech_url.as_str())])
+            .send().await.context("Could not request TTS audio from Lavalink")?;
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            return Err(anyhow!("Lavalink TTS track lookup returned {status}: {}", body.chars().take(300).collect::<String>()));
+        }
+        let payload: Value = response.json().await.context("Invalid Lavalink TTS response")?;
+        let track = payload.get("data").and_then(Value::as_array).and_then(|items| items.first())
+            .ok_or_else(|| anyhow!("The TTS service did not return a playable audio track"))?;
+        let encoded = track.get("encoded").and_then(Value::as_str)
+            .ok_or_else(|| anyhow!("Lavalink did not return an encoded TTS track"))?;
+        let title = format!("TTS: {}", speaker.trim());
+        let track = Track { encoded: encoded.to_string(), title, artist: "Mallow TTS".into() };
+        let start = {
+            let mut players = self.players.lock().await;
+            let player = players.entry(guild).or_insert_with(|| GuildPlayer { volume: 100, ..Default::default() });
+            if player.current.is_none() { player.current = Some(track); true }
+            else { player.queue.push_back(track); false }
+        };
+        if start { self.try_start(guild).await; }
+        Ok(())
+    }
+
     async fn player_url(&self, guild: u64) -> Result<String> {
         let session = self.node_session.read().await.clone().ok_or_else(|| anyhow!("Lavalink is not connected yet"))?;
         Ok(format!("{}/v4/sessions/{session}/players/{guild}", self.base_url))
