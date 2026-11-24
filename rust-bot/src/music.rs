@@ -36,6 +36,7 @@ struct GuildPlayer {
     volume: u16,
     paused: bool,
     lyrics_enabled: bool,
+    chill_mode: bool,
     tts_queue: VecDeque<Track>,
     resume_after_tts: Option<(Track, u64)>,
     // Prevent voice-state refreshes from restarting an already-playing track.
@@ -197,11 +198,37 @@ impl MusicManager {
             }
         }
         if Some(state.user_id.get()) != *self.bot_user_id.read().await { return; }
-        let mut voices = self.voices.write().await;
-        let voice = voices.entry(guild_id).or_default();
-        voice.channel_id = state.channel_id.map(|id| id.get());
-        voice.session_id = Some(state.session_id.clone());
-        drop(voices);
+        let new_channel = state.channel_id.map(|id| id.get());
+        let previous_channel = {
+            let mut voices = self.voices.write().await;
+            let voice = voices.entry(guild_id).or_default();
+            let previous = voice.channel_id;
+            voice.channel_id = new_channel;
+            voice.session_id = Some(state.session_id.clone());
+            previous
+        };
+        if previous_channel != new_channel {
+            let stopped_chill = {
+                let mut players = self.players.lock().await;
+                if let Some(player) = players.get_mut(&guild_id) {
+                    let was_chill = player.chill_mode;
+                    player.chill_mode = false;
+                    if was_chill {
+                        player.current = None;
+                        player.queue.clear();
+                        player.tts_queue.clear();
+                        player.last_started = None;
+                    }
+                    was_chill
+                } else { false }
+            };
+            if stopped_chill {
+                if let Ok(url) = self.player_url(guild_id).await {
+                    let _ = self.client.patch(url).header("Authorization", &self.password)
+                        .json(&json!({"track":{"encoded":Value::Null},"paused":false})).send().await;
+                }
+            }
+        }
         self.try_start(guild_id).await;
     }
 
@@ -308,6 +335,9 @@ impl MusicManager {
     }
 
     pub async fn speak_tts(&self, guild: u64, speaker_id: u64, speaker: &str, text: &str) -> Result<()> {
+        if self.players.lock().await.get(&guild).map(|player| player.chill_mode).unwrap_or(false) {
+            return Ok(());
+        }
         // Announce a speaker once; repeat their name only after someone else speaks.
         let include_name = {
             let mut last = self.last_tts_speaker.lock().await;
@@ -492,7 +522,9 @@ impl MusicManager {
             let mut players = self.players.lock().await;
             let Some(player) = players.get_mut(&guild) else { return };
             let was_tts = player.current.as_ref().map(|track| track.is_tts).unwrap_or(false);
-            player.current = if was_tts {
+            player.current = if player.chill_mode {
+                player.current.clone()
+            } else if was_tts {
                 player.tts_queue.pop_front()
                     .or_else(|| player.resume_after_tts.take().map(|(mut track, position)| {
                         track.start_position_ms = Some(position);
@@ -511,6 +543,48 @@ impl MusicManager {
         else if let Ok(url) = self.player_url(guild).await {
             let _ = self.client.patch(url).header("Authorization", &self.password).json(&json!({"track":{"encoded":Value::Null}})).send().await;
         }
+    }
+
+    pub async fn is_chill_mode(&self, guild: u64) -> bool {
+        self.players.lock().await.get(&guild).map(|player| player.chill_mode).unwrap_or(false)
+    }
+
+    pub async fn toggle_chill_mode(&self, guild: u64) -> Result<String> {
+        if self.bot_voice_channel(guild).await.is_none() {
+            return Err(anyhow!("Join a voice channel before enabling Chill Mode."));
+        }
+        if self.is_chill_mode(guild).await {
+            {
+                let mut players = self.players.lock().await;
+                if let Some(player) = players.get_mut(&guild) {
+                    player.chill_mode = false;
+                    player.current = None;
+                    player.queue.clear();
+                    player.tts_queue.clear();
+                    player.last_started = None;
+                }
+            }
+            if let Ok(url) = self.player_url(guild).await {
+                self.client.patch(url).header("Authorization", &self.password)
+                    .json(&json!({"track":{"encoded":Value::Null},"paused":false})).send().await?;
+            }
+            return Ok("Chill Mode disabled. Music commands are available again.".into());
+        }
+
+        let mut tracks = self.search("https://www.youtube.com/watch?v=l-vSSYEuO88").await?;
+        let track = tracks.drain(..).next().ok_or_else(|| anyhow!("The Chill Mode video could not be loaded."))?;
+        {
+            let mut players = self.players.lock().await;
+            let player = players.entry(guild).or_insert_with(|| GuildPlayer { volume: 100, ..Default::default() });
+            player.chill_mode = true;
+            player.current = Some(track.clone());
+            player.queue.clear();
+            player.tts_queue.clear();
+            player.last_started = None;
+            player.paused = false;
+        }
+        self.try_start(guild).await;
+        Ok(format!("Chill Mode enabled. **{}** is now playing on repeat. All other music commands are locked until Chill Mode is toggled off or the bot changes voice channels.", track.title))
     }
 
     pub async fn pause(&self, guild: u64, paused: bool) -> Result<String> {
