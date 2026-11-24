@@ -270,12 +270,15 @@ impl MusicManager {
         let spoken: String = spoken.chars().take(240).collect();
         if spoken.trim().is_empty() { return Ok(()); }
 
-        // StreamElements provides a direct MP3 speech URL; Lavalink resolves it
-        // like any other playable URL, keeping all voice output on the existing player.
-        let mut speech_url = url::Url::parse("https://api.streamelements.com/kappa/v2/speech")?;
+        // Google Translate's TTS endpoint returns audio/mpeg directly. The
+        // StreamElements endpoint used previously is rejected by Lavalink's
+        // HTTP source manager ("Sorry this track cannot be allowed to load").
+        let mut speech_url = url::Url::parse("https://translate.google.com/translate_tts")?;
         speech_url.query_pairs_mut()
-            .append_pair("voice", "Brian")
-            .append_pair("text", &spoken);
+            .append_pair("ie", "UTF-8")
+            .append_pair("client", "tw-ob")
+            .append_pair("tl", "en")
+            .append_pair("q", &spoken);
         let response = self.client.get(format!("{}/v4/loadtracks", self.base_url))
             .header("Authorization", &self.password)
             .query(&[("identifier", speech_url.as_str())])
