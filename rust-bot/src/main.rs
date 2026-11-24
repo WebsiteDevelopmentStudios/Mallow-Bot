@@ -307,8 +307,13 @@ impl EventHandler for Handler {
         // checking the author. This avoids relying only on voice-state events received
         // since startup, which could leave other members missing from our local map.
         let cached_guild = ctx.cache.guild(GuildId::new(guild_id)).map(|guild| guild.clone());
-        if let Some(guild) = cached_guild {
-            self.state.music.sync_guild_voice_states(&guild).await;
+        let author_voice_channel = cached_guild.as_ref()
+            .and_then(|guild| guild.voice_states.get(&message.author.id))
+            .and_then(|voice_state| voice_state.channel_id)
+            .map(|channel| channel.get())
+            .or_else(|| None);
+        if let Some(guild) = cached_guild.as_ref() {
+            self.state.music.sync_guild_voice_states(guild).await;
         }
 
         // Only read messages sent in the text chat attached to the voice channel
@@ -322,7 +327,8 @@ impl EventHandler for Handler {
             if let Some(bot_channel) = bot_channel {
                 let is_voice_channel_chat = message.channel_id.get() == bot_channel;
                 if is_voice_channel_chat && !content.is_empty() {
-                    let user_channel = self.state.music.voice_channel_for_user(guild_id, message.author.id.get()).await;
+                    let user_channel = author_voice_channel.or_else(|| None)
+                        .or(self.state.music.voice_channel_for_user(guild_id, message.author.id.get()).await);
                     if user_channel == Some(bot_channel) {
                         let speaker = message.member.as_ref().and_then(|member| member.nick.as_deref())
                             .unwrap_or(&message.author.name);
