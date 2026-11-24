@@ -507,7 +507,11 @@ async fn handle_command(http: &Http, command: &CommandInteraction, state: &BotSt
         "play" => match (guild, voice_channel) {
             (Some(guild), Some(channel)) => {
                 let song = command.data.options.iter().find_map(|o| if let serenity::all::CommandDataOptionValue::String(value) = &o.value { Some(value.as_str()) } else { None }).unwrap_or("");
-                state.music.request_voice_channel(guild, Some(channel)).await;
+                // Do not send another Discord voice-state join request when the bot
+                // is already in the user's channel: Lavalink may restart the current track.
+                if state.music.bot_voice_channel(guild).await != Some(channel) {
+                    state.music.request_voice_channel(guild, Some(channel)).await;
+                }
                 match state.music.enqueue(guild, song).await { Ok(text) => text, Err(error) => format!("Music error: {error}") }
             }
             _ => "Join a voice channel first, then use /play.".into()
