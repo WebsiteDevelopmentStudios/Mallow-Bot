@@ -55,9 +55,13 @@ pub struct MusicManager {
 
 impl MusicManager {
     pub fn from_env() -> Result<Self> {
-        let base_url = env::var("LAVALINK_URI").unwrap_or_default().trim().trim_end_matches('/').to_string();
+        let raw_base = env::var("LAVALINK_URI").unwrap_or_default().trim().trim_end_matches('/').to_string();
         let password = env::var("LAVALINK_PASSWORD").unwrap_or_default();
         let enabled = matches!(env::var("ENABLE_LAVALINK").unwrap_or_default().to_lowercase().as_str(), "1" | "true" | "yes" | "on");
+        // Hosts may provide a hostname[:port] rather than a URL; secure nodes default to HTTPS/WSS.
+        let base_url = if raw_base.is_empty() || raw_base.starts_with("http://") || raw_base.starts_with("https://") {
+            raw_base
+        } else { format!("https://{raw_base}") };
         let websocket_url = if base_url.starts_with("https://") { base_url.replacen("https://", "wss://", 1) } else { base_url.replacen("http://", "ws://", 1) } + "/v4/websocket";
         let client = Client::builder().connect_timeout(Duration::from_secs(5)).timeout(Duration::from_secs(15)).build().context("Could not create Lavalink HTTP client")?;
         Ok(Self {
