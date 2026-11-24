@@ -38,6 +38,8 @@ struct GuildPlayer {
     lyrics_enabled: bool,
     tts_queue: VecDeque<Track>,
     resume_after_tts: Option<(Track, u64)>,
+    // Prevent voice-state refreshes from restarting an already-playing track.
+    last_started: Option<(String, String)>,
 }
 
 #[derive(Clone)]
@@ -257,7 +259,7 @@ impl MusicManager {
         let start = {
             let mut players = self.players.lock().await;
             let player = players.entry(guild).or_insert_with(|| GuildPlayer { volume: 100, ..Default::default() });
-            if player.current.is_none() { player.current = Some(track); true } else { player.queue.push_back(track); false }
+            if player.current.is_none() { player.current = Some(track); player.last_started = None; true } else { player.queue.push_back(track); false }
         };
         if start { self.try_start(guild).await; Ok(format!("Queued and starting **{title}**.")) }
         else { let count = self.players.lock().await.get(&guild).map(|p| p.queue.len()).unwrap_or(0); Ok(format!("Added **{title}** to the queue at position {count}.")) }
@@ -335,9 +337,11 @@ impl MusicManager {
             } else if let Some(current) = player.current.clone() {
                 player.resume_after_tts = Some((current, resume_position));
                 player.current = Some(track);
+                player.last_started = None;
                 true
             } else {
                 player.current = Some(track);
+                player.last_started = None;
                 true
             }
         };
@@ -351,13 +355,24 @@ impl MusicManager {
     }
 
     async fn try_start(&self, guild: u64) {
-        let track = self.players.lock().await.get(&guild).and_then(|p| p.current.clone());
-        let Some(track) = track else { return };
         let voice = self.voices.read().await.get(&guild).cloned().unwrap_or_default();
         let (Some(channel_id), Some(session_id), Some(token), Some(endpoint)) =
             (voice.channel_id, voice.session_id, voice.token, voice.endpoint) else { return };
         let Ok(url) = self.player_url(guild).await else { return };
-        let volume = self.players.lock().await.get(&guild).map(|p| p.volume).unwrap_or(100);
+        let (track, volume, should_start) = {
+            let mut players = self.players.lock().await;
+            let Some(player) = players.get_mut(&guild) else { return };
+            let Some(track) = player.current.clone() else { return };
+            let signature = (track.encoded.clone(), self.node_session.read().await.clone().unwrap_or_default());
+            if player.last_started.as_ref() == Some(&signature) {
+                // Voice gateway events can repeat while the bot stays connected.
+                // Re-sending an encoded track here restarts playback and can trigger Lavalink 429s.
+                return;
+            }
+            player.last_started = Some(signature);
+            (track, player.volume, true)
+        };
+        if !should_start { return; }
         // Keep credentials out of logs while exposing voice metadata for Lavalink HTTP 400 diagnosis.
         info!(
             guild,
@@ -390,10 +405,12 @@ impl MusicManager {
             }
             Ok(response) => {
                 let status = response.status();
+                if let Some(player) = self.players.lock().await.get_mut(&guild) { player.last_started = None; }
                 let response_body = response.text().await.unwrap_or_else(|error| format!("<could not read response: {error}>"));
                 warn!(guild, %status, response_body = %response_body, "Lavalink rejected the track start request");
             }
             Err(error) => {
+                if let Some(player) = self.players.lock().await.get_mut(&guild) { player.last_started = None; }
                 warn!(%error, guild, "Could not send Lavalink track start request");
             }
         }
@@ -464,6 +481,7 @@ impl MusicManager {
             } else {
                 player.queue.pop_front()
             };
+            player.last_started = None;
             player.current.is_some()
         };
         if next { self.try_start(guild).await; }
@@ -486,7 +504,7 @@ impl MusicManager {
     }
 
     pub async fn stop(&self, guild: u64) -> Result<String> {
-        if let Some(player) = self.players.lock().await.get_mut(&guild) { player.queue.clear(); player.current = None; }
+        if let Some(player) = self.players.lock().await.get_mut(&guild) { player.queue.clear(); player.current = None; player.last_started = None; }
         if let Ok(url) = self.player_url(guild).await { let _ = self.client.patch(url).header("Authorization", &self.password).json(&json!({"track":{"encoded":Value::Null},"paused":false})).send().await; }
         Ok("Playback stopped and the queue was cleared.".into())
     }
