@@ -835,7 +835,33 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
         },
         _ => return false,
     };
-    if let Err(error) = message.reply(&ctx.http, response).await { warn!(%error, command, "Could not respond to prefix command"); }
+    let music_command = ["play","join","leave","pause","resume","skip","stop","queue","volume","lyrics","tts"].contains(&command.as_str());
+    if music_command {
+        let title = match command.as_str() {
+            "play" => "NOW PLAYING / QUEUED",
+            "join" => "VOICE CHANNEL",
+            "leave" => "MUSIC DISCONNECTED",
+            "pause" => "PLAYBACK PAUSED",
+            "resume" => "PLAYBACK RESUMED",
+            "skip" => "TRACK SKIPPED",
+            "stop" => "PLAYBACK STOPPED",
+            "queue" => "UP NEXT",
+            "volume" => "VOLUME UPDATED",
+            "lyrics" => "LYRICS SETTINGS",
+            "tts" => "VOICE TTS",
+            _ => "MALLOW MUSIC",
+        };
+        let embed = CreateEmbed::new()
+            .title(format!("MALLOW MUSIC  //  {title}"))
+            .description(response.chars().take(4000).collect::<String>())
+            .colour(serenity::all::Colour::new(0x8B5CF6))
+            .footer(serenity::builder::CreateEmbedFooter::new(format!("Requested by {}", message.author.name)));
+        if let Err(error) = message.channel_id.send_message(&ctx.http, CreateMessage::new().embed(embed)).await {
+            warn!(%error, command, "Could not send public music embed");
+        }
+    } else if let Err(error) = message.reply(&ctx.http, response).await {
+        warn!(%error, command, "Could not respond to prefix command");
+    }
     true
 }
 
