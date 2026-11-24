@@ -259,6 +259,15 @@ impl MusicManager {
         let (Some(session_id), Some(token), Some(endpoint)) = (voice.session_id, voice.token, voice.endpoint) else { return };
         let Ok(url) = self.player_url(guild).await else { return };
         let volume = self.players.lock().await.get(&guild).map(|p| p.volume).unwrap_or(100);
+        // Keep credentials out of logs while exposing voice metadata for Lavalink HTTP 400 diagnosis.
+        info!(
+            guild,
+            voice_endpoint = %endpoint,
+            voice_session_id_len = session_id.len(),
+            voice_token_len = token.len(),
+            encoded_track_len = track.encoded.len(),
+            "Sending Lavalink player update"
+        );
         let body = json!({"track":{"encoded":track.encoded},"volume":volume,"voice":{"sessionId":session_id,"token":token,"endpoint":endpoint}});
         match self.client.patch(url).header("Authorization", &self.password).json(&body).send().await {
             Ok(response) if response.status().is_success() => {
