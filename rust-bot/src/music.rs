@@ -299,7 +299,8 @@ impl MusicManager {
         let track = self.players.lock().await.get(&guild).and_then(|p| p.current.clone());
         let Some(track) = track else { return };
         let voice = self.voices.read().await.get(&guild).cloned().unwrap_or_default();
-        let (Some(session_id), Some(token), Some(endpoint)) = (voice.session_id, voice.token, voice.endpoint) else { return };
+        let (Some(channel_id), Some(session_id), Some(token), Some(endpoint)) =
+            (voice.channel_id, voice.session_id, voice.token, voice.endpoint) else { return };
         let Ok(url) = self.player_url(guild).await else { return };
         let volume = self.players.lock().await.get(&guild).map(|p| p.volume).unwrap_or(100);
         // Keep credentials out of logs while exposing voice metadata for Lavalink HTTP 400 diagnosis.
@@ -311,7 +312,16 @@ impl MusicManager {
             encoded_track_len = track.encoded.len(),
             "Sending Lavalink player update"
         );
-        let body = json!({"track":{"encoded":track.encoded},"volume":volume,"voice":{"sessionId":session_id,"token":token,"endpoint":endpoint}});
+        let body = json!({
+            "track": {"encoded": track.encoded},
+            "volume": volume,
+            "voice": {
+                "sessionId": session_id,
+                "token": token,
+                "endpoint": endpoint,
+                "channelId": channel_id.to_string()
+            }
+        });
         match self.client.patch(url).header("Authorization", &self.password).json(&body).send().await {
             Ok(response) if response.status().is_success() => {
                 info!(guild, title = %track.title, status = %response.status(), "Lavalink accepted the track start request");
