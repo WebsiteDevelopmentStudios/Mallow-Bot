@@ -26,21 +26,33 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: rust-bot -> target
+          workspaces: . -> target
       - name: Build Linux executable
-        working-directory: rust-bot
-        run: cargo build --release
-      - name: Package executable
+        run: cargo build --release --locked --bin mallow-bot
+      - name: Verify and package executable
+        shell: bash
         run: |
+          set -euo pipefail
           mkdir -p artifact
-          BINARY="$(find . -type f -path '*/release/mallow-bot' -print -quit)"
+          BINARY=""
+          for candidate in target/release/mallow-bot rust-bot/target/release/mallow-bot; do
+            if [ -f "$candidate" ] && [ -x "$candidate" ]; then
+              BINARY="$candidate"
+              break
+            fi
+          done
           if [ -z "$BINARY" ]; then
-            echo "Could not find the compiled mallow-bot executable."
-            find . -type f -path '*/release/*' -maxdepth 6 -print | head -100
+            echo "Build completed but the mallow-bot executable was not found."
+            echo "Workspace target directory: ${CARGO_TARGET_DIR:-target}"
+            find . -maxdepth 7 -type f -name 'mallow-bot*' -print
+            ls -la target/release 2>/dev/null || true
+            ls -la rust-bot/target/release 2>/dev/null || true
             exit 1
           fi
           cp "$BINARY" artifact/mallow-bot-linux-x86_64
           chmod +x artifact/mallow-bot-linux-x86_64
+          file artifact/mallow-bot-linux-x86_64
+          test -s artifact/mallow-bot-linux-x86_64
       - name: Publish latest bot-hosting build
         uses: softprops/action-gh-release@v2
         with:
