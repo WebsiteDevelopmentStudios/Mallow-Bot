@@ -81,6 +81,7 @@ pub(crate) fn registered_global_commands() -> Vec<CreateCommand> {
         CreateCommand::new("stop").description("Stop music and clear the queue"),
         CreateCommand::new("volume").description("Set the music volume").add_option(CreateCommandOption::new(CommandOptionType::Integer, "level", "Volume from 0 to 100").min_int_value(0).max_int_value(100).required(true)),
         CreateCommand::new("lyrics").description("Toggle synchronized lyrics on or off").add_option(CreateCommandOption::new(CommandOptionType::Boolean, "enabled", "Enable or disable synchronized lyrics").required(false)),
+        CreateCommand::new("tts").description("Enable or disable voice-channel text-to-speech (Premium)").add_option(CreateCommandOption::new(CommandOptionType::Boolean, "enabled", "Turn voice text-to-speech on or off").required(true)),
     ];
     commands.extend(community::commands());
     commands
@@ -300,6 +301,26 @@ impl EventHandler for Handler {
             }
             return;
         }
+
+        // TTS is scoped to the voice channel's own chat: the author and Mallow
+        // must both be connected to that same channel, and the server toggle
+        // is persisted in community_data.json (missing means disabled).
+        let tts_enabled = self.state.community.record("tts_enabled", &guild_id.to_string())
+            .and_then(|value| value.as_bool()).unwrap_or(false);
+        if tts_enabled && cfg.features.get("music").and_then(|value| value.as_bool()) != Some(false) {
+            let user_channel = self.state.music.voice_channel_for_user(guild_id, message.author.id.get()).await;
+            let bot_channel = self.state.music.bot_voice_channel(guild_id).await;
+            if let (Some(user_channel), Some(bot_channel)) = (user_channel, bot_channel) {
+                if user_channel == bot_channel && message.channel_id.get() == bot_channel && !content.is_empty() {
+                    let speaker = message.member.as_ref().and_then(|member| member.nick.as_deref())
+                        .unwrap_or(&message.author.name);
+                    if let Err(error) = self.state.music.speak_tts(guild_id, speaker, content).await {
+                        warn!(%error, guild_id, user_id = message.author.id.get(), "Could not enqueue voice-channel TTS message");
+                    }
+                }
+            }
+        }
+
         let is_prefix = content.to_lowercase().starts_with(&cfg.prefix.to_lowercase());
         if !content.is_empty() && cfg.features.get("xp").and_then(|v| v.as_bool()).unwrap_or(true) {
             let cooldown = cfg.xp_config.get("cooldown_seconds").and_then(|v| v.as_u64()).unwrap_or(60);
@@ -470,7 +491,7 @@ async fn apply_reaction_role(state: &BotState, ctx: &DiscordContext, reaction: &
 async fn handle_command(http: &Http, command: &CommandInteraction, state: &BotState, cfg: &config::GuildConfig, deferred: bool) {
     use serenity::builder::{CreateInteractionResponse, CreateInteractionResponseMessage, EditInteractionResponse};
     let guild = command.guild_id.map(|id| id.get());
-    let music_commands = ["play","join","leave","pause","resume","skip","queue","stop","volume","lyrics"];
+    let music_commands = ["play","join","leave","pause","resume","skip","queue","stop","volume","lyrics","tts"];
     if music_commands.contains(&command.data.name.as_str())
         && (cfg.features.get("music").and_then(serde_json::Value::as_bool) == Some(false)
             || cfg.disabled_commands.iter().any(|disabled| disabled == &command.data.name)) {
@@ -522,6 +543,27 @@ async fn handle_command(http: &Http, command: &CommandInteraction, state: &BotSt
             let enabled = command.data.options.iter().find_map(|o| if let serenity::all::CommandDataOptionValue::Boolean(value) = &o.value { Some(*value) } else { None });
             if let Some(guild) = guild { state.music.set_lyrics(guild, enabled).await }
             else { "Use this command in a server.".into() }
+        }
+        "tts" => {
+            if let Some(guild) = guild {
+                let enabled = command.data.options.iter().find_map(|o| {
+                    if let serenity::all::CommandDataOptionValue::Boolean(value) = &o.value { Some(*value) } else { None }
+                }).unwrap_or(false);
+                if command.user.id.get() != 1021068313071210498 {
+                    let (banned, active, _) = state.premium.status(command.user.id.get()).await;
+                    if banned { "This account cannot use Mallow Bot.".into() }
+                    else if !active { "Mallow Premium is required to change the TTS setting.".into() }
+                    else {
+                        state.community.set_record("tts_enabled", &guild.to_string(), Some(serde_json::json!(enabled)));
+                        if enabled { "Voice-channel TTS is now enabled. Anyone in your voice channel can type and Mallow will read it aloud.".into() }
+                        else { "Voice-channel TTS is now disabled.".into() }
+                    }
+                } else {
+                    state.community.set_record("tts_enabled", &guild.to_string(), Some(serde_json::json!(enabled)));
+                    if enabled { "Voice-channel TTS is now enabled. Anyone in your voice channel can type and Mallow will read it aloud.".into() }
+                    else { "Voice-channel TTS is now disabled.".into() }
+                }
+            } else { "Use this command in a server.".into() }
         }
 
         "testwelcome" => {
@@ -609,7 +651,7 @@ async fn handle_command(http: &Http, command: &CommandInteraction, state: &BotSt
                 }
             } else { "Use this command in a server.".into() }
         },
-        "commands" => "Music: /play, /join, /leave, /pause, /resume, /skip, /queue, /volume, /lyrics, /stop.\nCommunity: /xp, /leaderboard, /balance, /daily, /work, /pay, /rob, /gamble, /coinflip, /slots, /roulette, /dice, /blackjack, /vibecheck, /ship, /fortune, /wyr.\nUtility: /ping, /uptime, /commands, /sync, /tos, /say, /update, /youtube, /purge.\nServer: /rule, /testwelcome, /autorole, /reaction-role, /announcement, /event, /ticket, /ticket-panel, /ticket-close.\nPremium: /embed, /snipe, /sticky, /backup, /custom-command, /vanity, /premium-status.".to_string(),
+        "commands" => "Music: /play, /join, /leave, /pause, /resume, /skip, /queue, /volume, /lyrics, /stop, /tts.\nCommunity: /xp, /leaderboard, /balance, /daily, /work, /pay, /rob, /gamble, /coinflip, /slots, /roulette, /dice, /blackjack, /vibecheck, /ship, /fortune, /wyr.\nUtility: /ping, /uptime, /commands, /sync, /tos, /say, /update, /youtube, /purge.\nServer: /rule, /testwelcome, /autorole, /reaction-role, /announcement, /event, /ticket, /ticket-panel, /ticket-close.\nPremium: /embed, /snipe, /sticky, /backup, /custom-command, /vanity, /premium-status.".to_string(),
         "tos" => include_str!("../../TERMS_OF_SERVICE.md").chars().take(1900).collect::<String>(),
         _ => format!("The /{} command is not available.", command.data.name),
     };
