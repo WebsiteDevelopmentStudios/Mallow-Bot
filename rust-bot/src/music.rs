@@ -260,12 +260,20 @@ impl MusicManager {
         let Ok(url) = self.player_url(guild).await else { return };
         let volume = self.players.lock().await.get(&guild).map(|p| p.volume).unwrap_or(100);
         let body = json!({"track":{"encoded":track.encoded},"volume":volume,"voice":{"sessionId":session_id,"token":token,"endpoint":endpoint}});
-        if let Err(error) = self.client.patch(url).header("Authorization", &self.password).json(&body).send().await {
-            warn!(%error, guild, "Could not start Lavalink track");
-        } else {
-            info!(guild, title = %track.title, "Lavalink track started");
-            let lyrics_enabled = self.players.lock().await.get(&guild).map(|p| p.lyrics_enabled).unwrap_or(false);
-            if lyrics_enabled { self.spawn_lyrics(guild, track.encoded.clone()).await; }
+        match self.client.patch(url).header("Authorization", &self.password).json(&body).send().await {
+            Ok(response) if response.status().is_success() => {
+                info!(guild, title = %track.title, status = %response.status(), "Lavalink accepted the track start request");
+                let lyrics_enabled = self.players.lock().await.get(&guild).map(|p| p.lyrics_enabled).unwrap_or(false);
+                if lyrics_enabled { self.spawn_lyrics(guild, track.encoded.clone()).await; }
+            }
+            Ok(response) => {
+                let status = response.status();
+                let response_body = response.text().await.unwrap_or_else(|error| format!("<could not read response: {error}>"));
+                warn!(guild, %status, response_body = %response_body, "Lavalink rejected the track start request");
+            }
+            Err(error) => {
+                warn!(%error, guild, "Could not send Lavalink track start request");
+            }
         }
     }
 
