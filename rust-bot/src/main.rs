@@ -82,6 +82,7 @@ pub(crate) fn registered_global_commands() -> Vec<CreateCommand> {
         CreateCommand::new("volume").description("Set the music volume").add_option(CreateCommandOption::new(CommandOptionType::Integer, "level", "Volume from 0 to 100").min_int_value(0).max_int_value(100).required(true)),
         CreateCommand::new("lyrics").description("Toggle synchronized lyrics on or off").add_option(CreateCommandOption::new(CommandOptionType::Boolean, "enabled", "Enable or disable synchronized lyrics").required(false)),
         CreateCommand::new("tts").description("Enable or disable voice-channel text-to-speech (Premium)").add_option(CreateCommandOption::new(CommandOptionType::Boolean, "enabled", "Turn voice text-to-speech on or off").required(true)),
+        CreateCommand::new("chill-mode").description("Toggle Chill Mode: loop the chill video and lock other music commands"),
     ];
     commands.extend(community::commands());
     commands
@@ -414,7 +415,7 @@ impl EventHandler for Handler {
             Interaction::Command(command) => {
                 // Acknowledge immediately: dashboard and premium lookups plus command
                 // registration can exceed Discord's 3-second interaction deadline.
-                let music_command = ["play","join","leave","pause","resume","skip","queue","stop","volume","lyrics","tts"]
+                let music_command = ["play","join","leave","pause","resume","skip","queue","stop","volume","lyrics","tts","chill-mode"]
                     .contains(&command.data.name.as_str());
                 if let Err(error) = command.create_response(
                     &ctx.http,
@@ -513,8 +514,9 @@ async fn apply_reaction_role(state: &BotState, ctx: &DiscordContext, reaction: &
 async fn handle_command(http: &Http, command: &CommandInteraction, state: &BotState, cfg: &config::GuildConfig, deferred: bool) {
     use serenity::builder::{CreateInteractionResponse, CreateInteractionResponseMessage, EditInteractionResponse};
     let guild = command.guild_id.map(|id| id.get());
-    let music_commands = ["play","join","leave","pause","resume","skip","queue","stop","volume","lyrics","tts"];
-    if music_commands.contains(&command.data.name.as_str())
+    let music_commands = ["play","join","leave","pause","resume","skip","queue","stop","volume","lyrics","tts","chill-mode"];
+    let chill_mode = command.data.name == "chill-mode";
+    if music_commands.contains(&command.data.name.as_str()) && !chill_mode
         && (cfg.features.get("music").and_then(serde_json::Value::as_bool) == Some(false)
             || cfg.disabled_commands.iter().any(|disabled| disabled == &command.data.name)) {
         let content = "Music commands are disabled in this server.".to_string();
@@ -522,8 +524,23 @@ async fn handle_command(http: &Http, command: &CommandInteraction, state: &BotSt
         else { let _ = command.create_response(http, CreateInteractionResponse::Message(CreateInteractionResponseMessage::new().content(content).ephemeral(true))).await; }
         return;
     }
+    if !chill_mode {
+        if let Some(guild) = guild {
+            if state.music.is_chill_mode(guild).await {
+                let message = "Chill Mode is active. Run /chill-mode again to turn it off, or make the bot leave/join a voice channel.";
+                if deferred { let _ = command.edit_response(http, EditInteractionResponse::new().content(message)).await; }
+                else { let _ = command.create_response(http, CreateInteractionResponse::Message(CreateInteractionResponseMessage::new().content(message).ephemeral(true))).await; }
+                return;
+            }
+        }
+    }
     let voice_channel = if let Some(guild) = guild { state.music.voice_channel_for_user(guild, command.user.id.get()).await } else { None };
     let content = match command.data.name.as_str() {
+        "chill-mode" => {
+            if let Some(guild) = guild {
+                match state.music.toggle_chill_mode(guild).await { Ok(text) => text, Err(error) => format!("Chill Mode error: {error}") }
+            } else { "Use this command in a server.".into() }
+        },
         "play" => match (guild, voice_channel) {
             (Some(guild), Some(channel)) => {
                 let song = command.data.options.iter().find_map(|o| if let serenity::all::CommandDataOptionValue::String(value) = &o.value { Some(value.as_str()) } else { None }).unwrap_or("");
@@ -686,7 +703,7 @@ async fn handle_command(http: &Http, command: &CommandInteraction, state: &BotSt
                 }
             } else { "Use this command in a server.".into() }
         },
-        "commands" => "Music: /play, /join, /leave, /pause, /resume, /skip, /queue, /volume, /lyrics, /stop, /tts.\nCommunity: /xp, /leaderboard, /balance, /daily, /work, /pay, /rob, /gamble, /coinflip, /slots, /roulette, /dice, /blackjack, /vibecheck, /ship, /fortune, /wyr.\nUtility: /ping, /uptime, /commands, /sync, /tos, /say, /update, /youtube, /purge.\nServer: /rule, /testwelcome, /autorole, /reaction-role, /announcement, /event, /ticket, /ticket-panel, /ticket-close.\nPremium: /embed, /snipe, /sticky, /backup, /custom-command, /vanity, /premium-status.".to_string(),
+        "commands" => "Music: /play, /join, /leave, /pause, /resume, /skip, /queue, /volume, /lyrics, /stop, /tts, /chill-mode.\nCommunity: /xp, /leaderboard, /balance, /daily, /work, /pay, /rob, /gamble, /coinflip, /slots, /roulette, /dice, /blackjack, /vibecheck, /ship, /fortune, /wyr.\nUtility: /ping, /uptime, /commands, /sync, /tos, /say, /update, /youtube, /purge.\nServer: /rule, /testwelcome, /autorole, /reaction-role, /announcement, /event, /ticket, /ticket-panel, /ticket-close.\nPremium: /embed, /snipe, /sticky, /backup, /custom-command, /vanity, /premium-status.".to_string(),
         "tos" => include_str!("../../TERMS_OF_SERVICE.md").chars().take(1900).collect::<String>(),
         _ => format!("The /{} command is not available.", command.data.name),
     };
@@ -704,6 +721,7 @@ async fn handle_command(http: &Http, command: &CommandInteraction, state: &BotSt
             "volume" => "VOLUME UPDATED",
             "lyrics" => "LYRICS SETTINGS",
             "tts" => "VOICE TTS",
+            "chill-mode" => "CHILL MODE",
             _ => "MALLOW MUSIC",
         };
         let embed = CreateEmbed::new()
