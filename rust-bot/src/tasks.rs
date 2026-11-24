@@ -16,7 +16,8 @@ async fn lavalink_keepalive() {
         info!("Lavalink is disabled by ENABLE_LAVALINK.");
         return;
     }
-    let base = env::var("LAVALINK_URI").unwrap_or_default().trim().trim_end_matches('/').to_string();
+    let raw_base = env::var("LAVALINK_URI").unwrap_or_default().trim().trim_end_matches('/').to_string();
+    let base = if raw_base.is_empty() || raw_base.starts_with("http://") || raw_base.starts_with("https://") { raw_base } else { format!("https://{raw_base}") };
     let password = env::var("LAVALINK_PASSWORD").unwrap_or_default();
     if base.is_empty() || password.is_empty() {
         warn!("Lavalink is enabled but LAVALINK_URI or LAVALINK_PASSWORD is missing.");
