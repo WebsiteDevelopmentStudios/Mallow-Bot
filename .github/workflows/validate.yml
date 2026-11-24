@@ -49,7 +49,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p artifact
-          BINARY="rust-bot/target/release/mallow-bot"
+          BINARY="target/release/mallow-bot"
           if [ ! -x "$BINARY" ]; then
             echo "Expected executable not found: $BINARY"
             echo "Available mallow-bot binaries:"
