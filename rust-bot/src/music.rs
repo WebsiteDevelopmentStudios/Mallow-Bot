@@ -310,14 +310,20 @@ impl MusicManager {
         if !response.status().is_success() { return Err(anyhow!("Lavalink returned HTTP {}", response.status())); }
         let payload: Value = response.json().await.context("Invalid Lavalink search response")?;
         let data = payload.get("data").ok_or_else(|| anyhow!("Lavalink returned no track data."))?;
-        // Lavalink v4 returns a track object for direct URLs, an array for
-        // search results, and data.tracks for playlist URLs.
-        let tracks_value: Vec<&Value> = if let Some(items) = data.get("tracks").and_then(Value::as_array) {
-            items.iter().collect()
+        // A YouTube search returns up to 20 matching results, but /play
+        // should enqueue only the best match. Only actual playlists enqueue
+        // every returned track.
+        let load_type = payload.get("loadType").and_then(Value::as_str).unwrap_or("");
+        let tracks_value: Vec<&Value> = if load_type.eq_ignore_ascii_case("playlist") {
+            data.get("tracks").and_then(Value::as_array)
+                .map(|items| items.iter().collect())
+                .unwrap_or_default()
         } else if let Some(items) = data.as_array() {
-            items.iter().collect()
+            items.first().map(|track| vec![track]).unwrap_or_default()
         } else if data.get("encoded").is_some() {
             vec![data]
+        } else if let Some(items) = data.get("tracks").and_then(Value::as_array) {
+            items.first().map(|track| vec![track]).unwrap_or_default()
         } else {
             Vec::new()
         };
