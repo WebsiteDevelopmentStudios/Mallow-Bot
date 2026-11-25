@@ -1457,7 +1457,7 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
                         let channel = command.data.options.iter().find_map(|o| if o.name == "channel" { if let CommandDataOptionValue::Channel(id) = &o.value { Some(*id) } else { None } } else { None }).unwrap_or(command.channel_id);
                         let title = command.data.options.iter().find_map(|o| if o.name == "title" { if let CommandDataOptionValue::String(v) = &o.value { Some(v.as_str()) } else { None } } else { None }).unwrap_or("Choose your roles");
                         let description = command.data.options.iter().find_map(|o| if o.name == "description" { if let CommandDataOptionValue::String(v) = &o.value { Some(v.as_str()) } else { None } } else { None }).unwrap_or("React below to get a role. Remove your reaction to remove it.");
-                        match channel.send_message(http, CreateMessage::new().embed(CreateEmbed::new().title(title).description(description))).await {
+                        match channel.send_message(http, CreateMessage::new().embeds(branded_embeds(CreateEmbed::new().title(title).description(description)))).await {
                             Ok(posted) => {
                                 store.set_record("reaction_roles", &posted.id.get().to_string(), Some(json!({"guild_id":guild_id.to_string(),"channel_id":channel.get().to_string(),"roles":{}})));
                                 format!("Reaction-role panel created: https://discord.com/channels/{guild_id}/{}/{}", channel.get(), posted.id.get())
