@@ -551,7 +551,7 @@ async fn handle_command(http: &Http, command: &CommandInteraction, state: &BotSt
                 if state.music.bot_voice_channel(guild).await != Some(channel) {
                     state.music.request_voice_channel(guild, Some(channel)).await;
                 }
-                match state.music.enqueue(guild, song).await { Ok(text) => text, Err(error) => format!("Music error: {error}") }
+                match state.music.enqueue(guild, song, command.user.id.get()).await { Ok(text) => text, Err(error) => format!("Music error: {error}") }
             }
             _ => "Join a voice channel first, then use /play.".into()
         },
@@ -569,7 +569,7 @@ async fn handle_command(http: &Http, command: &CommandInteraction, state: &BotSt
                     if state.music.bot_voice_channel(guild).await != Some(channel) {
                         state.music.request_voice_channel(guild, Some(channel)).await;
                     }
-                    match state.music.enqueue(guild, url).await {
+                    match state.music.enqueue(guild, url, command.user.id.get()).await {
                         Ok(text) => text,
                         Err(error) => format!("Playlist error: {error}")
                     }
