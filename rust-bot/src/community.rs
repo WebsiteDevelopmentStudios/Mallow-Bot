@@ -841,7 +841,7 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
                 format!("**{} + {}** = **{score}%** — {verdict}. (For fun only!)", first.name, second.name)
             }
         },
-        "help" | "commands" => "Music: play, join, leave, pause, resume, skip, queue, volume, lyrics, stop.\nCommunity: xp, level, leaderboard, swears, swear-leaderboard, balance, daily, work, gamble, coinflip, slots, roulette, dice, blackjack, pay, rob.\nFun: vibecheck, ship, fortune, wyr.\nUtilities: uptime, update, sync, tos, countdown, commands, youtube, dm, set-log, timeout-minutes, purge, ticket, ticket-panel, ticket-close, embed, snipe, sticky, backup, custom-command, vanity, premium-status.".into(),
+        "help" | "commands" => "**MUSIC**\n/play, /join, /leave, /pause, /resume, /skip, /queue, /volume, /lyrics, /stop.\n\n**COMMUNITY**\nXP, levels, leaderboards, swear counter, Mallow Coins, daily rewards, work, pay, rob, and games.\n\n**FUN**\nVibecheck, ship, fortune, and Would You Rather.\n\n**UTILITIES & MODERATION**\nUptime, updates, sync, terms, countdown, YouTube lookup, DM tools, logging, timeout, purge, tickets, and role tools.\n\n**PREMIUM**\nCustom embeds, snipe, sticky messages, backups, custom commands, vanity, and Premium status.".into(),
         "update" => match reqwest::get("https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/updates.txt").await {
             Ok(response) if response.status().is_success() => response.text().await.unwrap_or_else(|_| "No update log is available right now.".into()).chars().take(1900).collect::<String>(),
             _ => "No update log is available right now.".into()
