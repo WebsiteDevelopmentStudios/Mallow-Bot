@@ -79,6 +79,7 @@ pub(crate) fn registered_global_commands() -> Vec<CreateCommand> {
         CreateCommand::new("resume").description("Resume the paused song"),
         CreateCommand::new("skip").description("Skip the currently playing song"),
         CreateCommand::new("queue").description("Show the current music queue"),
+        CreateCommand::new("music-manage").description("Open the Mallow music control panel"),
         CreateCommand::new("stop").description("Stop music and clear the queue"),
         CreateCommand::new("volume").description("Set the music volume").add_option(CreateCommandOption::new(CommandOptionType::Integer, "level", "Volume from 0 to 100").min_int_value(0).max_int_value(100).required(true)),
         CreateCommand::new("lyrics").description("Toggle synchronized lyrics on or off").add_option(CreateCommandOption::new(CommandOptionType::Boolean, "enabled", "Enable or disable synchronized lyrics").required(false)),
@@ -416,7 +417,7 @@ impl EventHandler for Handler {
             Interaction::Command(command) => {
                 // Acknowledge immediately: dashboard and premium lookups plus command
                 // registration can exceed Discord's 3-second interaction deadline.
-                let music_command = ["play","join","leave","pause","resume","skip","queue","stop","volume","lyrics","tts","chill-mode"]
+                let music_command = ["play","join","leave","pause","resume","skip","queue","music-manage","stop","volume","lyrics","tts","chill-mode"]
                     .contains(&command.data.name.as_str());
                 if let Err(error) = command.create_response(
                     &ctx.http,
@@ -515,7 +516,7 @@ async fn apply_reaction_role(state: &BotState, ctx: &DiscordContext, reaction: &
 async fn handle_command(http: &Http, command: &CommandInteraction, state: &BotState, cfg: &config::GuildConfig, deferred: bool) {
     use serenity::builder::{CreateInteractionResponse, CreateInteractionResponseMessage, EditInteractionResponse};
     let guild = command.guild_id.map(|id| id.get());
-    let music_commands = ["play","join","leave","pause","resume","skip","queue","stop","volume","lyrics","tts","chill-mode"];
+    let music_commands = ["play","join","leave","pause","resume","skip","queue","music-manage","stop","volume","lyrics","tts","chill-mode"];
     let chill_mode = command.data.name == "chill-mode";
     if music_commands.contains(&command.data.name.as_str()) && !chill_mode
         && (cfg.features.get("music").and_then(serde_json::Value::as_bool) == Some(false)
@@ -743,6 +744,7 @@ async fn handle_command(http: &Http, command: &CommandInteraction, state: &BotSt
             "resume" => "PLAYBACK RESUMED",
             "skip" => "TRACK SKIPPED",
             "queue" => "UP NEXT",
+            "music-manage" => "MUSIC CONTROL PANEL",
             "stop" => "PLAYBACK STOPPED",
             "volume" => "VOLUME UPDATED",
             "lyrics" => "LYRICS SETTINGS",
@@ -753,7 +755,9 @@ async fn handle_command(http: &Http, command: &CommandInteraction, state: &BotSt
         let embed = CreateEmbed::new()
             .title(format!("MALLOW MUSIC  //  {title}"))
             .description(content.chars().take(4000).collect::<String>())
-            .colour(serenity::all::Colour::new(0x8B5CF6))
+            .colour(serenity::all::Colour::new(0x000000))
+            .thumbnail("https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/embed-top.gif")
+            .image("https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/embed-bottom.png")
             .footer(serenity::builder::CreateEmbedFooter::new(format!("Requested by {}", command.user.name)));
         if deferred {
             if let Err(err) = command.edit_response(http, EditInteractionResponse::new().embed(embed)).await {
@@ -898,45 +902,3 @@ async fn main() -> Result<()> {
         dashboard: dashboard::DashboardClient::from_env()?,
         premium: premium::PremiumClient::from_env()?,
         community: community::CommunityStore::open(),
-        music: Arc::new(music::MusicManager::from_env()?),
-        discord_http: Arc::new(RwLock::new(None)),
-        discord_cache: Arc::new(RwLock::new(None)),
-        owner_token: token.clone(),
-        ready: Arc::new(AtomicBool::new(false)),
-    });
-
-    let port = env::var("PORT").or_else(|_| env::var("SERVER_PORT")).unwrap_or_else(|_| "25572".into());
-    let health_state = health::HealthState { started: state.started, ready: state.ready.clone() };
-    let bridge_app = Router::new()
-        .route("/discord/interactions", post(http_interaction))
-        .route("/owner/guilds", axum::routing::get(owner_guilds))
-        .route("/owner/leave", post(owner_leave))
-        .with_state(state.clone());
-    let health_app = health::router(health_state).merge(bridge_app);
-    let health_listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}")).await?;
-    tokio::spawn(async move {
-        if let Err(err) = axum::serve(health_listener, health_app).await {
-            error!(%err, "Health/API server stopped");
-        }
-    });
-
-    let intents = GatewayIntents::GUILDS
-        | GatewayIntents::GUILD_MESSAGES
-        | GatewayIntents::MESSAGE_CONTENT
-        | GatewayIntents::GUILD_MEMBERS
-        | GatewayIntents::GUILD_VOICE_STATES
-        | GatewayIntents::GUILD_MESSAGE_REACTIONS
-        | GatewayIntents::DIRECT_MESSAGES;
-
-    let handler = Handler { state: state.clone() };
-    let mut client = Client::builder(&token, intents)
-        .event_handler(handler)
-        .await
-        .context("Could not create Discord client")?;
-
-    tasks::spawn_keepalives();
-    tokio::spawn(state.music.clone().run_node());
-    info!("Starting Mallow Bot Rust migration runtime");
-    client.start().await.context("Discord gateway stopped")?;
-    Ok(())
-}
