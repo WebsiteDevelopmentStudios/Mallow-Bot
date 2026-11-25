@@ -713,13 +713,16 @@ async fn handle_command(http: &Http, command: &CommandInteraction, state: &BotSt
                         // Also publish the standard commands as guild commands here.
                         // Discord exposes guild commands immediately, avoiding the
                         // global-command propagation delay that hid /tts after /sync.
-                        let mut guild_commands = registered_global_commands();
+                        // Keep standard commands global only. Registering the same
+                        // names as both global and guild commands makes Discord show
+                        // duplicate entries. Only publish Bliss-specific commands here.
                         if guild.get() == 1544628300217978932 {
-                            guild_commands.extend(community::bliss_commands());
-                        }
-                        match guild.set_commands(http, guild_commands).await {
-                            Ok(_) => "Commands refreshed for this server. /tts and the other commands should now appear immediately.".into(),
-                            Err(error) => format!("Global commands were refreshed, but this server's commands could not be updated: {error}"),
+                            match guild.set_commands(http, community::bliss_commands()).await {
+                                Ok(_) => "Global commands refreshed; Bliss server commands updated.".into(),
+                                Err(error) => format!("Global commands were refreshed, but Bliss server commands could not be updated: {error}"),
+                            }
+                        } else {
+                            "Global commands refreshed for this server.".into()
                         }
                     }
                     Err(error) => format!("Could not refresh slash commands: {error}"),
