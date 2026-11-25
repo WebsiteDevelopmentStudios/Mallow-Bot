@@ -853,15 +853,14 @@ async fn handle_command(http: &Http, command: &CommandInteraction, state: &BotSt
             .title(format!("MALLOW MUSIC  //  {title}"))
             .description(content.chars().take(4000).collect::<String>())
             .colour(serenity::all::Colour::new(0x000000))
-            .thumbnail("https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/embed-top.gif")
             .image("https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/embed-bottom.png")
             .footer(serenity::builder::CreateEmbedFooter::new(format!("Requested by {}", command.user.name)));
         if deferred {
-            if let Err(err) = command.edit_response(http, EditInteractionResponse::new().embed(embed).components(components.clone())).await {
+            if let Err(err) = command.edit_response(http, EditInteractionResponse::new().embeds(community::branded_embeds(embed)).components(components.clone())).await {
                 warn!(%err, command = %command.data.name, "Could not edit deferred music response");
             }
         } else if let Err(err) = command.create_response(http, CreateInteractionResponse::Message(
-            CreateInteractionResponseMessage::new().embed(embed).components(components)
+            CreateInteractionResponseMessage::new().embeds(community::branded_embeds(embed)).components(components)
         )).await {
             warn!(%err, command = %command.data.name, "Could not respond to music interaction");
         }
@@ -871,14 +870,13 @@ async fn handle_command(http: &Http, command: &CommandInteraction, state: &BotSt
             .title(format!("MALLOW BOT  //  {title}"))
             .description(content.chars().take(4000).collect::<String>())
             .colour(serenity::all::Colour::new(0x000000))
-            .thumbnail("https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/embed-top.gif")
             .image("https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/embed-bottom.png")
             .footer(serenity::builder::CreateEmbedFooter::new(format!("Requested by {}", command.user.name)));
         if deferred {
             if let Err(err) = command.edit_response(http, EditInteractionResponse::new().embed(embed)).await {
                 warn!(%err, command = %command.data.name, "Could not edit information embed");
             }
-        } else if let Err(err) = command.create_response(http, CreateInteractionResponse::Message(CreateInteractionResponseMessage::new().embed(embed).ephemeral(true))).await {
+        } else if let Err(err) = command.create_response(http, CreateInteractionResponse::Message(CreateInteractionResponseMessage::new().embeds(community::branded_embeds(embed)).ephemeral(true))).await {
             warn!(%err, command = %command.data.name, "Could not send information embed");
         }
     } else if deferred {
