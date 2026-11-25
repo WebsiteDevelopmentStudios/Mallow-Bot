@@ -999,3 +999,45 @@ async fn main() -> Result<()> {
         dashboard: dashboard::DashboardClient::from_env()?,
         premium: premium::PremiumClient::from_env()?,
         community: community::CommunityStore::open(),
+        music: Arc::new(music::MusicManager::from_env()?),
+        discord_http: Arc::new(RwLock::new(None)),
+        discord_cache: Arc::new(RwLock::new(None)),
+        owner_token: token.clone(),
+        ready: Arc::new(AtomicBool::new(false)),
+    });
+
+    let port = env::var("PORT").or_else(|_| env::var("SERVER_PORT")).unwrap_or_else(|_| "25572".into());
+    let health_state = health::HealthState { started: state.started, ready: state.ready.clone() };
+    let bridge_app = Router::new()
+        .route("/discord/interactions", post(http_interaction))
+        .route("/owner/guilds", axum::routing::get(owner_guilds))
+        .route("/owner/leave", post(owner_leave))
+        .with_state(state.clone());
+    let health_app = health::router(health_state).merge(bridge_app);
+    let health_listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}")).await?;
+    tokio::spawn(async move {
+        if let Err(err) = axum::serve(health_listener, health_app).await {
+            error!(%err, "Health/API server stopped");
+        }
+    });
+
+    let intents = GatewayIntents::GUILDS
+        | GatewayIntents::GUILD_MESSAGES
+        | GatewayIntents::MESSAGE_CONTENT
+        | GatewayIntents::GUILD_MEMBERS
+        | GatewayIntents::GUILD_VOICE_STATES
+        | GatewayIntents::GUILD_MESSAGE_REACTIONS
+        | GatewayIntents::DIRECT_MESSAGES;
+
+    let handler = Handler { state: state.clone() };
+    let mut client = Client::builder(&token, intents)
+        .event_handler(handler)
+        .await
+        .context("Could not create Discord client")?;
+
+    tasks::spawn_keepalives();
+    tokio::spawn(state.music.clone().run_node());
+    info!("Starting Mallow Bot Rust migration runtime");
+    client.start().await.context("Discord gateway stopped")?;
+    Ok(())
+}
