@@ -17,12 +17,13 @@ use serenity::{
     async_trait,
     prelude::*,
 };
-use std::{env, sync::{Arc, atomic::{AtomicBool, AtomicUsize, Ordering}}, time::Instant};
+use std::{env, sync::{Arc, atomic::{AtomicBool, AtomicUsize, Ordering}, Mutex as StdMutex, OnceLock}, collections::HashMap, time::Instant};
 use tokio::sync::RwLock;
 
 static STATUS_ROTATION_STARTED: AtomicBool = AtomicBool::new(false);
 static COUNTDOWN_STARTED: AtomicBool = AtomicBool::new(false);
 static LAST_DESCRIPTION: AtomicUsize = AtomicUsize::new(usize::MAX);
+static QUEUE_VOTES: OnceLock<StdMutex<HashMap<String, HashMap<u64, bool>>>> = OnceLock::new();
 use serenity::client::Context as DiscordContext;
 use tracing::{error, info, warn};
 
@@ -446,13 +447,57 @@ impl EventHandler for Handler {
                 }
             }
             Interaction::Component(component) => {
-                handle_ticket_component(&ctx.http, &component, &self.state, false).await;
+                if component.data.custom_id.starts_with("mallow:queue:") {
+                    handle_queue_component(&ctx.http, &component, &self.state).await;
+                } else {
+                    handle_ticket_component(&ctx.http, &component, &self.state, false).await;
+                }
             }
             _ => {}
         }
     }
 }
 
+async fn handle_queue_component(http: &Http, component: &ComponentInteraction, state: &BotState) {
+    use serenity::builder::{CreateActionRow, CreateButton, CreateInteractionResponse, CreateInteractionResponseMessage};
+    let parts: Vec<&str> = component.data.custom_id.split(':').collect();
+    let Some(guild) = component.guild_id.map(|id| id.get()) else { return; };
+    if parts.len() < 5 { return; }
+    let index = parts[3].parse::<usize>().unwrap_or(usize::MAX);
+    let owner = parts[4].parse::<u64>().unwrap_or(0);
+    let answer = parts.get(5).copied();
+    if parts[2] == "remove" {
+        if component.user.id.get() == owner {
+            let result = state.music.remove_queued_track(guild, index).await;
+            let message = match result { Ok((title, _)) => format!("Removed **{title}** from the queue."), Err(error) => error.to_string() };
+            let _ = component.create_response(http, CreateInteractionResponse::Message(CreateInteractionResponseMessage::new().content(message).ephemeral(true))).await;
+        } else {
+            let yes = CreateButton::new(format!("mallow:queue:vote:{guild}:{index}:{owner}:yes")).label("Yes").style(serenity::all::ButtonStyle::Success);
+            let no = CreateButton::new(format!("mallow:queue:vote:{guild}:{index}:{owner}:no")).label("No").style(serenity::all::ButtonStyle::Danger);
+            let _ = component.create_response(http, CreateInteractionResponse::Message(CreateInteractionResponseMessage::new().content("This song was added by someone else. Should it be removed?").components(vec![CreateActionRow::Buttons(vec![yes, no])]).ephemeral(true))).await;
+        }
+    } else if parts[2] == "vote" {
+        let key = format!("{guild}:{index}:{owner}");
+        let store = QUEUE_VOTES.get_or_init(|| StdMutex::new(HashMap::new()));
+        let mut votes = store.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let ballot = votes.entry(key.clone()).or_default();
+        ballot.insert(component.user.id.get(), answer == Some("yes"));
+        let voice_channel = state.music.bot_voice_channel(guild).await;
+        let eligible = state.discord_cache.read().await.as_ref().and_then(|cache| cache.guild(GuildId::new(guild)).map(|g| g.voice_states.iter().filter(|(_, voice)| voice.channel_id.map(|id| id.get()) == voice_channel).count())).unwrap_or(1).max(1);
+        let yes = ballot.values().filter(|vote| **vote).count();
+        let no = ballot.len().saturating_sub(yes);
+        let passed = yes * 2 > eligible;
+        let failed = no * 2 >= eligible;
+        if passed || failed {
+            votes.remove(&key); drop(votes);
+            let result = if passed { state.music.remove_queued_track(guild, index).await } else { Err(anyhow::anyhow!("Vote failed")) };
+            let message = match result { Ok((title, _)) => format!("Vote passed ({yes}/{eligible}). **{title}** was removed."), Err(_) => format!("Vote did not pass ({yes}/{eligible} yes). The song stays in the queue.") };
+            let _ = component.create_response(http, CreateInteractionResponse::Message(CreateInteractionResponseMessage::new().content(message).ephemeral(true))).await;
+        } else {
+            let _ = component.create_response(http, CreateInteractionResponse::Message(CreateInteractionResponseMessage::new().content(format!("Vote recorded: {yes} yes, {no} no. More than 50% of {eligible} voice-channel members must vote yes.")).ephemeral(true))).await;
+        }
+    }
+}
 async fn handle_ticket_component(http: &Http, component: &ComponentInteraction, state: &BotState, deferred: bool) {
     use serenity::builder::{CreateInteractionResponse, CreateInteractionResponseMessage, EditInteractionResponse};
     let Some(guild_id) = component.guild_id.map(|id| id.get()) else { return };
