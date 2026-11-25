@@ -1070,16 +1070,16 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
                 Ok(response) if response.status().is_success() => {
                     match response.text().await {
                         Ok(update) if !update.trim().is_empty() => {
-                            let mut sent = true;
-                            let mut remaining = update.as_str();
-                            while !remaining.is_empty() {
-                                let mut cut = remaining.len().min(1800);
-                                while !remaining.is_char_boundary(cut) { cut -= 1; }
-                                if let Some(boundary) = remaining[..cut].rfind('\n') { if boundary > 400 { cut = boundary; } }
-                                if command.channel_id.say(http, remaining[..cut].to_string()).await.is_err() { sent = false; break; }
-                                remaining = remaining[cut..].trim_start();
-                            }
-                            if sent { "Posted the update log.".into() } else { "I couldn't post the full update log.".into() }
+                            let embed = CreateEmbed::new()
+                                .title("MALLOW BOT  //  LATEST UPDATES")
+                                .description(update.chars().take(4000).collect::<String>())
+                                .colour(serenity::all::Colour::new(0x000000))
+                                .thumbnail("https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/embed-top.gif")
+                                .image("https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/embed-bottom.png")
+                                .footer(serenity::builder::CreateEmbedFooter::new(format!("Requested by {}", command.user.name)));
+                            if command.channel_id.send_message(http, CreateMessage::new().embed(embed)).await.is_ok() {
+                                "Posted the update log.".into()
+                            } else { "I couldn't post the update log.".into() }
                         }
                         _ => "No update log is available right now.".into()
                     }
