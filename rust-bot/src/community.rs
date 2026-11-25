@@ -12,6 +12,17 @@ use std::{fs, path::PathBuf, sync::{Arc, Mutex}, time::{Instant, SystemTime, UNI
 use tracing::warn;
 use unicode_normalization::{char::is_combining_mark, UnicodeNormalization};
 
+const EMBED_TOP: &str = "https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/embed-top.gif";
+const EMBED_BOTTOM: &str = "https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/embed-bottom.png";
+
+/// Place the animated banner in its own full-width embed, never as a thumbnail.
+pub fn branded_embeds(embed: CreateEmbed) -> Vec<CreateEmbed> {
+    vec![
+        CreateEmbed::new().image(EMBED_TOP),
+        embed.colour(serenity::all::Colour::new(0x000000)).image(EMBED_BOTTOM),
+    ]
+}
+
 #[derive(Clone)]
 pub struct CommunityStore {
     path: Arc<PathBuf>,
@@ -411,15 +422,14 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
             .title("Mallow Bot Terms of Service")
             .description(include_str!("../../TERMS_OF_SERVICE.md").chars().take(4000).collect::<String>())
             .colour(serenity::all::Colour::new(0x000000))
-            .thumbnail("https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/embed-top.gif")
-            .image("https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/embed-bottom.png")
+            .image(EMBED_BOTTOM)
             .footer(serenity::builder::CreateEmbedFooter::new(format!("Requested by {}", message.author.name)));
-        let _ = message.channel_id.send_message(&ctx.http, CreateMessage::new().embed(embed)).await;
+        let _ = message.channel_id.send_message(&ctx.http, CreateMessage::new().embeds(branded_embeds(embed))).await;
         return true;
     }
     if command == "countdown" {
         let embed = halloween::build_embed();
-        match message.channel_id.send_message(&ctx.http, CreateMessage::new().embed(embed)).await {
+        match message.channel_id.send_message(&ctx.http, CreateMessage::new().embeds(branded_embeds(embed))).await {
             Ok(posted) => {
                 if let Err(error) = halloween::set_target(guild_id, message.channel_id.get(), posted.id.get()) {
                     warn!(%error, guild_id, "Could not persist Halloween countdown");
@@ -476,7 +486,7 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
         let embed = CreateEmbed::new().title(parts[0].chars().take(256).collect::<String>())
             .description(parts[1].chars().take(4000).collect::<String>())
             .colour(serenity::all::Colour::new(color));
-        let result = target.send_message(&ctx.http, CreateMessage::new().embed(embed)).await;
+        let result = target.send_message(&ctx.http, CreateMessage::new().embeds(branded_embeds(embed))).await;
         let reply = if result.is_ok() { format!("Embed sent to <#{target}>.") } else { "I couldn't send the embed. Check my channel permissions.".into() };
         let _ = message.reply(&ctx.http, reply).await;
         return true;
@@ -493,7 +503,7 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
                 return true;
             }
         };
-        let _ = message.channel_id.send_message(&ctx.http, CreateMessage::new().embed(embed)).await;
+        let _ = message.channel_id.send_message(&ctx.http, CreateMessage::new().embeds(branded_embeds(embed))).await;
         return true;
     }
     if command == "sticky" {
@@ -623,7 +633,7 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
             },
             _ => { let _ = message.reply(&ctx.http, "I couldn't look up that video right now.").await; return true; }
         };
-        let _ = message.channel_id.send_message(&ctx.http, CreateMessage::new().embed(reply)).await;
+        let _ = message.channel_id.send_message(&ctx.http, CreateMessage::new().embeds(branded_embeds(reply))).await;
         return true;
     }
     let starting = cfg.economy_config.get("starting_money").and_then(Value::as_i64).unwrap_or(100);
@@ -859,7 +869,7 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
             .description(response.chars().take(4000).collect::<String>())
             .colour(serenity::all::Colour::new(0x8B5CF6))
             .footer(serenity::builder::CreateEmbedFooter::new(format!("Requested by {}", message.author.name)));
-        if let Err(error) = message.channel_id.send_message(&ctx.http, CreateMessage::new().embed(embed)).await {
+        if let Err(error) = message.channel_id.send_message(&ctx.http, CreateMessage::new().embeds(branded_embeds(embed))).await {
             warn!(%error, command, "Could not send public music embed");
         }
     } else if ["help", "commands", "update"].contains(&command.as_str()) {
@@ -868,10 +878,9 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
             .title(format!("MALLOW BOT  //  {title}"))
             .description(response.chars().take(4000).collect::<String>())
             .colour(serenity::all::Colour::new(0x000000))
-            .thumbnail("https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/embed-top.gif")
-            .image("https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/embed-bottom.png")
+            .image(EMBED_BOTTOM)
             .footer(serenity::builder::CreateEmbedFooter::new(format!("Requested by {}", message.author.name)));
-        if let Err(error) = message.channel_id.send_message(&ctx.http, CreateMessage::new().embed(embed)).await {
+        if let Err(error) = message.channel_id.send_message(&ctx.http, CreateMessage::new().embeds(branded_embeds(embed))).await {
             warn!(%error, command, "Could not send information embed");
         }
     } else if let Err(error) = message.reply(&ctx.http, response).await {
@@ -1074,10 +1083,9 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
                                 .title("MALLOW BOT  //  LATEST UPDATES")
                                 .description(update.chars().take(4000).collect::<String>())
                                 .colour(serenity::all::Colour::new(0x000000))
-                                .thumbnail("https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/embed-top.gif")
-                                .image("https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/embed-bottom.png")
+                                .image(EMBED_BOTTOM)
                                 .footer(serenity::builder::CreateEmbedFooter::new(format!("Requested by {}", command.user.name)));
-                            if command.channel_id.send_message(http, CreateMessage::new().embed(embed)).await.is_ok() {
+                            if command.channel_id.send_message(http, CreateMessage::new().embeds(branded_embeds(embed))).await.is_ok() {
                                 "Posted the update log.".into()
                             } else { "I couldn't post the update log.".into() }
                         }
@@ -1261,7 +1269,7 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
                     let embed = CreateEmbed::new().title(title.chars().take(256).collect::<String>())
                         .description(description.chars().take(4000).collect::<String>())
                         .colour(serenity::all::Colour::new(color.unwrap()));
-                    match target.send_message(http, CreateMessage::new().embed(embed)).await {
+                    match target.send_message(http, CreateMessage::new().embeds(branded_embeds(embed))).await {
                         Ok(_) => format!("Embed sent to <#{target}>."),
                         Err(_) => "I couldn't send the embed. Check my channel permissions.".into()
                     }
@@ -1515,7 +1523,7 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
                             .field("Realm Code", "Find the code in <#1544638277179678730>", false)
                             .field("Want to join?", "React to this announcement with 💎 if you're joining!", false)
                             .footer(serenity::builder::CreateEmbedFooter::new("BLISS SMP • Community Announcement"));
-                        match channel.send_message(http, CreateMessage::new().embed(embed)).await {
+                        match channel.send_message(http, CreateMessage::new().embeds(branded_embeds(embed))).await {
                             Ok(posted) => { let _ = channel.create_reaction(http, posted.id, ReactionType::Unicode("💎".into())).await; "Bliss SMP announcement posted.".into() }
                             Err(_) => "I couldn't publish the announcement. Check my channel permissions.".into()
                         }
@@ -1532,7 +1540,7 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
                             .field("Prize", prize, false)
                             .field("How to join", "React to this event with 🎪 to enter!", false)
                             .footer(serenity::builder::CreateEmbedFooter::new("BLISS SMP • Community Event"));
-                        match channel.send_message(http, CreateMessage::new().embed(embed)).await {
+                        match channel.send_message(http, CreateMessage::new().embeds(branded_embeds(embed))).await {
                             Ok(posted) => { let _ = channel.create_reaction(http, posted.id, ReactionType::Unicode("🎪".into())).await; "Bliss SMP event posted.".into() }
                             Err(_) => "I couldn't publish the event. Check my channel permissions.".into()
                         }
