@@ -1563,7 +1563,7 @@ pub async fn handle(http: &Http, command: &CommandInteraction, store: &Community
                     CreateButton::new("mallow:ticket:open").label("Open a ticket").style(ButtonStyle::Primary)
                 ]);
                 match command.channel_id.send_message(http, CreateMessage::new()
-                    .embed(CreateEmbed::new().title("Mallow Bot Support").description("Need help? Click below to open a private support channel with the server's support team."))
+                    .embeds(branded_embeds(CreateEmbed::new().title("Mallow Bot Support").description("Need help? Click below to open a private support channel with the server's support team.")))
                     .components(vec![open_button])).await {
                     Ok(_) => "Support ticket panel posted.".into(),
                     Err(_) => "I couldn't post the ticket panel in this channel.".into()
