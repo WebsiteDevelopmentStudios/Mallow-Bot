@@ -1049,7 +1049,6 @@ async fn main() -> Result<()> {
         .await
         .context("Could not create Discord client")?;
 
-    tasks::spawn_keepalives();
     tokio::spawn(state.music.clone().run_node());
     info!("Starting Mallow Bot Rust migration runtime");
     client.start().await.context("Discord gateway stopped")?;
