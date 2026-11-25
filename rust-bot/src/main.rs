@@ -80,7 +80,6 @@ pub(crate) fn registered_global_commands() -> Vec<CreateCommand> {
         CreateCommand::new("resume").description("Resume the paused song"),
         CreateCommand::new("skip").description("Skip the currently playing song"),
         CreateCommand::new("queue").description("Show the current music queue"),
-        CreateCommand::new("player").description("Open the Mallow music control panel"),
         CreateCommand::new("stop").description("Stop music and clear the queue"),
         CreateCommand::new("volume").description("Set the music volume").add_option(CreateCommandOption::new(CommandOptionType::Integer, "level", "Volume from 0 to 100").min_int_value(0).max_int_value(100).required(true)),
         CreateCommand::new("lyrics").description("Toggle synchronized lyrics on or off").add_option(CreateCommandOption::new(CommandOptionType::Boolean, "enabled", "Enable or disable synchronized lyrics").required(false)),
@@ -121,6 +120,19 @@ impl EventHandler for Handler {
             } else {
                 info!(guild_id = guild.id.get(), "Left a blocked server");
             }
+            return;
+        }
+
+        // Register /player at guild scope so Discord makes it available immediately.
+        // Keep it out of the global list to prevent duplicate /player entries.
+        let mut guild_commands = vec![
+            CreateCommand::new("player").description("Open the Mallow music control panel"),
+        ];
+        if guild.id.get() == 1544628300217978932 {
+            guild_commands.extend(community::bliss_commands());
+        }
+        if let Err(error) = guild.id.set_commands(&ctx.http, guild_commands).await {
+            warn!(%error, guild_id = guild.id.get(), "Could not register guild-specific Mallow commands");
         }
     }
 
@@ -774,26 +786,19 @@ async fn handle_command(http: &Http, command: &CommandInteraction, state: &BotSt
             let permitted = command.member.as_ref().and_then(|member| member.permissions).map(|permissions| permissions.administrator()).unwrap_or(false);
             if !permitted { "You need Administrator permission to refresh slash commands.".into() }
             else if let Some(guild) = command.guild_id {
-                if guild.get() != 1544628300217978932 {
-                    if let Err(error) = guild.set_commands(http, Vec::new()).await {
-                        warn!(%error, "Could not clear stale guild command registrations");
-                    }
-                }
                 match Command::set_global_commands(http, registered_global_commands()).await {
                     Ok(_) => {
-                        // Also publish the standard commands as guild commands here.
-                        // Discord exposes guild commands immediately, avoiding the
-                        // global-command propagation delay that hid /tts after /sync.
-                        // Keep standard commands global only. Registering the same
-                        // names as both global and guild commands makes Discord show
-                        // duplicate entries. Only publish Bliss-specific commands here.
+                        // /player is guild-scoped for instant availability and is
+                        // deliberately excluded from the global command list.
+                        let mut guild_commands = vec![
+                            CreateCommand::new("player").description("Open the Mallow music control panel"),
+                        ];
                         if guild.get() == 1544628300217978932 {
-                            match guild.set_commands(http, community::bliss_commands()).await {
-                                Ok(_) => "Global commands refreshed; Bliss server commands updated.".into(),
-                                Err(error) => format!("Global commands were refreshed, but Bliss server commands could not be updated: {error}"),
-                            }
-                        } else {
-                            "Global commands refreshed for this server.".into()
+                            guild_commands.extend(community::bliss_commands());
+                        }
+                        match guild.set_commands(http, guild_commands).await {
+                            Ok(_) => "Global commands refreshed; /player is now registered for this server.".into(),
+                            Err(error) => format!("Global commands were refreshed, but /player could not be registered for this server: {error}"),
                         }
                     }
                     Err(error) => format!("Could not refresh slash commands: {error}"),
