@@ -501,14 +501,14 @@ async fn handle_queue_component(http: &Http, component: &ComponentInteraction, s
         let eligible = state.discord_cache.read().await.as_ref().and_then(|cache| cache.guild(GuildId::new(guild)).map(|g| g.voice_states.iter().filter(|(_, voice)| voice.channel_id.map(|id| id.get()) == voice_channel).count())).unwrap_or(1).max(1);
         let key = format!("{guild}:{index}:{owner}");
         let store = QUEUE_VOTES.get_or_init(|| StdMutex::new(HashMap::new()));
-        let mut votes = store.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-        let ballot = votes.entry(key.clone()).or_default();
-        ballot.insert(component.user.id.get(), answer == Some("yes"));
-        let yes = ballot.values().filter(|vote| **vote).count();
-        let no = ballot.len().saturating_sub(yes);
-        let passed = yes * 2 > eligible;
-        let failed = no * 2 >= eligible;
-        drop(votes);
+        let (yes, no, passed, failed) = {
+            let mut votes = store.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+            let ballot = votes.entry(key.clone()).or_default();
+            ballot.insert(component.user.id.get(), answer == Some("yes"));
+            let yes = ballot.values().filter(|vote| **vote).count();
+            let no = ballot.len().saturating_sub(yes);
+            (yes, no, yes * 2 > eligible, no * 2 >= eligible)
+        };
         if passed || failed {
             if let Some(store) = QUEUE_VOTES.get() { store.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).remove(&key); }
             let result = if passed { state.music.remove_queued_track(guild, index).await } else { Err(anyhow::anyhow!("Vote failed")) };
