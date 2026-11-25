@@ -80,7 +80,7 @@ pub(crate) fn registered_global_commands() -> Vec<CreateCommand> {
         CreateCommand::new("resume").description("Resume the paused song"),
         CreateCommand::new("skip").description("Skip the currently playing song"),
         CreateCommand::new("queue").description("Show the current music queue"),
-        CreateCommand::new("music-manage").description("Open the Mallow music control panel"),
+        CreateCommand::new("player").description("Open the Mallow music control panel"),
         CreateCommand::new("stop").description("Stop music and clear the queue"),
         CreateCommand::new("volume").description("Set the music volume").add_option(CreateCommandOption::new(CommandOptionType::Integer, "level", "Volume from 0 to 100").min_int_value(0).max_int_value(100).required(true)),
         CreateCommand::new("lyrics").description("Toggle synchronized lyrics on or off").add_option(CreateCommandOption::new(CommandOptionType::Boolean, "enabled", "Enable or disable synchronized lyrics").required(false)),
@@ -418,7 +418,7 @@ impl EventHandler for Handler {
             Interaction::Command(command) => {
                 // Acknowledge immediately: dashboard and premium lookups plus command
                 // registration can exceed Discord's 3-second interaction deadline.
-                let music_command = ["play","join","leave","pause","resume","skip","queue","music-manage","stop","volume","lyrics","tts","chill-mode"]
+                let music_command = ["play","join","leave","pause","resume","skip","queue","player","stop","volume","lyrics","tts","chill-mode"]
                     .contains(&command.data.name.as_str());
                 if let Err(error) = command.create_response(
                     &ctx.http,
@@ -582,7 +582,7 @@ async fn apply_reaction_role(state: &BotState, ctx: &DiscordContext, reaction: &
 async fn handle_command(http: &Http, command: &CommandInteraction, state: &BotState, cfg: &config::GuildConfig, deferred: bool) {
     use serenity::builder::{CreateInteractionResponse, CreateInteractionResponseMessage, EditInteractionResponse};
     let guild = command.guild_id.map(|id| id.get());
-    let music_commands = ["play","join","leave","pause","resume","skip","queue","music-manage","stop","volume","lyrics","tts","chill-mode"];
+    let music_commands = ["play","join","leave","pause","resume","skip","queue","player","stop","volume","lyrics","tts","chill-mode"];
     let chill_mode = command.data.name == "chill-mode";
     if music_commands.contains(&command.data.name.as_str()) && !chill_mode
         && (cfg.features.get("music").and_then(serde_json::Value::as_bool) == Some(false)
@@ -667,7 +667,7 @@ async fn handle_command(http: &Http, command: &CommandInteraction, state: &BotSt
             if let Some(guild) = guild { state.music.queue_text(guild).await }
             else { "Use this command in a server.".into() }
         }
-        "music-manage" => {
+        "player" => {
             if let Some(guild) = guild { state.music.queue_text(guild).await }
             else { "Use this command in a server.".into() }
         }
@@ -800,7 +800,7 @@ async fn handle_command(http: &Http, command: &CommandInteraction, state: &BotSt
                 }
             } else { "Use this command in a server.".into() }
         },
-        "commands" => "**MUSIC**\n/play, /join, /leave, /pause, /resume, /skip, /queue, /music-manage, /volume, /lyrics, /stop, /tts, /chill-mode.\n\n**COMMUNITY**\nXP, leaderboards, Mallow Coins, daily rewards, work, pay, rob, and games.\n\n**FUN**\nVibecheck, ship, fortune, and Would You Rather.\n\n**SERVER & MODERATION**\nRules, welcome cards, autorole, reaction roles, announcements, events, tickets, purge, and utilities.\n\n**PREMIUM**\nCustom embeds, snipe, sticky messages, backups, custom commands, vanity, and Premium status.".to_string(),
+        "commands" => "**MUSIC**\n/play, /join, /leave, /pause, /resume, /skip, /queue, /player, /volume, /lyrics, /stop, /tts, /chill-mode.\n\n**COMMUNITY**\nXP, leaderboards, Mallow Coins, daily rewards, work, pay, rob, and games.\n\n**FUN**\nVibecheck, ship, fortune, and Would You Rather.\n\n**SERVER & MODERATION**\nRules, welcome cards, autorole, reaction roles, announcements, events, tickets, purge, and utilities.\n\n**PREMIUM**\nCustom embeds, snipe, sticky messages, backups, custom commands, vanity, and Premium status.".to_string(),
         "tos" => include_str!("../../TERMS_OF_SERVICE.md").chars().take(1900).collect::<String>(),
         _ => format!("The /{} command is not available.", command.data.name),
     };
@@ -814,7 +814,7 @@ async fn handle_command(http: &Http, command: &CommandInteraction, state: &BotSt
             "resume" => "PLAYBACK RESUMED",
             "skip" => "TRACK SKIPPED",
             "queue" => "UP NEXT",
-            "music-manage" => "MUSIC CONTROL PANEL",
+            "player" => "MUSIC PLAYER",
             "stop" => "PLAYBACK STOPPED",
             "volume" => "VOLUME UPDATED",
             "lyrics" => "LYRICS SETTINGS",
@@ -835,7 +835,7 @@ async fn handle_command(http: &Http, command: &CommandInteraction, state: &BotSt
                 }
             }
         }
-        else if command.data.name == "music-manage" {
+        else if command.data.name == "player" {
             use serenity::builder::CreateButton;
             components.push(serenity::builder::CreateActionRow::Buttons(vec![
                 CreateButton::new("mallow:manage:pause").label("Pause").style(serenity::all::ButtonStyle::Secondary),
