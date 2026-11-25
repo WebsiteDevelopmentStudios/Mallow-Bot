@@ -410,7 +410,10 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
         let embed = CreateEmbed::new()
             .title("Mallow Bot Terms of Service")
             .description(include_str!("../../TERMS_OF_SERVICE.md").chars().take(4000).collect::<String>())
-            .colour(serenity::all::Colour::new(0x5865F2));
+            .colour(serenity::all::Colour::new(0x000000))
+            .thumbnail("https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/embed-top.gif")
+            .image("https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/embed-bottom.png")
+            .footer(serenity::builder::CreateEmbedFooter::new(format!("Requested by {}", message.author.name)));
         let _ = message.channel_id.send_message(&ctx.http, CreateMessage::new().embed(embed)).await;
         return true;
     }
@@ -858,6 +861,18 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
             .footer(serenity::builder::CreateEmbedFooter::new(format!("Requested by {}", message.author.name)));
         if let Err(error) = message.channel_id.send_message(&ctx.http, CreateMessage::new().embed(embed)).await {
             warn!(%error, command, "Could not send public music embed");
+        }
+    } else if ["help", "commands", "update"].contains(&command.as_str()) {
+        let title = if command == "update" { "LATEST UPDATES" } else { "MALLOW BOT HELP" };
+        let embed = CreateEmbed::new()
+            .title(format!("MALLOW BOT  //  {title}"))
+            .description(response.chars().take(4000).collect::<String>())
+            .colour(serenity::all::Colour::new(0x000000))
+            .thumbnail("https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/embed-top.gif")
+            .image("https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/embed-bottom.png")
+            .footer(serenity::builder::CreateEmbedFooter::new(format!("Requested by {}", message.author.name)));
+        if let Err(error) = message.channel_id.send_message(&ctx.http, CreateMessage::new().embed(embed)).await {
+            warn!(%error, command, "Could not send information embed");
         }
     } else if let Err(error) = message.reply(&ctx.http, response).await {
         warn!(%error, command, "Could not respond to prefix command");
