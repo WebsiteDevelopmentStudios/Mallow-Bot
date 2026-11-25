@@ -460,6 +460,22 @@ impl EventHandler for Handler {
 
 async fn handle_queue_component(http: &Http, component: &ComponentInteraction, state: &BotState) {
     use serenity::builder::{CreateActionRow, CreateButton, CreateInteractionResponse, CreateInteractionResponseMessage};
+    if component.data.custom_id.starts_with("mallow:manage:") {
+        let Some(guild) = component.guild_id.map(|id| id.get()) else { return; };
+        let action = component.data.custom_id.trim_start_matches("mallow:manage:");
+        let message = match action {
+            "pause" => state.music.pause(guild, true).await.unwrap_or_else(|e| e.to_string()),
+            "resume" => state.music.pause(guild, false).await.unwrap_or_else(|e| e.to_string()),
+            "skip" => state.music.skip(guild).await.unwrap_or_else(|e| e.to_string()),
+            "volume-down" => state.music.volume(guild, 50).await.unwrap_or_else(|e| e.to_string()),
+            "volume-up" => state.music.volume(guild, 100).await.unwrap_or_else(|e| e.to_string()),
+            "lyrics" => state.music.set_lyrics(guild, None).await,
+            "chill" => state.music.toggle_chill_mode(guild).await.unwrap_or_else(|e| e.to_string()),
+            _ => "Unknown music control.".into(),
+        };
+        let _ = component.create_response(http, CreateInteractionResponse::Message(CreateInteractionResponseMessage::new().content(message).ephemeral(true))).await;
+        return;
+    }
     let parts: Vec<&str> = component.data.custom_id.split(':').collect();
     let Some(guild) = component.guild_id.map(|id| id.get()) else { return; };
     if parts.len() < 5 { return; }
@@ -815,6 +831,20 @@ async fn handle_command(http: &Http, command: &CommandInteraction, state: &BotSt
                 }).collect();
                 if !buttons.is_empty() { components.push(serenity::builder::CreateActionRow::Buttons(buttons)); }
             }
+        }
+        else if command.data.name == "music-manage" {
+            use serenity::builder::CreateButton;
+            components.push(serenity::builder::CreateActionRow::Buttons(vec![
+                CreateButton::new("mallow:manage:pause").label("Pause").style(serenity::all::ButtonStyle::Secondary),
+                CreateButton::new("mallow:manage:resume").label("Resume").style(serenity::all::ButtonStyle::Success),
+                CreateButton::new("mallow:manage:skip").label("Skip").style(serenity::all::ButtonStyle::Primary),
+                CreateButton::new("mallow:manage:lyrics").label("Lyrics").style(serenity::all::ButtonStyle::Secondary),
+                CreateButton::new("mallow:manage:chill").label("Chill Mode").style(serenity::all::ButtonStyle::Secondary),
+            ]));
+            components.push(serenity::builder::CreateActionRow::Buttons(vec![
+                CreateButton::new("mallow:manage:volume-down").label("Volume 50%").style(serenity::all::ButtonStyle::Secondary),
+                CreateButton::new("mallow:manage:volume-up").label("Volume 100%").style(serenity::all::ButtonStyle::Secondary),
+            ]));
         }
         let embed = CreateEmbed::new()
             .title(format!("MALLOW MUSIC  //  {title}"))
