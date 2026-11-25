@@ -118,14 +118,53 @@ impl MusicManager {
             headers.insert("Client-Name", HeaderValue::from_static("MallowBot-Rust/1.0"));
             match connect_async(request).await {
                 Ok((mut socket, _)) => {
-                    info!("Connected to the external Lavalink WebSocket.");
-                    while let Some(message) = socket.next().await {
-                        match message {
-                            Ok(Message::Text(text)) => self.handle_node_event(&text).await,
-                            Ok(Message::Close(_)) => break,
-                            Ok(Message::Ping(payload)) => { let _ = socket.send(Message::Pong(payload)).await; }
-                            Ok(_) => {}
-                            Err(error) => { warn!(%error, "Lavalink WebSocket disconnected"); break; }
+                    info!("Connected to the external Lavalink WebSocket; waiting for the ready event.");
+                    let mut received_ready = false;
+                    loop {
+                        match socket.next().await {
+                            Some(Ok(Message::Text(text))) => {
+                                if let Ok(event) = serde_json::from_str::<Value>(&text) {
+                                    let op = event.get("op").and_then(Value::as_str).unwrap_or("unknown");
+                                    if op == "ready" {
+                                        received_ready = true;
+                                        info!("Lavalink sent its ready event.");
+                                    } else if op == "event" {
+                                        info!(
+                                            event_type = event.get("type").and_then(Value::as_str).unwrap_or("unknown"),
+                                            "Received Lavalink player event."
+                                        );
+                                    } else {
+                                        warn!(op, "Received an unexpected Lavalink WebSocket message.");
+                                    }
+                                } else {
+                                    warn!("Received an invalid JSON message from Lavalink WebSocket.");
+                                }
+                                self.handle_node_event(&text).await;
+                            }
+                            Some(Ok(Message::Close(frame))) => {
+                                warn!(
+                                    close_frame = ?frame,
+                                    received_ready,
+                                    "Lavalink closed the WebSocket connection."
+                                );
+                                break;
+                            }
+                            Some(Ok(Message::Ping(payload))) => {
+                                if let Err(error) = socket.send(Message::Pong(payload)).await {
+                                    warn!(%error, "Could not reply to Lavalink WebSocket ping.");
+                                    break;
+                                }
+                            }
+                            Some(Ok(Message::Pong(_))) => {}
+                            Some(Ok(_)) => {}
+                            Some(Err(error)) => {
+                                warn!(%error, received_ready, "Lavalink WebSocket disconnected with an error.");
+                                break;
+                            }
+                            None => {
+                                warn!(received_ready, "Lavalink WebSocket stream ended without a close frame.");
+                                break;
+                            }
                         }
                     }
                 }
