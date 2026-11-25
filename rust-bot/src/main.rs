@@ -826,10 +826,13 @@ async fn handle_command(http: &Http, command: &CommandInteraction, state: &BotSt
         if command.data.name == "queue" {
             if let Some(guild_id) = guild {
                 let tracks = state.music.queued_tracks(guild_id).await;
-                let buttons: Vec<serenity::builder::CreateButton> = tracks.iter().take(5).enumerate().map(|(index, (_, owner))| {
-                    serenity::builder::CreateButton::new(format!("mallow:queue:remove:{index}:{owner}")).label(format!("❌ {}", index + 1)).style(serenity::all::ButtonStyle::Danger)
-                }).collect();
-                if !buttons.is_empty() { components.push(serenity::builder::CreateActionRow::Buttons(buttons)); }
+                for (page, chunk) in tracks.iter().take(25).collect::<Vec<_>>().chunks(5).enumerate() {
+                    let buttons = chunk.iter().enumerate().map(|(offset, (_, owner))| {
+                        let index = page * 5 + offset;
+                        serenity::builder::CreateButton::new(format!("mallow:queue:remove:{index}:{owner}")).label(format!("❌ {}", index + 1)).style(serenity::all::ButtonStyle::Danger)
+                    }).collect();
+                    components.push(serenity::builder::CreateActionRow::Buttons(buttons));
+                }
             }
         }
         else if command.data.name == "music-manage" {
