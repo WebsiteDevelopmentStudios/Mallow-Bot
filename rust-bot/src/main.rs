@@ -801,6 +801,16 @@ async fn handle_command(http: &Http, command: &CommandInteraction, state: &BotSt
             "chill-mode" => "CHILL MODE",
             _ => "MALLOW MUSIC",
         };
+        let mut components = Vec::new();
+        if command.data.name == "queue" {
+            if let Some(guild_id) = guild {
+                let tracks = state.music.queued_tracks(guild_id).await;
+                let buttons: Vec<serenity::builder::CreateButton> = tracks.iter().take(5).enumerate().map(|(index, (_, owner))| {
+                    serenity::builder::CreateButton::new(format!("mallow:queue:remove:{index}:{owner}")).label(format!("❌ {}", index + 1)).style(serenity::all::ButtonStyle::Danger)
+                }).collect();
+                if !buttons.is_empty() { components.push(serenity::builder::CreateActionRow::Buttons(buttons)); }
+            }
+        }
         let embed = CreateEmbed::new()
             .title(format!("MALLOW MUSIC  //  {title}"))
             .description(content.chars().take(4000).collect::<String>())
@@ -809,11 +819,11 @@ async fn handle_command(http: &Http, command: &CommandInteraction, state: &BotSt
             .image("https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/embed-bottom.png")
             .footer(serenity::builder::CreateEmbedFooter::new(format!("Requested by {}", command.user.name)));
         if deferred {
-            if let Err(err) = command.edit_response(http, EditInteractionResponse::new().embed(embed)).await {
+            if let Err(err) = command.edit_response(http, EditInteractionResponse::new().embed(embed).components(components.clone())).await {
                 warn!(%err, command = %command.data.name, "Could not edit deferred music response");
             }
         } else if let Err(err) = command.create_response(http, CreateInteractionResponse::Message(
-            CreateInteractionResponseMessage::new().embed(embed)
+            CreateInteractionResponseMessage::new().embed(embed).components(components)
         )).await {
             warn!(%err, command = %command.data.name, "Could not respond to music interaction");
         }
