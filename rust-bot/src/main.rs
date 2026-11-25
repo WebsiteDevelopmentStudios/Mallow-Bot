@@ -601,6 +601,10 @@ async fn handle_command(http: &Http, command: &CommandInteraction, state: &BotSt
             if let Some(guild) = guild { state.music.queue_text(guild).await }
             else { "Use this command in a server.".into() }
         }
+        "music-manage" => {
+            if let Some(guild) = guild { state.music.queue_text(guild).await }
+            else { "Use this command in a server.".into() }
+        }
         "volume" => {
             let level = command.data.options.iter().find_map(|o| if let serenity::all::CommandDataOptionValue::Integer(value) = &o.value { Some(*value) } else { None }).unwrap_or(100).clamp(0,100) as u16;
             if let Some(guild) = guild { match state.music.volume(guild, level).await { Ok(text) => text, Err(error) => format!("Music error: {error}") } }
