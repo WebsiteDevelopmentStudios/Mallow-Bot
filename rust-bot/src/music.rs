@@ -45,11 +45,18 @@ struct GuildPlayer {
 }
 
 #[derive(Clone)]
-pub struct MusicManager {
-    client: Client,
+struct LavalinkNode {
     base_url: String,
     websocket_url: String,
     password: String,
+    name: String,
+}
+
+#[derive(Clone)]
+pub struct MusicManager {
+    client: Client,
+    nodes: Arc<Vec<LavalinkNode>>,
+    active_node: Arc<RwLock<usize>>,
     enabled: bool,
     bot_user_id: Arc<RwLock<Option<u64>>>,
     discord_http: Arc<RwLock<Option<Arc<Http>>>>,
@@ -64,17 +71,35 @@ pub struct MusicManager {
 
 impl MusicManager {
     pub fn from_env() -> Result<Self> {
-        let raw_base = env::var("LAVALINK_URI").unwrap_or_default().trim().trim_end_matches('/').to_string();
-        let password = env::var("LAVALINK_PASSWORD").unwrap_or_default();
         let enabled = matches!(env::var("ENABLE_LAVALINK").unwrap_or_default().to_lowercase().as_str(), "1" | "true" | "yes" | "on");
-        // Hosts may provide a hostname[:port] rather than a URL; secure nodes default to HTTPS/WSS.
-        let base_url = if raw_base.is_empty() || raw_base.starts_with("http://") || raw_base.starts_with("https://") {
-            raw_base
-        } else { format!("https://{raw_base}") };
-        let websocket_url = if base_url.starts_with("https://") { base_url.replacen("https://", "wss://", 1) } else { base_url.replacen("http://", "ws://", 1) } + "/v4/websocket";
+        let mut nodes = Vec::new();
+        let configs = [
+            ("primary", "LAVALINK_URI", "LAVALINK_PASSWORD"),
+            ("backup-1", "LAVALINK_BACKUP_URI", "LAVALINK_BACKUP_PASSWORD"),
+            ("backup-2", "LAVALINK_BACKUP2_URI", "LAVALINK_BACKUP2_PASSWORD"),
+        ];
+        for (name, uri_key, password_key) in configs {
+            let raw = env::var(uri_key).unwrap_or_default().trim().trim_end_matches('/').to_string();
+            let password = env::var(password_key).unwrap_or_default();
+            if raw.is_empty() || password.is_empty() { continue; }
+            let base_url = if raw.starts_with("http://") || raw.starts_with("https://") {
+                raw
+            } else {
+                format!("https://{raw}")
+            };
+            let websocket_url = if base_url.starts_with("https://") {
+                base_url.replacen("https://", "wss://", 1)
+            } else {
+                base_url.replacen("http://", "ws://", 1)
+            } + "/v4/websocket";
+            nodes.push(LavalinkNode { base_url, websocket_url, password, name: name.to_string() });
+        }
         let client = Client::builder().connect_timeout(Duration::from_secs(5)).timeout(Duration::from_secs(15)).build().context("Could not create Lavalink HTTP client")?;
         Ok(Self {
-            client, base_url, websocket_url, password, enabled,
+            client,
+            nodes: Arc::new(nodes),
+            active_node: Arc::new(RwLock::new(0)),
+            enabled,
             bot_user_id: Arc::new(RwLock::new(None)),
             discord_http: Arc::new(RwLock::new(None)),
             node_session: Arc::new(RwLock::new(None)),
@@ -87,7 +112,25 @@ impl MusicManager {
         })
     }
 
-    pub fn enabled(&self) -> bool { self.enabled && !self.base_url.is_empty() && !self.password.is_empty() }
+    pub fn enabled(&self) -> bool { self.enabled && !self.nodes.is_empty() }
+
+    async fn current_node(&self) -> Option<LavalinkNode> {
+        let index = *self.active_node.read().await;
+        self.nodes.get(index).cloned()
+    }
+
+    async fn failover_node(&self) {
+        if self.nodes.len() <= 1 { return; }
+        let mut active = self.active_node.write().await;
+        let previous = *active;
+        *active = (*active + 1) % self.nodes.len();
+        let next = self.nodes[*active].name.clone();
+        *self.node_session.write().await = None;
+        for player in self.players.lock().await.values_mut() {
+            player.last_started = None;
+        }
+        warn!(from = %self.nodes[previous].name, to = %next, "Switching to the next Lavalink node");
+    }
 
     pub async fn set_shard(&self, shard: ShardMessenger) { *self.shard.write().await = Some(shard); }
 
@@ -109,17 +152,18 @@ impl MusicManager {
                 Some(id) => id,
                 None => { tokio::time::sleep(Duration::from_secs(2)).await; continue; }
             };
-            let mut request = match self.websocket_url.clone().into_client_request() {
+            let Some(node) = self.current_node().await else { break; };
+            let mut request = match node.websocket_url.clone().into_client_request() {
                 Ok(request) => request,
                 Err(error) => { warn!(%error, "Invalid Lavalink WebSocket URL"); tokio::time::sleep(Duration::from_secs(10)).await; continue; }
             };
             let headers = request.headers_mut();
-            headers.insert("Authorization", HeaderValue::from_str(&self.password).unwrap_or_else(|_| HeaderValue::from_static("")));
+            headers.insert("Authorization", HeaderValue::from_str(&node.password).unwrap_or_else(|_| HeaderValue::from_static("")));
             headers.insert("User-Id", HeaderValue::from_str(&user_id.to_string()).unwrap());
             headers.insert("Client-Name", HeaderValue::from_static("MallowBot-Rust/1.0"));
             match connect_async(request).await {
                 Ok((mut socket, _)) => {
-                    info!("Connected to the external Lavalink WebSocket; waiting for the ready event.");
+                    info!(node = %node.name, "Connected to Lavalink WebSocket; waiting for the ready event.");
                     let mut received_ready = false;
                     loop {
                         match socket.next().await {
@@ -174,6 +218,7 @@ impl MusicManager {
                 Err(error) => warn!(%error, "Could not connect to Lavalink WebSocket"),
             }
             *self.node_session.write().await = None;
+            self.failover_node().await;
             tokio::time::sleep(Duration::from_secs(5)).await;
         }
     }
@@ -266,7 +311,8 @@ impl MusicManager {
             };
             if stopped_chill {
                 if let Ok(url) = self.player_url(guild_id).await {
-                    let _ = self.client.patch(url).header("Authorization", &self.password)
+                    let password = self.current_node().await.map(|node| node.password).unwrap_or_default();
+                    let _ = self.client.patch(url).header("Authorization", password)
                         .json(&json!({"track":{"encoded":Value::Null},"paused":false})).send().await;
                 }
             }
@@ -304,8 +350,9 @@ impl MusicManager {
             search_term = format!("{artist} - {title}");
         }
         let identifier = if search_term.starts_with("http://") || search_term.starts_with("https://") { search_term.clone() } else { format!("ytsearch:{search_term}") };
-        let response = self.client.get(format!("{}/v4/loadtracks", self.base_url))
-            .header("Authorization", &self.password)
+        let node = self.current_node().await.ok_or_else(|| anyhow!("No Lavalink node is configured"))?;
+        let response = self.client.get(format!("{}/v4/loadtracks", node.base_url))
+            .header("Authorization", &node.password)
             .query(&[("identifier", identifier)])
             .send().await.context("Lavalink search request failed")?;
         if !response.status().is_success() { return Err(anyhow!("Lavalink returned HTTP {}", response.status())); }
@@ -407,8 +454,9 @@ impl MusicManager {
             .append_pair("client", "tw-ob")
             .append_pair("tl", "en")
             .append_pair("q", &spoken);
-        let response = self.client.get(format!("{}/v4/loadtracks", self.base_url))
-            .header("Authorization", &self.password)
+        let node = self.current_node().await.ok_or_else(|| anyhow!("No Lavalink node is configured"))?;
+        let response = self.client.get(format!("{}/v4/loadtracks", node.base_url))
+            .header("Authorization", &node.password)
             .query(&[("identifier", speech_url.as_str())])
             .send().await.context("Could not request TTS audio from Lavalink")?;
         if !response.status().is_success() {
@@ -453,7 +501,8 @@ impl MusicManager {
 
     async fn player_url(&self, guild: u64) -> Result<String> {
         let session = self.node_session.read().await.clone().ok_or_else(|| anyhow!("Lavalink is not connected yet"))?;
-        Ok(format!("{}/v4/sessions/{session}/players/{guild}", self.base_url))
+        let node = self.current_node().await.ok_or_else(|| anyhow!("No Lavalink node is configured"))?;
+        Ok(format!("{}/v4/sessions/{session}/players/{guild}", node.base_url))
     }
 
     async fn try_start(&self, guild: u64) {
@@ -499,7 +548,8 @@ impl MusicManager {
         if let Some(position) = track.start_position_ms {
             body["position"] = json!(position);
         }
-        match self.client.patch(url).header("Authorization", &self.password).json(&body).send().await {
+        let password = self.current_node().await.map(|node| node.password).unwrap_or_default();
+        match self.client.patch(url).header("Authorization", password).json(&body).send().await {
             Ok(response) if response.status().is_success() => {
                 info!(guild, title = %track.title, status = %response.status(), "Lavalink accepted the track start request");
                 let lyrics_enabled = self.players.lock().await.get(&guild).map(|p| p.lyrics_enabled).unwrap_or(false);
@@ -555,7 +605,8 @@ impl MusicManager {
         loop {
             let current = self.players.lock().await.get(&guild).map(|p| p.current.as_ref().map(|t| t.encoded == encoded).unwrap_or(false) && p.lyrics_enabled).unwrap_or(false);
             if !current { return; }
-            let position = match self.client.get(&player_url).header("Authorization", &self.password).send().await {
+            let password = self.current_node().await.map(|node| node.password).unwrap_or_default();
+            let position = match self.client.get(&player_url).header("Authorization", password).send().await {
                 Ok(response) => response.json::<Value>().await.ok().and_then(|v| v.get("state").and_then(|s| s.get("position")).and_then(Value::as_u64)).unwrap_or(0) / 1000,
                 Err(_) => 0,
             };
@@ -592,7 +643,8 @@ impl MusicManager {
         };
         if next { self.try_start(guild).await; }
         else if let Ok(url) = self.player_url(guild).await {
-            let _ = self.client.patch(url).header("Authorization", &self.password).json(&json!({"track":{"encoded":Value::Null}})).send().await;
+            let password = self.current_node().await.map(|node| node.password).unwrap_or_default();
+            let _ = self.client.patch(url).header("Authorization", password).json(&json!({"track":{"encoded":Value::Null}})).send().await;
         }
     }
 
@@ -616,7 +668,8 @@ impl MusicManager {
                 }
             }
             if let Ok(url) = self.player_url(guild).await {
-                self.client.patch(url).header("Authorization", &self.password)
+                let password = self.current_node().await.map(|node| node.password).unwrap_or_default();
+                self.client.patch(url).header("Authorization", password)
                     .json(&json!({"track":{"encoded":Value::Null},"paused":false})).send().await?;
             }
             return Ok("Chill Mode disabled. Music commands are available again.".into());
@@ -640,7 +693,8 @@ impl MusicManager {
 
     pub async fn pause(&self, guild: u64, paused: bool) -> Result<String> {
         let url = self.player_url(guild).await?;
-        self.client.patch(url).header("Authorization", &self.password).json(&json!({"paused":paused})).send().await?;
+        let password = self.current_node().await.map(|node| node.password).unwrap_or_default();
+        self.client.patch(url).header("Authorization", password).json(&json!({"paused":paused})).send().await?;
         if let Some(player) = self.players.lock().await.get_mut(&guild) { player.paused = paused; }
         Ok(if paused { "Music paused.".into() } else { "Music resumed.".into() })
     }
@@ -653,13 +707,14 @@ impl MusicManager {
 
     pub async fn stop(&self, guild: u64) -> Result<String> {
         if let Some(player) = self.players.lock().await.get_mut(&guild) { player.queue.clear(); player.current = None; player.last_started = None; }
-        if let Ok(url) = self.player_url(guild).await { let _ = self.client.patch(url).header("Authorization", &self.password).json(&json!({"track":{"encoded":Value::Null},"paused":false})).send().await; }
+        if let Ok(url) = self.player_url(guild).await { let password = self.current_node().await.map(|node| node.password).unwrap_or_default(); let _ = self.client.patch(url).header("Authorization", password).json(&json!({"track":{"encoded":Value::Null},"paused":false})).send().await; }
         Ok("Playback stopped and the queue was cleared.".into())
     }
 
     pub async fn volume(&self, guild: u64, volume: u16) -> Result<String> {
         let url = self.player_url(guild).await?;
-        self.client.patch(url).header("Authorization", &self.password).json(&json!({"volume":volume})).send().await?;
+        let password = self.current_node().await.map(|node| node.password).unwrap_or_default();
+        self.client.patch(url).header("Authorization", password).json(&json!({"volume":volume})).send().await?;
         if let Some(player) = self.players.lock().await.get_mut(&guild) { player.volume = volume; }
         Ok(format!("Music volume set to {volume}%."))
     }
