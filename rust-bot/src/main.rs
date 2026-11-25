@@ -492,8 +492,9 @@ async fn handle_queue_component(http: &Http, component: &ComponentInteraction, s
         let no = ballot.len().saturating_sub(yes);
         let passed = yes * 2 > eligible;
         let failed = no * 2 >= eligible;
+        drop(votes);
         if passed || failed {
-            votes.remove(&key); drop(votes);
+            if let Some(store) = QUEUE_VOTES.get() { store.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).remove(&key); }
             let result = if passed { state.music.remove_queued_track(guild, index).await } else { Err(anyhow::anyhow!("Vote failed")) };
             let message = match result { Ok((title, _)) => format!("Vote passed ({yes}/{eligible}). **{title}** was removed."), Err(_) => format!("Vote did not pass ({yes}/{eligible} yes). The song stays in the queue.") };
             let _ = component.create_response(http, CreateInteractionResponse::Message(CreateInteractionResponseMessage::new().content(message).ephemeral(true))).await;
