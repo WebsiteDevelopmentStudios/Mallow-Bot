@@ -670,7 +670,7 @@ pub async fn handle_prefix(ctx: &Context, message: &Message, cfg: &GuildConfig, 
                 if music.bot_voice_channel(guild_id).await != Some(channel) {
                     music.request_voice_channel(guild_id, Some(channel)).await;
                 }
-                match music.enqueue(guild_id, argument).await { Ok(text) => text, Err(error) => format!("Music error: {error}") }
+                match music.enqueue(guild_id, argument, user_id).await { Ok(text) => text, Err(error) => format!("Music error: {error}") }
             } else { "Join a voice channel first, then use -mb play <song>.".into() }
         }
         "join" => {
