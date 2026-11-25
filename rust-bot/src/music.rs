@@ -124,13 +124,13 @@ impl MusicManager {
                         match socket.next().await {
                             Some(Ok(Message::Text(text))) => {
                                 if let Ok(event) = serde_json::from_str::<Value>(&text) {
-                                    let op = event.get("op").and_then(Value::as_str).unwrap_or("unknown");
+                                    let op = event.get("op").and_then(|value| value.as_str()).unwrap_or("unknown");
                                     if op == "ready" {
                                         received_ready = true;
                                         info!("Lavalink sent its ready event.");
                                     } else if op == "event" {
                                         info!(
-                                            event_type = event.get("type").and_then(Value::as_str).unwrap_or("unknown"),
+                                            event_type = event.get("type").and_then(|value| value.as_str()).unwrap_or("unknown"),
                                             "Received Lavalink player event."
                                         );
                                     } else {
@@ -177,8 +177,8 @@ impl MusicManager {
 
     async fn handle_node_event(&self, text: &str) {
         let Ok(event) = serde_json::from_str::<Value>(text) else { return };
-        if event.get("op").and_then(Value::as_str) == Some("ready") {
-            if let Some(session) = event.get("sessionId").and_then(Value::as_str) {
+        if event.get("op").and_then(|value| value.as_str()) == Some("ready") {
+            if let Some(session) = event.get("sessionId").and_then(|value| value.as_str()) {
                 *self.node_session.write().await = Some(session.to_string());
                 info!("Lavalink session initialized.");
                 let guilds: Vec<u64> = self.players.lock().await.keys().copied().collect();
@@ -186,12 +186,12 @@ impl MusicManager {
             }
             return;
         }
-        if event.get("op").and_then(Value::as_str) != Some("event") { return; }
-        let event_type = event.get("type").and_then(Value::as_str).unwrap_or("");
-        let guild_id = event.get("guildId").and_then(Value::as_str).and_then(|value| value.parse::<u64>().ok());
+        if event.get("op").and_then(|value| value.as_str()) != Some("event") { return; }
+        let event_type = event.get("type").and_then(|value| value.as_str()).unwrap_or("");
+        let guild_id = event.get("guildId").and_then(|value| value.as_str()).and_then(|value| value.parse::<u64>().ok());
         match event_type {
             "TrackEndEvent" => {
-                let finished = event.get("reason").and_then(Value::as_str)
+                let finished = event.get("reason").and_then(|value| value.as_str())
                     .map(|reason| reason.eq_ignore_ascii_case("finished") || reason.eq_ignore_ascii_case("loadfailed"))
                     .unwrap_or(false);
                 if finished {
@@ -199,11 +199,11 @@ impl MusicManager {
                 }
             }
             "TrackExceptionEvent" | "TrackStuckEvent" => {
-                let detail = event.get("exception").and_then(|value| value.get("message")).and_then(Value::as_str)
+                let detail = event.get("exception").and_then(|value| value.get("message")).and_then(|value| value.as_str())
                     .or_else(|| event.get("thresholdMs").and_then(Value::as_u64).map(|_| "Track exceeded the configured stuck threshold."));
                 warn!(guild_id, event_type, detail = detail.unwrap_or("Lavalink playback error"), "Lavalink track failed; advancing the queue");
                 if let Some(guild) = guild_id {
-                    let encoded = event.get("track").and_then(Value::as_str);
+                    let encoded = event.get("track").and_then(|value| value.as_str());
                     let should_advance = self.players.lock().await.get(&guild)
                         .and_then(|player| player.current.as_ref())
                         .map(|track| encoded.map(|value| value == track.encoded).unwrap_or(true))
@@ -295,8 +295,8 @@ impl MusicManager {
                 .context("Spotify metadata lookup failed")?;
             if !metadata.status().is_success() { return Err(anyhow!("Spotify did not return track metadata")); }
             let data: Value = metadata.json().await.context("Spotify metadata was invalid")?;
-            let title = data.get("title").and_then(Value::as_str).unwrap_or("").trim();
-            let artist = data.get("author_name").and_then(Value::as_str).unwrap_or("Unknown Artist").trim();
+            let title = data.get("title").and_then(|value| value.as_str()).unwrap_or("").trim();
+            let artist = data.get("author_name").and_then(|value| value.as_str()).unwrap_or("Unknown Artist").trim();
             if title.is_empty() { return Err(anyhow!("Spotify track title was missing")); }
             search_term = format!("{artist} - {title}");
         }
@@ -320,19 +320,19 @@ impl MusicManager {
             Vec::new()
         };
         let tracks: Vec<Track> = tracks_value.into_iter().filter_map(|track| {
-            let encoded = track.get("encoded").and_then(Value::as_str)?;
+            let encoded = track.get("encoded").and_then(|value| value.as_str())?;
             let info = track.get("info")?;
             Some(Track {
                 encoded: encoded.to_string(),
-                title: info.get("title").and_then(Value::as_str).unwrap_or("Unknown track").to_string(),
-                artist: info.get("author").and_then(Value::as_str).unwrap_or("Unknown Artist").to_string(),
+                title: info.get("title").and_then(|value| value.as_str()).unwrap_or("Unknown track").to_string(),
+                artist: info.get("author").and_then(|value| value.as_str()).unwrap_or("Unknown Artist").to_string(),
                 is_tts: false,
                 start_position_ms: None,
             })
         }).collect();
         if tracks.is_empty() {
-            let reason = data.get("message").and_then(Value::as_str)
-                .or_else(|| data.get("exception").and_then(|v| v.get("message")).and_then(Value::as_str))
+            let reason = data.get("message").and_then(|value| value.as_str())
+                .or_else(|| data.get("exception").and_then(|v| v.get("message")).and_then(|value| value.as_str()))
                 .unwrap_or("No playable tracks were found. Make sure the YouTube link is public and supported by the Lavalink node.");
             return Err(anyhow!(reason.to_string()));
         }
@@ -410,7 +410,7 @@ impl MusicManager {
             data.as_array().and_then(|items| items.first())
                 .or_else(|| if data.is_object() { Some(data) } else { None })
         }).ok_or_else(|| anyhow!("The TTS service did not return a playable audio track"))?;
-        let encoded = track.get("encoded").and_then(Value::as_str)
+        let encoded = track.get("encoded").and_then(|value| value.as_str())
             .ok_or_else(|| anyhow!("Lavalink did not return an encoded TTS track"))?;
         let title = format!("TTS: {}", speaker.trim());
         let track = Track {
@@ -525,7 +525,7 @@ impl MusicManager {
             .send().await;
         let Ok(response) = response else { return };
         let Ok(payload) = response.json::<Value>().await else { return };
-        let Some(raw) = payload.get("syncedLyrics").and_then(Value::as_str) else { return };
+        let Some(raw) = payload.get("syncedLyrics").and_then(|value| value.as_str()) else { return };
         let mut lines: Vec<(u64, String)> = Vec::new();
         for line in raw.lines() {
             let Some(close) = line.find(']') else { continue };
