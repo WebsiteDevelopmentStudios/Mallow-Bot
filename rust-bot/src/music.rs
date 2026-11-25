@@ -18,6 +18,7 @@ struct Track {
     title: String,
     artist: String,
     is_tts: bool,
+    requester_id: u64,
     start_position_ms: Option<u64>,
 }
 
@@ -335,6 +336,7 @@ impl MusicManager {
                 title: info.get("title").and_then(|value| value.as_str()).unwrap_or("Unknown track").to_string(),
                 artist: info.get("author").and_then(|value| value.as_str()).unwrap_or("Unknown Artist").to_string(),
                 is_tts: false,
+                requester_id: 0,
                 start_position_ms: None,
             })
         }).collect();
@@ -347,8 +349,9 @@ impl MusicManager {
         Ok(tracks)
     }
 
-    pub async fn enqueue(&self, guild: u64, query: &str) -> Result<String> {
+    pub async fn enqueue(&self, guild: u64, query: &str, requester_id: u64) -> Result<String> {
         let mut tracks = self.search(query).await?;
+        for track in &mut tracks { track.requester_id = requester_id; }
         let first_title = tracks.first().map(|track| track.title.clone()).unwrap_or_else(|| "track".into());
         let total = tracks.len();
         let start = {
@@ -426,6 +429,7 @@ impl MusicManager {
             title,
             artist: "Mallow TTS".into(),
             is_tts: true,
+            requester_id: speaker_id,
             start_position_ms: None,
         };
 
@@ -674,6 +678,18 @@ impl MusicManager {
             if let Some(task) = self.lyrics_tasks.lock().await.remove(&guild) { task.abort(); }
             "Lyrics disabled.".into()
         }
+    }
+
+    pub async fn remove_queued_track(&self, guild: u64, index: usize) -> Result<(String, u64)> {
+        let mut players = self.players.lock().await;
+        let player = players.get_mut(&guild).ok_or_else(|| anyhow!("The queue is empty."))?;
+        if index >= player.queue.len() { return Err(anyhow!("That song is no longer in the queue.")); }
+        let track = player.queue.remove(index).ok_or_else(|| anyhow!("That song is no longer in the queue."))?;
+        Ok((track.title, track.requester_id))
+    }
+
+    pub async fn queued_tracks(&self, guild: u64) -> Vec<(String, u64)> {
+        self.players.lock().await.get(&guild).map(|p| p.queue.iter().map(|t| (t.title.clone(), t.requester_id)).collect()).unwrap_or_default()
     }
 
     pub async fn queue_text(&self, guild: u64) -> String {
