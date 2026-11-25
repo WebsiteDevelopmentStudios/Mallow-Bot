@@ -800,7 +800,7 @@ async fn handle_command(http: &Http, command: &CommandInteraction, state: &BotSt
                 }
             } else { "Use this command in a server.".into() }
         },
-        "commands" => "Music: /play, /join, /leave, /pause, /resume, /skip, /queue, /music-manage, /volume, /lyrics, /stop, /tts, /chill-mode.\nCommunity: /xp, /leaderboard, /balance, /daily, /work, /pay, /rob, /gamble, /coinflip, /slots, /roulette, /dice, /blackjack, /vibecheck, /ship, /fortune, /wyr.\nUtility: /ping, /uptime, /commands, /sync, /tos, /say, /update, /youtube, /purge.\nServer: /rule, /testwelcome, /autorole, /reaction-role, /announcement, /event, /ticket, /ticket-panel, /ticket-close.\nPremium: /embed, /snipe, /sticky, /backup, /custom-command, /vanity, /premium-status.".to_string(),
+        "commands" => "**MUSIC**\n/play, /join, /leave, /pause, /resume, /skip, /queue, /music-manage, /volume, /lyrics, /stop, /tts, /chill-mode.\n\n**COMMUNITY**\nXP, leaderboards, Mallow Coins, daily rewards, work, pay, rob, and games.\n\n**FUN**\nVibecheck, ship, fortune, and Would You Rather.\n\n**SERVER & MODERATION**\nRules, welcome cards, autorole, reaction roles, announcements, events, tickets, purge, and utilities.\n\n**PREMIUM**\nCustom embeds, snipe, sticky messages, backups, custom commands, vanity, and Premium status.".to_string(),
         "tos" => include_str!("../../TERMS_OF_SERVICE.md").chars().take(1900).collect::<String>(),
         _ => format!("The /{} command is not available.", command.data.name),
     };
@@ -873,7 +873,7 @@ async fn handle_command(http: &Http, command: &CommandInteraction, state: &BotSt
             .image("https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/embed-bottom.png")
             .footer(serenity::builder::CreateEmbedFooter::new(format!("Requested by {}", command.user.name)));
         if deferred {
-            if let Err(err) = command.edit_response(http, EditInteractionResponse::new().embed(embed)).await {
+            if let Err(err) = command.edit_response(http, EditInteractionResponse::new().embeds(community::branded_embeds(embed))).await {
                 warn!(%err, command = %command.data.name, "Could not edit information embed");
             }
         } else if let Err(err) = command.create_response(http, CreateInteractionResponse::Message(CreateInteractionResponseMessage::new().embeds(community::branded_embeds(embed)).ephemeral(true))).await {
