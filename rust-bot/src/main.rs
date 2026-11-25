@@ -472,18 +472,22 @@ async fn handle_queue_component(http: &Http, component: &ComponentInteraction, s
             let message = match result { Ok((title, _)) => format!("Removed **{title}** from the queue."), Err(error) => error.to_string() };
             let _ = component.create_response(http, CreateInteractionResponse::Message(CreateInteractionResponseMessage::new().content(message).ephemeral(true))).await;
         } else {
-            let yes = CreateButton::new(format!("mallow:queue:vote:{guild}:{index}:{owner}:yes")).label("Yes").style(serenity::all::ButtonStyle::Success);
-            let no = CreateButton::new(format!("mallow:queue:vote:{guild}:{index}:{owner}:no")).label("No").style(serenity::all::ButtonStyle::Danger);
+            let yes = CreateButton::new(format!("mallow:queue:vote:{index}:{owner}:yes")).label("Yes").style(serenity::all::ButtonStyle::Success);
+            let no = CreateButton::new(format!("mallow:queue:vote:{index}:{owner}:no")).label("No").style(serenity::all::ButtonStyle::Danger);
             let _ = component.create_response(http, CreateInteractionResponse::Message(CreateInteractionResponseMessage::new().content("This song was added by someone else. Should it be removed?").components(vec![CreateActionRow::Buttons(vec![yes, no])]).ephemeral(true))).await;
         }
     } else if parts[2] == "vote" {
+        let voice_channel = state.music.bot_voice_channel(guild).await;
+        if state.music.voice_channel_for_user(guild, component.user.id.get()).await != voice_channel {
+            let _ = component.create_response(http, CreateInteractionResponse::Message(CreateInteractionResponseMessage::new().content("Only people in the bot's voice channel can vote.").ephemeral(true))).await;
+            return;
+        }
+        let eligible = state.discord_cache.read().await.as_ref().and_then(|cache| cache.guild(GuildId::new(guild)).map(|g| g.voice_states.iter().filter(|(_, voice)| voice.channel_id.map(|id| id.get()) == voice_channel).count())).unwrap_or(1).max(1);
         let key = format!("{guild}:{index}:{owner}");
         let store = QUEUE_VOTES.get_or_init(|| StdMutex::new(HashMap::new()));
         let mut votes = store.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         let ballot = votes.entry(key.clone()).or_default();
         ballot.insert(component.user.id.get(), answer == Some("yes"));
-        let voice_channel = state.music.bot_voice_channel(guild).await;
-        let eligible = state.discord_cache.read().await.as_ref().and_then(|cache| cache.guild(GuildId::new(guild)).map(|g| g.voice_states.iter().filter(|(_, voice)| voice.channel_id.map(|id| id.get()) == voice_channel).count())).unwrap_or(1).max(1);
         let yes = ballot.values().filter(|vote| **vote).count();
         let no = ballot.len().saturating_sub(yes);
         let passed = yes * 2 > eligible;
