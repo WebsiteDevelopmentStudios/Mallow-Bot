@@ -72,6 +72,7 @@ pub(crate) fn registered_global_commands() -> Vec<CreateCommand> {
         CreateCommand::new("tos").description("Show Mallow Bot acceptable-use rules"),
         CreateCommand::new("testwelcome").description("Preview the welcome message in this channel"),
         CreateCommand::new("play").description("Play a song or Spotify track in your voice channel").add_option(CreateCommandOption::new(CommandOptionType::String, "song", "Song name or URL").required(true)),
+        CreateCommand::new("playlist").description("Add a YouTube playlist to the music queue").add_option(CreateCommandOption::new(CommandOptionType::String, "url", "YouTube playlist URL").required(true)),
         CreateCommand::new("join").description("Join your current voice channel"),
         CreateCommand::new("leave").description("Leave the voice channel and clear the queue"),
         CreateCommand::new("pause").description("Pause the current song"),
@@ -552,6 +553,28 @@ async fn handle_command(http: &Http, command: &CommandInteraction, state: &BotSt
                 match state.music.enqueue(guild, song).await { Ok(text) => text, Err(error) => format!("Music error: {error}") }
             }
             _ => "Join a voice channel first, then use /play.".into()
+        },
+        "playlist" => match (guild, voice_channel) {
+            (Some(guild), Some(channel)) => {
+                let url = command.data.options.iter().find_map(|o| {
+                    if o.name == "url" {
+                        if let serenity::all::CommandDataOptionValue::String(value) = &o.value { Some(value.as_str()) } else { None }
+                    } else { None }
+                }).unwrap_or("");
+                if !(url.starts_with("https://") || url.starts_with("http://")) {
+                    "Please provide a YouTube playlist URL.".into()
+                } else {
+                    // Keep the existing voice connection when already in the user's channel.
+                    if state.music.bot_voice_channel(guild).await != Some(channel) {
+                        state.music.request_voice_channel(guild, Some(channel)).await;
+                    }
+                    match state.music.enqueue(guild, url).await {
+                        Ok(text) => text,
+                        Err(error) => format!("Playlist error: {error}")
+                    }
+                }
+            }
+            _ => "Join a voice channel first, then use /playlist.".into()
         },
         "join" => match (guild, voice_channel) {
             (Some(guild), Some(channel)) => { state.music.request_voice_channel(guild, Some(channel)).await; "Joining your voice channel.".into() }
