@@ -1,43 +1,7 @@
-use reqwest::Client;
 use serenity::gateway::{ActivityData, ShardMessenger};
 use serenity::model::user::OnlineStatus;
-use std::{env, time::Duration};
+use std::time::Duration;
 use tokio::time::interval;
-use tracing::{info, warn};
-
-pub fn spawn_keepalives() {
-    // MCXboxBroadcast keep-alive is intentionally disabled until re-enabled explicitly.
-    tokio::spawn(lavalink_keepalive());
-}
-
-async fn lavalink_keepalive() {
-    let enabled = env::var("ENABLE_LAVALINK").unwrap_or_default().to_lowercase();
-    if !matches!(enabled.as_str(), "1" | "true" | "yes" | "on") {
-        info!("Lavalink is disabled by ENABLE_LAVALINK.");
-        return;
-    }
-    let raw_base = env::var("LAVALINK_URI").unwrap_or_default().trim().trim_end_matches('/').to_string();
-    let base = if raw_base.is_empty() || raw_base.starts_with("http://") || raw_base.starts_with("https://") { raw_base } else { format!("https://{raw_base}") };
-    let password = env::var("LAVALINK_PASSWORD").unwrap_or_default();
-    if base.is_empty() || password.is_empty() {
-        warn!("Lavalink is enabled but LAVALINK_URI or LAVALINK_PASSWORD is missing.");
-        return;
-    }
-    let client = match Client::builder().timeout(Duration::from_secs(10)).build() {
-        Ok(client) => client,
-        Err(error) => { warn!(%error, "Could not initialize Lavalink HTTP client"); return; }
-    };
-    let url = format!("{base}/version");
-    let mut ticker = interval(Duration::from_secs(300));
-    loop {
-        ticker.tick().await;
-        match client.get(&url).header("Authorization", &password).header("User-Agent", "Mallow-Bot/1.0").send().await {
-            Ok(response) if response.status().is_success() => info!("Lavalink keep-alive succeeded."),
-            Ok(response) => warn!(status = %response.status(), "Lavalink keep-alive returned an unsuccessful status"),
-            Err(error) => warn!(%error, "Lavalink keep-alive request failed"),
-        }
-    }
-}
 
 pub fn spawn_status_rotation(shard: ShardMessenger) {
     tokio::spawn(async move {
