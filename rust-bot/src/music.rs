@@ -133,6 +133,8 @@ impl MusicManager {
                                             event_type = event.get("type").and_then(|value| value.as_str()).unwrap_or("unknown"),
                                             "Received Lavalink player event."
                                         );
+                                    } else if op == "stats" {
+                                        // Lavalink periodically sends node statistics; this is expected.
                                     } else {
                                         warn!(op, "Received an unexpected Lavalink WebSocket message.");
                                     }
