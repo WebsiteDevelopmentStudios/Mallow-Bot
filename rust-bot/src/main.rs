@@ -865,6 +865,22 @@ async fn handle_command(http: &Http, command: &CommandInteraction, state: &BotSt
         )).await {
             warn!(%err, command = %command.data.name, "Could not respond to music interaction");
         }
+    } else if ["commands", "help", "tos", "update"].contains(&command.data.name.as_str()) {
+        let title = match command.data.name.as_str() { "tos" => "TERMS OF SERVICE", "update" => "LATEST UPDATES", _ => "MALLOW BOT HELP" };
+        let embed = CreateEmbed::new()
+            .title(format!("MALLOW BOT  //  {title}"))
+            .description(content.chars().take(4000).collect::<String>())
+            .colour(serenity::all::Colour::new(0x000000))
+            .thumbnail("https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/embed-top.gif")
+            .image("https://raw.githubusercontent.com/WebsiteDevelopmentStudios/Mallow-Bot/main/embed-bottom.png")
+            .footer(serenity::builder::CreateEmbedFooter::new(format!("Requested by {}", command.user.name)));
+        if deferred {
+            if let Err(err) = command.edit_response(http, EditInteractionResponse::new().embed(embed)).await {
+                warn!(%err, command = %command.data.name, "Could not edit information embed");
+            }
+        } else if let Err(err) = command.create_response(http, CreateInteractionResponse::Message(CreateInteractionResponseMessage::new().embed(embed).ephemeral(true))).await {
+            warn!(%err, command = %command.data.name, "Could not send information embed");
+        }
     } else if deferred {
         if let Err(err) = command.edit_response(http, EditInteractionResponse::new().content(content)).await {
             warn!(%err, command = %command.data.name, "Could not edit deferred interaction response");
