@@ -62,7 +62,7 @@ async function ensureSwearWords(env){
   await env.MALLOW_DB.prepare("CREATE TABLE IF NOT EXISTS swear_word_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)").run();
   // Versioned seed: add the multilingual defaults to existing databases without removing
   // words administrators already added or requiring a database reset.
-  const seeded=await env.MALLOW_DB.prepare("SELECT value FROM swear_word_meta WHERE key='defaults_seeded_v5'").first();
+  const seeded=await env.MALLOW_DB.prepare("SELECT value FROM swear_word_meta WHERE key='defaults_seeded_v4'").first();
   if(!seeded){
     const defaults = [
       // English
@@ -128,10 +128,10 @@ async function ensureSwearWords(env){
       if(!word)continue;
       await env.MALLOW_DB.prepare("INSERT INTO swear_words(word,added_by,added_at) VALUES(?,?,?) ON CONFLICT(word) DO NOTHING").bind(word,"system",now).run();
     }
-    await env.MALLOW_DB.prepare("INSERT INTO swear_word_meta(key,value) VALUES('defaults_seeded_v5','1') ON CONFLICT(key) DO UPDATE SET value='1'").run();
+    await env.MALLOW_DB.prepare("INSERT INTO swear_word_meta(key,value) VALUES('defaults_seeded_v4','1') ON CONFLICT(key) DO UPDATE SET value='1'").run();
   }
   // GOT is explicitly excluded, including from databases seeded by older versions.
-  await env.MALLOW_DB.prepare("DELETE FROM swear_words WHERE word='got'").run();
+  await env.MALLOW_DB.prepare("DELETE FROM swear_words WHERE lower(word)='got'").run();
 
 }
 
