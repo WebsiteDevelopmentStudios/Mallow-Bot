@@ -109,7 +109,7 @@ impl DashboardClient {
                 "hell", "ass", "bloody", "crikey", "screw you", "screwed", "screwing",
                 "sucks", "sucker", "moron", "idiot", "pube", "satan", "con", "cons",
                 "fan", "pic", "aq", "ode", "mavi", "babi", "salak", "git", "cul",
-                "cu", "bok", "sik", "krl", "pqp", "amk", "got",
+                "cu", "bok", "sik", "krl", "pqp", "amk",
             ];
             let remote_words: Vec<String> = words.iter()
                 .filter_map(|v| v.as_str())
