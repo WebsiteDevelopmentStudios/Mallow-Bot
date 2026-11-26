@@ -3,7 +3,7 @@ use reqwest::{Client, StatusCode};
 use serde::Deserialize;
 use std::{collections::HashMap, env, sync::Arc, time::{Duration, Instant}};
 use tokio::sync::RwLock;
-use tracing::{debug, info, warn};
+use tracing::{info, warn};
 
 use crate::config::GuildConfig;
 
