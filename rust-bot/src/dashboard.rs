@@ -3,7 +3,7 @@ use reqwest::{Client, StatusCode};
 use serde::Deserialize;
 use std::{collections::HashMap, env, sync::Arc, time::{Duration, Instant}};
 use tokio::sync::RwLock;
-use tracing::debug;
+use tracing::{debug, info, warn};
 
 use crate::config::GuildConfig;
 
@@ -51,7 +51,10 @@ impl DashboardClient {
         if self.failure_until.read().await.get(&key).map(|until| *until > Instant::now()).unwrap_or(false) {
             return self.cached_or_default(&key).await;
         }
-        if self.secret.is_empty() { return default_config(); }
+        if self.secret.is_empty() {
+            warn!("MALLOW_DASHBOARD_CONFIG_SECRET is empty; developer portal settings cannot reach the Rust bot");
+            return default_config();
+        }
         let response = self.http.get(&self.url)
             .query(&[("guild_id", key.as_str())])
             .bearer_auth(&self.secret)
@@ -59,12 +62,12 @@ impl DashboardClient {
         let response = match response {
             Ok(response) if response.status() == StatusCode::OK => response,
             Ok(response) => {
-                debug!(guild_id, status = %response.status(), "Dashboard runtime config request failed; using cached or default settings");
+                warn!(guild_id, status = %response.status(), "Dashboard runtime config request failed; developer portal settings may not be applied");
                 self.failure_until.write().await.insert(key.clone(), Instant::now() + Duration::from_secs(60));
                 return self.cached_or_default(&key).await;
             }
             Err(error) => {
-                debug!(guild_id, %error, "Dashboard runtime config request failed; using cached or default settings");
+                warn!(guild_id, %error, "Dashboard runtime config request failed; developer portal settings may not be applied");
                 self.failure_until.write().await.insert(key.clone(), Instant::now() + Duration::from_secs(60));
                 return self.cached_or_default(&key).await;
             }
@@ -72,7 +75,7 @@ impl DashboardClient {
         let payload = match response.json::<RuntimeResponse>().await {
             Ok(payload) => payload,
             Err(error) => {
-                debug!(guild_id, %error, "Dashboard returned invalid runtime config; using cached or default settings");
+                warn!(guild_id, %error, "Dashboard returned invalid runtime config; developer portal settings may not be applied");
                 self.failure_until.write().await.insert(key.clone(), Instant::now() + Duration::from_secs(60));
                 return self.cached_or_default(&key).await;
             }
@@ -114,7 +117,8 @@ impl DashboardClient {
                 .filter(|word| !AMBIGUOUS.iter().any(|bad| word.trim().eq_ignore_ascii_case(bad)))
                 .take(1000)
                 .collect();
-            if !remote_words.is_empty() { config.swear_words = remote_words; }
+            config.swear_words = remote_words;
+            info!(guild_id, word_count = config.swear_words.len(), "Loaded swear-word list from developer portal");
         }
         self.failure_until.write().await.remove(&key);
         self.cache.write().await.insert(key, (Instant::now(), config.clone()));
