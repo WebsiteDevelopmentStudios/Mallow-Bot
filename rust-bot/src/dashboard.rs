@@ -106,7 +106,7 @@ impl DashboardClient {
             // Older saved dashboard lists may contain everyday words that
             // create false positives. Filter these even when loaded remotely.
             const AMBIGUOUS: &[&str] = &[
-                "hell", "ass", "bloody", "crikey", "screw you", "screwed", "screwing",
+                "got", "hell", "ass", "bloody", "crikey", "screw you", "screwed", "screwing",
                 "sucks", "sucker", "moron", "idiot", "pube", "satan", "con", "cons",
                 "fan", "pic", "aq", "ode", "mavi", "babi", "salak", "git", "cul",
                 "cu", "bok", "sik", "krl", "pqp", "amk",
