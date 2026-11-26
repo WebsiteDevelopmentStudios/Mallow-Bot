@@ -73,6 +73,7 @@ pub(crate) fn registered_global_commands() -> Vec<CreateCommand> {
         CreateCommand::new("tos").description("Show Mallow Bot acceptable-use rules"),
         CreateCommand::new("testwelcome").description("Preview the welcome message in this channel"),
         CreateCommand::new("play").description("Play a song or Spotify track in your voice channel").add_option(CreateCommandOption::new(CommandOptionType::String, "song", "Song name or URL").required(true)),
+        CreateCommand::new("random").description("Build a 10-song mix based on the music you choose"),
         CreateCommand::new("playlist").description("Add a YouTube playlist to the music queue").add_option(CreateCommandOption::new(CommandOptionType::String, "url", "YouTube playlist URL").required(true)),
         CreateCommand::new("join").description("Join your current voice channel"),
         CreateCommand::new("leave").description("Leave the voice channel and clear the queue"),
@@ -620,6 +621,18 @@ async fn handle_command(http: &Http, command: &CommandInteraction, state: &BotSt
             if let Some(guild) = guild {
                 match state.music.toggle_chill_mode(guild).await { Ok(text) => text, Err(error) => format!("Chill Mode error: {error}") }
             } else { "Use this command in a server.".into() }
+        },
+        "random" => match (guild, voice_channel) {
+            (Some(guild), Some(channel)) => {
+                if state.music.bot_voice_channel(guild).await != Some(channel) {
+                    state.music.request_voice_channel(guild, Some(channel)).await;
+                }
+                match state.music.random_queue(guild, command.user.id.get()).await {
+                    Ok(text) => text,
+                    Err(error) => format!("Random mix: {error}")
+                }
+            }
+            _ => "Join a voice channel first, then use /random.".into()
         },
         "play" => match (guild, voice_channel) {
             (Some(guild), Some(channel)) => {
