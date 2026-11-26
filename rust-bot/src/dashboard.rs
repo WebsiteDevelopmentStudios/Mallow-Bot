@@ -35,8 +35,8 @@ impl DashboardClient {
             .unwrap_or_else(|_| "https://mallowbot.kz.ci/api/runtime-config".into());
         let secret = env::var("MALLOW_DASHBOARD_CONFIG_SECRET").unwrap_or_default();
         let http = Client::builder()
-            .connect_timeout(Duration::from_millis(800))
-            .timeout(Duration::from_millis(1400))
+            .connect_timeout(Duration::from_secs(5))
+            .timeout(Duration::from_secs(10))
             .pool_idle_timeout(Duration::from_secs(90))
             .build()
             .context("Could not build dashboard HTTP client")?;
