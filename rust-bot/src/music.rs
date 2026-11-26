@@ -67,6 +67,7 @@ pub struct MusicManager {
     shard: Arc<RwLock<Option<ShardMessenger>>>,
     players: Arc<Mutex<HashMap<u64, GuildPlayer>>>,
     lyrics_tasks: Arc<Mutex<HashMap<u64, tokio::task::JoinHandle<()>>>>,
+    taste: Arc<Mutex<HashMap<u64, VecDeque<String>>>>,
 }
 
 impl MusicManager {
@@ -109,6 +110,7 @@ impl MusicManager {
             shard: Arc::new(RwLock::new(None)),
             players: Arc::new(Mutex::new(HashMap::new())),
             lyrics_tasks: Arc::new(Mutex::new(HashMap::new())),
+            taste: Arc::new(Mutex::new(HashMap::new())),
         })
     }
 
@@ -399,6 +401,17 @@ impl MusicManager {
     pub async fn enqueue(&self, guild: u64, query: &str, requester_id: u64) -> Result<String> {
         let mut tracks = self.search(query).await?;
         for track in &mut tracks { track.requester_id = requester_id; }
+        {
+            let mut taste = self.taste.lock().await;
+            let artists = taste.entry(requester_id).or_default();
+            for track in &tracks {
+                let artist = track.artist.trim();
+                if !artist.is_empty() && !artists.iter().any(|saved| saved.eq_ignore_ascii_case(artist)) {
+                    artists.push_back(artist.to_string());
+                }
+            }
+            while artists.len() > 20 { artists.pop_front(); }
+        }
         let first_title = tracks.first().map(|track| track.title.clone()).unwrap_or_else(|| "track".into());
         let total = tracks.len();
         let start = {
@@ -425,6 +438,55 @@ impl MusicManager {
             let position = self.players.lock().await.get(&guild).map(|p| p.queue.len()).unwrap_or(0);
             Ok(format!("Added **{first_title}** to the queue at position {position}."))
         }
+    }
+
+    pub async fn random_queue(&self, guild: u64, user_id: u64) -> Result<String> {
+        let artists: Vec<String> = self.taste.lock().await.get(&user_id)
+            .map(|items| items.iter().cloned().collect()).unwrap_or_default();
+        if artists.is_empty() {
+            return Err(anyhow!("I don't know your music taste yet. Play a few songs with /play, then try /random again."));
+        }
+        let mut seeds = artists;
+        seeds.reverse();
+        let mut picks: Vec<Track> = Vec::new();
+        let variants = ["similar artists", "songs like", "related music"];
+        for index in 0..30 {
+            if picks.len() >= 10 { break; }
+            let artist = &seeds[index % seeds.len()];
+            let query = format!("{} {}", variants[index % variants.len()], artist);
+            if let Ok(mut found) = self.search(&query).await {
+                if let Some(mut track) = found.drain(..).next() {
+                    let duplicate = picks.iter().any(|picked| picked.title.eq_ignore_ascii_case(&track.title)
+                        || picked.encoded == track.encoded);
+                    if !duplicate {
+                        track.requester_id = user_id;
+                        picks.push(track);
+                    }
+                }
+            }
+        }
+        if picks.is_empty() {
+            return Err(anyhow!("I couldn't find recommendations from your listening history. Try again later."));
+        }
+        let count = picks.len();
+        let titles: Vec<String> = picks.iter().map(|track| track.title.clone()).collect();
+        let start = {
+            let mut players = self.players.lock().await;
+            let player = players.entry(guild).or_insert_with(|| GuildPlayer { volume: 100, ..Default::default() });
+            let mut iter = picks.into_iter();
+            let should_start = if player.current.is_none() {
+                player.current = iter.next();
+                player.last_started = None;
+                player.current.is_some()
+            } else { false };
+            player.queue.extend(iter);
+            should_start
+        };
+        if start { self.try_start(guild).await; }
+        let listing = titles.iter().enumerate()
+            .map(|(i, title)| format!("\x60{:02}.\x60 **{}**", i + 1, title))
+            .collect::<Vec<_>>().join("\n");
+        Ok(format!("**Your personalized mix** — added {count} recommendations:\n{listing}"))
     }
 
     pub async fn bot_voice_channel(&self, guild: u64) -> Option<u64> {
