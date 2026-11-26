@@ -62,6 +62,9 @@ async function ensureSwearWords(env){
   await env.MALLOW_DB.prepare("CREATE TABLE IF NOT EXISTS swear_word_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)").run();
   // Versioned seed: add the multilingual defaults to existing databases without removing
   // words administrators already added or requiring a database reset.
+  // GOT is explicitly excluded from the counter. Clean up legacy rows as well as
+  // preventing new additions, so old database contents cannot re-enable it.
+  await env.MALLOW_DB.prepare("DELETE FROM swear_words WHERE lower(word)='got'").run();
   const seeded=await env.MALLOW_DB.prepare("SELECT value FROM swear_word_meta WHERE key='defaults_seeded_v4'").first();
   if(!seeded){
     const defaults = [
@@ -157,6 +160,10 @@ async function route(request, env) {
   if(!/^\d{17,20}$/.test(guildId))return json({error:"Invalid server ID."},400);
   await ensureGuildSettings(env);
   const row=await env.MALLOW_DB.prepare("SELECT prefix,greeting,greetings,mention_only,disabled_commands,features,economy_config,xp_config,messages_config,tickets_config FROM guild_settings WHERE guild_id=?").bind(guildId).first();
+  // Owner-wide settings are the live defaults; server-specific settings override them.
+  // Previously this endpoint ignored the global settings table entirely, so changes
+  // made in the developer panel were saved but never reached the Rust bot.
+  const globalSettings=await settings(env);
   let disabled=[];try{disabled=JSON.parse(row?.disabled_commands||"[]");if(!Array.isArray(disabled))disabled=[]}catch{}
   const parse=(v,fallback)=>{try{return {...fallback,...JSON.parse(v||"{}")}}catch{return fallback}};
   const features=parse(row?.features,{economy:true,xp:true,moderation:true,music:true,fun:true,utility:true,social:true,swear_counter:true});
@@ -170,7 +177,7 @@ async function route(request, env) {
   const swearRows=await env.MALLOW_DB.prepare("SELECT word FROM swear_words ORDER BY word COLLATE NOCASE").all();
   const adjustmentRows=await env.MALLOW_DB.prepare("SELECT user_id,delta FROM swear_count_adjustments WHERE guild_id=?").bind(guildId).all();
   const swearCountAdjustments=Object.fromEntries((adjustmentRows.results||[]).map(r=>[r.user_id,Number(r.delta)||0]));
-  return json({guild_id:guildId,settings:{swear_count_adjustments:swearCountAdjustments,prefix:row?.prefix||defaults.prefix,greeting:row?.greeting||defaults.greeting,greetings:row?!!row.greetings:true,mention_only:row?!!row.mention_only:true,disabled_commands:disabled,features,economy_config:economy,xp_config:xp,messages_config:messages,tickets_config:tickets,swear_words:(swearRows.results||[]).map(r=>r.word)}});
+  return json({guild_id:guildId,settings:{swear_count_adjustments:swearCountAdjustments,prefix:row?.prefix||globalSettings.prefix,greeting:row?.greeting||globalSettings.greeting,greetings:row?!!row.greetings:globalSettings.greetings,mention_only:row?!!row.mention_only:globalSettings.mention_only,disabled_commands:disabled,features,economy_config:economy,xp_config:xp,messages_config:messages,tickets_config:tickets,swear_words:(swearRows.results||[]).map(r=>r.word).filter(word=>String(word).toLocaleLowerCase()!=="got")}});
  }
 
  if(path==="guild-resources"&&request.method==="GET"){
